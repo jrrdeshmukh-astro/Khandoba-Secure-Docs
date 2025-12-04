@@ -158,7 +158,7 @@ struct StoreView: View {
                                 action: {
                                     Task {
                                         do {
-                                            try await subscriptionService.purchase(product)
+                                            _ = try await subscriptionService.purchase(product)
                                         } catch {
                                             errorMessage = error.localizedDescription
                                             showError = true

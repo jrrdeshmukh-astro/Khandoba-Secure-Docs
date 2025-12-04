@@ -473,7 +473,7 @@ final class IntelReportService: ObservableObject {
     /// OPTIMIZED: Generate audio file from report text using text-to-speech
     private func generateVoiceReportAudio(from text: String) async throws -> URL {
         // OPTIMIZATION: Limit text length to prevent hanging on long reports
-        let limitedText = String(text.prefix(2000)) // Max ~2 minutes of speech
+        let _ = String(text.prefix(2000)) // Max ~2 minutes of speech (for future use)
         
         return try await withCheckedThrowingContinuation { continuation in
             // Create temp file URL

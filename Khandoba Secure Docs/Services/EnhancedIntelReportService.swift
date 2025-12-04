@@ -371,7 +371,7 @@ final class EnhancedIntelReportService: ObservableObject {
             narrative += "## Audio Intelligence\n\n"
             narrative += "\(transcriptions.count) audio documents transcribed and analyzed.\n\n"
             
-            for (docID, transcription) in transcriptions.prefix(3) {
+            for (_, transcription) in transcriptions.prefix(3) {
                 let summary = generateSummary(from: transcription)
                 narrative += "**Audio Summary:** \(summary)\n\n"
             }
