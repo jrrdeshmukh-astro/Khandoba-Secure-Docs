@@ -58,7 +58,7 @@ final class VoiceMemoService: NSObject, ObservableObject {
         // Configure audio session for recording and playback
         print("🔧 Configuring audio session...")
         let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+        try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothA2DP])
         try audioSession.setActive(true)
         print("✅ Audio session configured")
         print("")
@@ -127,7 +127,7 @@ final class VoiceMemoService: NSObject, ObservableObject {
                             print("🎤 ═══════════════════════════════════")
                             print("")
                             await MainActor.run {
-                                self?.currentOutputURL = outputURL
+                                self.currentOutputURL = outputURL
                             }
                             continuation.resume(returning: outputURL)
                         } else {
