@@ -20,6 +20,7 @@ final class IntelReportService: ObservableObject {
     
     private var modelContext: ModelContext?
     private let voiceMemoService = VoiceMemoService()
+    private let storyGenerator = StoryNarrativeGenerator()
     private var vaultService: VaultService?
     
     nonisolated init() {}
@@ -28,6 +29,7 @@ final class IntelReportService: ObservableObject {
         self.modelContext = modelContext
         self.vaultService = vaultService
         voiceMemoService.configure(modelContext: modelContext)
+        storyGenerator.configure(modelContext: modelContext)
     }
     
     /// Generate an intel report comparing source vs sink documents
@@ -96,8 +98,8 @@ final class IntelReportService: ObservableObject {
                 return
             }
             
-            // Generate full narrative text for voice memo
-            let voiceText = buildVoiceNarrative(from: report)
+            // Generate full narrative text for voice memo (with story if media available)
+            let voiceText = await buildVoiceNarrative(from: report)
             
             // Generate audio file from text
             let audioURL = try await voiceMemoService.generateVoiceMemo(
@@ -124,13 +126,31 @@ final class IntelReportService: ObservableObject {
     }
     
     /// Build voice-optimized narrative from report
-    private func buildVoiceNarrative(from report: IntelReport) -> String {
+    /// NOW WITH STORY-BASED NARRATIVE from media analysis!
+    private func buildVoiceNarrative(from report: IntelReport) async -> String {
         var text = ""
         
         text += "Intelligence Report for \(Date().formatted(date: .long, time: .omitted)).\n\n"
-        text += report.narrative
-        text += "\n\nKey Insights:\n"
         
+        // Check if we have media documents to create story narrative
+        let allDocuments = await getAllDocuments()
+        let mediaDocuments = allDocuments.filter {
+            $0.documentType == "image" || $0.documentType == "video" || $0.documentType == "audio"
+        }
+        
+        if mediaDocuments.count >= 3 {
+            // Generate story-based narrative from media
+            print("   🎬 Generating story narrative from \(mediaDocuments.count) media files...")
+            let storyNarrative = await storyGenerator.generateStoryNarrative(from: mediaDocuments)
+            text += storyNarrative
+            text += "\n\n"
+        } else {
+            // Fallback to standard narrative
+            text += report.narrative
+            text += "\n\n"
+        }
+        
+        text += "Key Insights:\n"
         for (index, insight) in report.insights.enumerated() {
             text += "\(index + 1). \(insight)\n"
         }
@@ -138,6 +158,17 @@ final class IntelReportService: ObservableObject {
         text += "\nEnd of report."
         
         return text
+    }
+    
+    /// Get all documents from all vaults
+    private func getAllDocuments() async -> [Document] {
+        guard let vaultService = vaultService else { return [] }
+        
+        var allDocs: [Document] = []
+        for vault in vaultService.vaults {
+            allDocs.append(contentsOf: vault.documents ?? [])
+        }
+        return allDocs
     }
     
     /// Find Intel Vault or return first vault as fallback
