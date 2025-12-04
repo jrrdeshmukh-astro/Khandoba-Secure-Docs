@@ -12,6 +12,9 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     
+    // Use @AppStorage to observe permissions changes
+    @AppStorage("permissions_setup_complete") private var permissionsComplete = false
+    
     var body: some View {
         Group {
             if authService.isLoading {
@@ -45,8 +48,7 @@ struct ContentView: View {
     private var needsPermissionsSetup: Bool {
         guard authService.isAuthenticated else { return false }
         
-        // Check if permissions have been set up
-        let permissionsComplete = UserDefaults.standard.bool(forKey: "permissions_setup_complete")
+        // Use @AppStorage property to observe changes
         return !permissionsComplete
     }
     
