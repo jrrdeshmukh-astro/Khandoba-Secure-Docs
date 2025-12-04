@@ -107,19 +107,21 @@ final class DocumentIndexingService: ObservableObject {
     // MARK: - Text Extraction
     
     private func extractText(from document: Document) async -> String {
-        // In production, would use PDFKit, Vision OCR, etc.
-        // For now, use document description + title
-        var text = document.title + " "
-        if let desc = document.documentDescription {
-            text += desc
+        // Use PDFTextExtractor for comprehensive text extraction
+        let extractedText = await PDFTextExtractor.extractText(from: document)
+        
+        // Combine with metadata for better analysis
+        var fullText = extractedText
+        
+        if !fullText.contains(document.title) {
+            fullText = document.title + "\n" + fullText
         }
         
-        // TODO: Add real text extraction for PDFs, images, etc.
-        // - PDF: Use PDFKit
-        // - Images: Use Vision OCR
-        // - Office docs: Use third-party libraries
+        if let desc = document.documentDescription, !fullText.contains(desc) {
+            fullText += "\n" + desc
+        }
         
-        return text
+        return fullText
     }
     
     // MARK: - Language Detection

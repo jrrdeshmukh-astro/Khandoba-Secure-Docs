@@ -98,13 +98,27 @@ final class NomineeService: ObservableObject {
     }
     
     private func sendInvitation(to nominee: Nominee) async {
-        // In production, this would:
-        // 1. Generate invitation link
-        // 2. Send via Messages app using MessageUI
-        // 3. Include vault name and inviter info
-        // 4. Track delivery status
+        // Generate invitation details
+        let invitationMessage = """
+        You've been invited to co-manage a vault in Khandoba Secure Docs!
         
-        print("Invitation sent to: \(nominee.name)")
+        Vault: \(nominee.vault?.name ?? "Unknown")
+        Invited by: Vault Owner
+        Role: Dual-key approval required
+        
+        Download Khandoba Secure Docs from the App Store to accept.
+        """
+        
+        // In a production app with MessageUI:
+        // - Use MFMessageComposeViewController to send SMS/iMessage
+        // - Include deep link to app
+        // - Track delivery status
+        
+        // For now, copy to clipboard for manual sharing
+        UIPasteboard.general.string = invitationMessage
+        
+        print("✅ Invitation generated for: \(nominee.name)")
+        print("   Message copied to clipboard for sharing")
     }
 }
 

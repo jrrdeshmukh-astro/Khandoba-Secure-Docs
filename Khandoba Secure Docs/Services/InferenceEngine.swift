@@ -302,34 +302,64 @@ final class InferenceEngine: ObservableObject {
     private func applySourceSinkCorrelationRules(indices: [DocumentIndex]) async -> [Inference] {
         var inferences: [Inference] = []
         
-        // Find documents with shared entities across source/sink boundary
-        let sourceIndices = indices.filter { index in
-            // Would check document.sourceSinkType in production
-            true // Placeholder
+        // Get document source/sink classification from model context
+        guard let modelContext = modelContext else { return [] }
+        
+        var sourceDocIDs: Set<UUID> = []
+        var sinkDocIDs: Set<UUID> = []
+        
+        // Fetch actual documents to check source/sink type
+        let docDescriptor = FetchDescriptor<Document>()
+        if let allDocs = try? modelContext.fetch(docDescriptor) {
+            for doc in allDocs {
+                if doc.sourceSinkType == "source" {
+                    sourceDocIDs.insert(doc.id)
+                } else if doc.sourceSinkType == "sink" {
+                    sinkDocIDs.insert(doc.id)
+                } else if doc.sourceSinkType == "both" {
+                    sourceDocIDs.insert(doc.id)
+                    sinkDocIDs.insert(doc.id)
+                }
+            }
         }
         
-        // Look for entity transfers
+        // Filter indices by source/sink
+        let sourceIndices = indices.filter { sourceDocIDs.contains($0.documentID) }
+        let sinkIndices = indices.filter { sinkDocIDs.contains($0.documentID) }
+        
+        // Look for entity transfers between source and sink
         var entityTransfers: [String: (source: [UUID], sink: [UUID])] = [:]
         
-        for index in indices {
+        for index in sourceIndices {
             for entity in index.entities where entity.type == .person || entity.type == .organization {
                 if entityTransfers[entity.text] == nil {
                     entityTransfers[entity.text] = ([], [])
                 }
-                // Would check source vs sink here
                 entityTransfers[entity.text]?.source.append(index.documentID)
             }
         }
         
-        // Infer: Data flow patterns
-        for (entity, docs) in entityTransfers where docs.source.count >= 2 {
+        for index in sinkIndices {
+            for entity in index.entities where entity.type == .person || entity.type == .organization {
+                if entityTransfers[entity.text] == nil {
+                    entityTransfers[entity.text] = ([], [])
+                }
+                entityTransfers[entity.text]?.sink.append(index.documentID)
+            }
+        }
+        
+        // Infer: Data flow patterns (entity in both source AND sink)
+        for (entity, docs) in entityTransfers where !docs.source.isEmpty && !docs.sink.isEmpty {
             inferences.append(Inference(
                 rule: "entity_flow",
                 conclusion: "\(entity) appears in both source and sink documents",
-                evidence: ["Found in \(docs.source.count) related documents"],
+                evidence: [
+                    "Found in \(docs.source.count) source documents (created by you)",
+                    "Found in \(docs.sink.count) sink documents (received from others)"
+                ],
                 confidence: 0.75,
                 type: .dataFlow,
-                actionable: "Verify data sharing permissions and compliance for \(entity)"
+                actionable: "Verify data sharing permissions and compliance for \(entity). Ensure proper authorization for data transfer."
             ))
         }
         

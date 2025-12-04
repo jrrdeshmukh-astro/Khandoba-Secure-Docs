@@ -2,57 +2,61 @@
 //  SubscriptionService.swift
 //  Khandoba Secure Docs
 //
-//  Premium Subscription Management
+//  Created by Jai Deshmukh on 12/4/25.
 //
 
 import Foundation
 import StoreKit
 import SwiftData
-import Combine
-import UIKit
 
 @MainActor
 final class SubscriptionService: ObservableObject {
-    @Published var isSubscribed = false
-    @Published var subscriptionStatus: Product.SubscriptionInfo.Status?
-    @Published var availableSubscriptions: [Product] = []
+    @Published var products: [Product] = []
+    @Published var purchasedProductIDs: Set<String> = []
+    @Published var subscriptionStatus: SubscriptionStatus = .unknown
     @Published var isLoading = false
     
-    private let productID = "com.khandoba.premium.monthly"
+    private var modelContext: ModelContext?
     private var updateListenerTask: Task<Void, Error>?
+    
+    private let productIDs = [
+        "com.khandoba.premium.monthly",
+        "com.khandoba.premium.yearly"
+    ]
     
     init() {
         updateListenerTask = listenForTransactions()
-        
-        Task {
-            await loadProducts()
-            await updateSubscriptionStatus()
-        }
     }
     
     deinit {
         updateListenerTask?.cancel()
     }
     
-    // Load subscription products
+    func configure(modelContext: ModelContext) {
+        self.modelContext = modelContext
+    }
+    
+    // MARK: - Load Products
+    
     func loadProducts() async {
         isLoading = true
         defer { isLoading = false }
         
         do {
-            let products = try await Product.products(for: [productID])
-            availableSubscriptions = products
+            products = try await Product.products(for: productIDs)
+            print("✅ Loaded \(products.count) subscription products")
+            
+            for product in products {
+                print("   - \(product.displayName): \(product.displayPrice)")
+            }
         } catch {
-            print("Failed to load products: \(error)")
+            print("❌ Failed to load products: \(error)")
         }
     }
     
-    // Purchase subscription
-    func purchase() async throws {
-        guard let product = availableSubscriptions.first else {
-            throw SubscriptionError.productNotFound
-        }
-        
+    // MARK: - Purchase
+    
+    func purchase(_ product: Product) async throws -> PurchaseResult {
         isLoading = true
         defer { isLoading = false }
         
@@ -60,86 +64,111 @@ final class SubscriptionService: ObservableObject {
         
         switch result {
         case .success(let verification):
-            // We are already on the main actor here
             let transaction = try checkVerified(verification)
+            
+            // Update user subscription status
+            await updateSubscriptionStatus(transaction: transaction)
+            
+            // Finish transaction
             await transaction.finish()
-            await updateSubscriptionStatus()
+            
+            return .success
             
         case .userCancelled:
-            throw SubscriptionError.userCancelled
+            return .cancelled
             
         case .pending:
-            throw SubscriptionError.pending
+            return .pending
             
         @unknown default:
-            throw SubscriptionError.unknown
+            return .failed
         }
     }
     
-    // Restore purchases
-    func restore() async throws {
+    // MARK: - Restore Purchases
+    
+    func restorePurchases() async throws {
         isLoading = true
         defer { isLoading = false }
         
         try await AppStore.sync()
-        await updateSubscriptionStatus()
+        
+        await updatePurchasedProducts()
     }
     
-    // Update subscription status
-    func updateSubscriptionStatus() async {
-        guard let product = availableSubscriptions.first else { return }
-        guard let statuses = try? await product.subscription?.status else {
-            isSubscribed = false
+    // MARK: - Check Subscription Status
+    
+    func updatePurchasedProducts() async {
+        var purchasedIDs: Set<String> = []
+        
+        for await result in Transaction.currentEntitlements {
+            guard case .verified(let transaction) = result else {
+                continue
+            }
+            
+            if transaction.revocationDate == nil {
+                purchasedIDs.insert(transaction.productID)
+                
+                // Update subscription status in database
+                await updateSubscriptionStatus(transaction: transaction)
+            }
+        }
+        
+        self.purchasedProductIDs = purchasedIDs
+        
+        // Update overall status
+        if purchasedIDs.isEmpty {
+            subscriptionStatus = .notSubscribed
+        } else {
+            subscriptionStatus = .active
+        }
+    }
+    
+    // MARK: - Transaction Listener
+    
+    private func listenForTransactions() -> Task<Void, Error> {
+        return Task.detached {
+            for await result in Transaction.updates {
+                guard case .verified(let transaction) = result else {
+                    continue
+                }
+                
+                await self.updateSubscriptionStatus(transaction: transaction)
+                await transaction.finish()
+            }
+        }
+    }
+    
+    // MARK: - Update User Subscription
+    
+    private func updateSubscriptionStatus(transaction: Transaction) async {
+        guard let modelContext = modelContext else { return }
+        
+        // Fetch current user
+        let userDescriptor = FetchDescriptor<User>()
+        guard let users = try? modelContext.fetch(userDescriptor),
+              let currentUser = users.first else {
             return
         }
         
-        for status in statuses {
-            switch status.state {
-            case .subscribed, .inGracePeriod:
-                isSubscribed = true
-                subscriptionStatus = status
-                return
-                
-            case .expired, .revoked:
-                isSubscribed = false
-                
-            case .inBillingRetryPeriod:
-                isSubscribed = true
-                
-            default:
-                isSubscribed = false
-            }
-        }
-    }
-    
-    // Listen for transaction updates
-    private func listenForTransactions() -> Task<Void, Error>? {
-        if #available(iOS 15.0, *) {
-            return Task.detached { [weak self] in
-                guard let self else { return }
-                for await result in StoreKit.Transaction.updates {
-                    do {
-                        // Verification can be done off the main actor safely if desired.
-                        // However, since checkVerified is main-actor isolated, hop to main actor to use it.
-                        let transaction = try await MainActor.run {
-                            try self.checkVerified(result)
-                        }
-                        await transaction.finish()
-                        // Hop back to main actor for state updates
-                        await MainActor.run {
-                            Task { await self.updateSubscriptionStatus() }
-                        }
-                    } catch {
-                        print("Transaction failed verification: \(error)")
-                    }
-                }
-            }
+        // Update user subscription status
+        currentUser.isPremiumSubscriber = true
+        
+        // Calculate expiry date
+        if let expirationDate = transaction.expirationDate {
+            currentUser.subscriptionExpiryDate = expirationDate
         } else {
-            return nil
+            // No expiry = lifetime or non-renewing
+            currentUser.subscriptionExpiryDate = Date.distantFuture
         }
+        
+        try? modelContext.save()
+        
+        print("✅ Subscription updated: \(transaction.productID)")
     }
     
-    // Verify transaction (main-actor isolated as part of the service)
+    // MARK: - Verification
+    
     private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
         switch result {
         case .unverified:
@@ -149,38 +178,56 @@ final class SubscriptionService: ObservableObject {
         }
     }
     
-    // Manage subscriptions (opens system sheet)
-    func manageSubscriptions() async {
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-            do {
-                try await AppStore.showManageSubscriptions(in: windowScene)
-            } catch {
-                print("Failed to show manage subscriptions: \(error)")
+    // MARK: - Subscription Info
+    
+    func getActiveSubscription() async -> Product? {
+        for await result in Transaction.currentEntitlements {
+            guard case .verified(let transaction) = result else {
+                continue
+            }
+            
+            if transaction.revocationDate == nil {
+                return products.first { $0.id == transaction.productID }
             }
         }
+        
+        return nil
     }
+}
+
+// MARK: - Models
+
+enum SubscriptionStatus {
+    case unknown
+    case notSubscribed
+    case active
+    case expired
+    case inGracePeriod
+}
+
+enum PurchaseResult {
+    case success
+    case cancelled
+    case pending
+    case failed
 }
 
 enum SubscriptionError: LocalizedError {
-    case productNotFound
-    case userCancelled
-    case pending
     case failedVerification
-    case unknown
+    case productNotFound
+    case purchaseFailed
+    case userCancelled
     
     var errorDescription: String? {
         switch self {
+        case .failedVerification:
+            return "Failed to verify purchase with App Store"
         case .productNotFound:
             return "Subscription product not found"
+        case .purchaseFailed:
+            return "Purchase failed. Please try again."
         case .userCancelled:
-            return "Purchase cancelled"
-        case .pending:
-            return "Purchase is pending"
-        case .failedVerification:
-            return "Transaction verification failed"
-        case .unknown:
-            return "Unknown error occurred"
+            return "Purchase was cancelled"
         }
     }
 }
-

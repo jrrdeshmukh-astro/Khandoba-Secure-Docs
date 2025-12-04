@@ -13,6 +13,7 @@ struct SubscriptionRequiredView: View {
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var authService: AuthenticationService
     @StateObject private var abService = ABTestingService.shared
+    @StateObject private var subscriptionService = SubscriptionService()
     
     @State private var selectedPlan: SubscriptionPlan = .monthly
     @State private var isPurchasing = false

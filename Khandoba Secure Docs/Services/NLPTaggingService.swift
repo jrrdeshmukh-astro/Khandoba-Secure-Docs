@@ -158,8 +158,8 @@ class NLPTaggingService {
     }
     
     private static func extractTextFromPDF(_ data: Data) -> String? {
-        // Placeholder - In production, use PDFKit
-        return nil
+        // Use PDFTextExtractor service
+        return PDFTextExtractor.extractFromPDF(data: data)
     }
     
     // MARK: - NLP Analysis
