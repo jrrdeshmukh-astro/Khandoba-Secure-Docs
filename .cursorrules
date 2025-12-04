@@ -1,0 +1,378 @@
+# Khandoba Secure Docs - AI Assistant Context
+
+## 🎯 PROJECT OVERVIEW
+
+**App:** Khandoba Secure Docs v1.0 (Build 15)  
+**Platform:** iOS 17.0+  
+**Language:** Swift 5.9+ with SwiftUI  
+**Status:** Production-ready, zero build errors
+
+**Purpose:** Enterprise-grade secure document management with AI-powered intelligence, ML-based threat monitoring, and voice memo Intel Reports.
+
+---
+
+## 📚 MASTER DOCUMENTATION
+
+**START HERE:** `📚_MASTER_DOCUMENTATION_INDEX_📚.md` (Complete index of 58 docs)
+
+### Essential Guides (Always check these first):
+- **Quick Start:** `docs/QUICK_START_GUIDE.md` (30-min overview)
+- **Architecture:** `COMPLETE_SYSTEM_ARCHITECTURE.md` (Full system design)
+- **Rebuild:** `docs/STEP_BY_STEP_REBUILD_GUIDE.md` (Build from scratch)
+- **Doc Map:** `docs/DOCUMENTATION_MAP.md` (All docs cataloged)
+- **Business:** `🎯_EXECUTIVE_OVERVIEW_🎯.md` (Industry use cases)
+
+### Implementation Guides:
+- **Auth:** `APPLE_SIGNIN_DATA_GUIDE.md`, `AUTHENTICATION_DESIGN_RATIONALE.md`, `NAME_CAPTURE_ON_FIRST_LOGIN.md`
+- **AI/ML:** `FORMAL_LOGIC_REASONING_GUIDE.md`, `ML_INTELLIGENCE_SYSTEM_GUIDE.md`, `ML_THREAT_ANALYSIS_GUIDE.md`
+- **Security:** `ML_AUTO_APPROVAL_GUIDE.md`
+- **Intelligence:** `KHANDOBA_THREAT_INTELLIGENCE_NARRATIVE.md`, `IMPLEMENTATION_GUIDE_VOICE_INTEL.md`
+- **Media:** `🎊_VOICE_MEMOS_FIXED_🎊.md`, `📹_VIDEO_PREVIEW_FIXED_📹.md`
+- **Intel Reports:** `🎤_INTEL_REPORTS_COMPLETE_🎤.md`, `🎉_VOICE_MEMOS_NOW_WORK_🎉.md`
+- **Premium:** `SUBSCRIPTION_ACTIONABLE_INSIGHTS_GUIDE.md`
+
+### Deployment:
+- **Upload:** `TRANSPORTER_UPLOAD_GUIDE.md`, `START_HERE_TRANSPORTER.md`
+- **Subscriptions:** `CREATE_SUBSCRIPTIONS_MANUAL.md`, `SUBSCRIPTION_SETUP_GUIDE.md`
+- **Launch:** `APP_STORE_LAUNCH_CHECKLIST.md`
+
+### Current Issues:
+- **Critical Bug:** `🐛_CRITICAL_BUG_FIXED_🐛.md` (Subscription logic - FIXED)
+- **Voice Memos:** `🎤_AUDIO_GENERATION_FIXED_🎤.md` (Audio capture - IMPLEMENTED)
+- **Debugging:** `🔍_VOICE_MEMO_DEBUG_🔍.md`, `WARNINGS_SUMMARY.md`
+
+---
+
+## 🏗️ PROJECT STRUCTURE
+
+```
+Khandoba Secure Docs/
+├── Models/ (12 SwiftData models)
+│   ├── User.swift, UserRole.swift
+│   ├── Vault.swift, VaultSession.swift, VaultAccessLog.swift
+│   ├── Document.swift, DocumentVersion.swift
+│   ├── Nominee.swift, EmergencyAccessRequest.swift, DualKeyRequest.swift
+│   └── ChatMessage.swift
+│
+├── Services/ (26 production services)
+│   ├── Core: AuthenticationService, EncryptionService, VaultService, DocumentService
+│   ├── AI/ML: DocumentIndexingService, FormalLogicEngine, InferenceEngine, MLThreatAnalysisService, NLPTaggingService, TranscriptionService, PDFTextExtractor
+│   ├── Intelligence: IntelReportService, EnhancedIntelReportService, VoiceMemoService
+│   ├── Security: ThreatMonitoringService, LocationService, DualKeyApprovalService
+│   └── Business: SubscriptionService, NomineeService, ChatService, ABTestingService, etc.
+│
+├── Views/ (60+ SwiftUI views)
+│   ├── Authentication/ - Welcome, AccountSetup, RoleSelection
+│   ├── Client/ - ClientMainView, ClientDashboardView
+│   ├── Admin/ - AdminMainView, approvals, analytics
+│   ├── Vaults/ - List, Detail, Create, Session management
+│   ├── Documents/ - Upload, Preview, Search, Filter, Bulk ops
+│   ├── Intelligence/ - IntelReportView, VoiceMemoPlayerView
+│   ├── Security/ - ThreatMonitor, AccessMap
+│   ├── Media/ - VideoRecording, VoiceRecording
+│   └── Store/ - StoreView, SubscriptionRequired
+│
+├── Theme/ - UnifiedTheme.swift, AnimationStyles.swift
+├── Config/ - AppConfig.swift, APNsConfig.swift
+└── docs/ - 34 structured documentation files
+```
+
+---
+
+## 🔑 KEY CONCEPTS
+
+### Architecture Patterns:
+- **MVVM** with Service-Oriented Architecture
+- **SwiftData** for persistence (not Core Data)
+- **Combine** for reactive state (@Published properties)
+- **@MainActor** for services with UI updates
+
+### Data Models:
+- All models use `@Model` macro (SwiftData)
+- Relationships use `@Relationship(deleteRule:, inverse:)`
+- User ←→ Vault ←→ Document hierarchy
+
+### Theme System:
+- **UnifiedTheme** for all styling
+- **Role-based colors** (Client: Blue/Purple, Admin: Orange/Red)
+- Access via: `@Environment(\.unifiedTheme) var theme`
+
+### Vault Types:
+- **Single-key:** Password protected
+- **Dual-key:** Requires two approvals (ML auto-approval)
+- **System vault:** Read-only for users (Intel Reports)
+
+### Document Classification:
+- **Source:** Created by user (photos, recordings)
+- **Sink:** Received from others (uploads)
+- **Both:** Can be both types
+
+### AI Systems:
+- **7 Formal Logic Systems:** Deductive, Inductive, Abductive, Analogical, Statistical, Temporal, Modal
+- **ML Threat Analysis:** Access patterns, geographic anomalies, deletion patterns
+- **Intel Reports:** Cross-document analysis with voice memo narration
+- **NLP Auto-tagging:** Automatic document categorization
+
+---
+
+## ⚠️ CRITICAL FIXES & PATTERNS
+
+### Common Issues (ALWAYS CHECK FIRST):
+
+1. **Missing Combine Import:**
+   - Services with `@Published` need `import Combine`
+   - Views with `@StateObject` need `import Combine`
+
+2. **Document Properties:**
+   - Use `document.name` NOT `document.title`
+   - Use `document.encryptedFileData` NOT `document.encryptedData`
+   - Use `document.aiTags` NOT `document.tags`
+
+3. **Subscription Properties:**
+   - Use `subscriptionStatus == .active` NOT `isSubscribed`
+   - Use `products` NOT `availableSubscriptions`
+
+4. **Naming Conflicts:**
+   - Use `LogicalObservation` NOT `Observation` (SwiftData conflict)
+
+5. **Entity Types (NaturalLanguage):**
+   - Use `.location` NOT `.placeName`
+   - Add `.date` case
+   - Include `@unknown default`
+
+6. **Audio Buffers:**
+   - Cast: `buffer as? AVAudioPCMBuffer` (required)
+   - Check `frameLength > 0`
+
+7. **Main Actor:**
+   - Services are `@MainActor`
+   - Use `await MainActor.run { }` for cross-actor calls
+
+### Critical Bugs FIXED:
+- ✅ Subscription logic (line 78 ContentView.swift) - was inverted
+- ✅ Voice memo placeholder (IntelReportService) - replaced with real TTS
+- ✅ Video preview (VideoRecordingView) - live preview now works
+- ✅ Intel Vault protection (isSystemVault flag) - read-only enforced
+
+---
+
+## 🎤 VOICE MEMO & INTEL REPORTS
+
+### Current Implementation:
+- **Approach:** Record system audio while AVSpeechSynthesizer speaks
+- **Format:** M4A (MPEG4-AAC)
+- **Issue:** Previous placeholder created 7-byte empty files
+- **Fix:** Now uses VoiceMemoService with real TTS capture
+- **Validation:** File must be >10KB to be considered successful
+
+### Intel Reports Flow:
+1. IntelReportService.generateIntelReport() - analyzes documents
+2. generateAndSaveVoiceMemo() - creates audio
+3. VoiceMemoService.generateVoiceMemo() - TTS synthesis
+4. Save to Intel Vault (system vault, read-only)
+5. User plays voice memo with full narration
+
+### Debugging:
+- Check console logs for detailed output
+- Look for: "✅ SUCCESS: Voice memo generated with audio content"
+- File size should be >20KB for ~40 second narration
+- Duration should show correctly (not 0:00)
+
+---
+
+## 🎬 STORY-BASED NARRATIVES (New Feature)
+
+### Frameworks Available:
+- **Vision:** Image/video analysis (scene detection, OCR, faces)
+- **Speech:** Audio transcription (SFSpeechRecognizer)
+- **NaturalLanguage:** Text analysis, entity extraction
+
+### Story Structure References:
+- **Three-Act Structure:** Setup → Conflict → Resolution
+- **Hero's Journey:** 12-stage narrative arc
+- **Cinematic Techniques:** Describe visuals, build suspense, create character arcs
+
+### Implementation Needed:
+1. Create `StoryNarrativeGenerator.swift`
+2. Analyze media content (photos, videos, audio)
+3. Extract story elements (characters, settings, events, conflicts)
+4. Build chronological timeline
+5. Apply narrative structure
+6. Generate cinematic narrative
+7. Integrate with Intel Reports
+
+---
+
+## 🚀 BUILD & DEPLOY
+
+### Build Commands:
+```bash
+# Validate configuration
+./scripts/validate_for_transporter.sh
+
+# Build production IPA
+./scripts/prepare_for_transporter.sh
+
+# Result: ./build/Final_IPA/Khandoba Secure Docs.ipa
+```
+
+### Deployment Steps:
+1. Create subscriptions in App Store Connect
+2. Build IPA
+3. Upload via Transporter.app
+4. Submit for review
+
+### Git:
+```bash
+# Push to GitHub
+./PUSH_TO_GITHUB.sh YOUR_USERNAME
+```
+
+---
+
+## 📋 CODE CONVENTIONS
+
+### Service Pattern:
+```swift
+@MainActor
+final class MyService: ObservableObject {
+    @Published var state: StateType
+    private var modelContext: ModelContext?
+    
+    nonisolated init() {}
+    
+    func configure(modelContext: ModelContext) {
+        self.modelContext = modelContext
+    }
+}
+```
+
+### View Pattern:
+```swift
+struct MyView: View {
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var myService: MyService
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        // Use colors, theme.typography, UnifiedTheme.Spacing
+    }
+}
+```
+
+### Error Handling:
+```swift
+enum MyError: LocalizedError {
+    case specificError
+    
+    var errorDescription: String? {
+        switch self {
+        case .specificError:
+            return "User-friendly message"
+        }
+    }
+}
+```
+
+---
+
+## 🎯 AI BEHAVIOR GUIDELINES
+
+### When Helping with Code:
+1. ✅ Check relevant documentation guides FIRST
+2. ✅ Follow existing architectural patterns
+3. ✅ Use UnifiedTheme (never local colors)
+4. ✅ Maintain SwiftData relationship patterns
+5. ✅ Follow formal logic principles for AI features
+6. ✅ Preserve security architecture
+7. ✅ Add comprehensive error handling
+8. ✅ Include logging for debugging
+
+### When Suggesting Changes:
+1. Reference which documentation guide supports the change
+2. Show how it fits existing architecture
+3. Maintain consistency with current patterns
+4. Consider security implications
+5. Think about user experience
+
+### For Media/Narrative Features:
+1. Reference Vision/Speech framework docs
+2. Apply story structure principles (Three-Act, Hero's Journey)
+3. Create engaging, cinematic language
+4. Extract meaningful insights from media content
+5. Build chronological narratives
+
+---
+
+## 📊 PROJECT STATISTICS
+
+- **Swift Files:** 96
+- **Lines of Code:** ~50,000
+- **Services:** 26
+- **Views:** 60+
+- **Models:** 12
+- **Features:** 90+
+- **Documentation:** 58 essential files
+- **Build Errors:** 0
+- **Git Commits:** 32
+- **Status:** Production-ready
+
+---
+
+## 🔐 SECURITY NOTES
+
+- All sensitive data uses CryptoKit encryption (AES-256)
+- Zero-knowledge architecture (server can't decrypt)
+- API keys in `.gitignore` (never commit AuthKey_*.p8)
+- Face ID/Touch ID for vault access
+- Dual-key approval for sensitive vaults
+- Complete audit trail (VaultAccessLog)
+
+---
+
+## 💡 QUICK PROBLEM SOLVING
+
+**If build fails:** Check for missing `import Combine` in services
+**If property error:** Verify using correct property names (name not title, etc.)
+**If voice memo empty:** Check VoiceMemoService logging, verify audio capture
+**If subscription blocks:** Check needsSubscription logic in ContentView
+**If deprecated warning:** Check WARNINGS_SUMMARY.md for guidance
+
+---
+
+## 🎓 LEARNING RESOURCES
+
+**Apple Frameworks:**
+- Vision: developer.apple.com/documentation/vision
+- Speech: developer.apple.com/documentation/speech
+- SwiftData: developer.apple.com/documentation/swiftdata
+- StoreKit: developer.apple.com/documentation/storekit
+
+**Story Structure:**
+- Three-Act Structure: en.wikipedia.org/wiki/Three-act_structure
+- Hero's Journey: en.wikipedia.org/wiki/Hero%27s_journey
+- Save the Cat blog posts
+- Pixar's 22 Rules of Storytelling
+
+---
+
+## 🚀 CURRENT FOCUS
+
+**Active Work:**
+- Voice memo audio generation (record-while-speaking approach)
+- Intel Reports story-based narratives
+- Media content analysis (Vision + Speech)
+
+**Next Up:**
+- Test voice memo generation on device
+- Implement StoryNarrativeGenerator
+- Push to GitHub
+- Deploy to App Store
+
+---
+
+**Last Updated:** December 2024  
+**Rebuild Capable:** Yes (via documentation)  
+**Production Status:** Ready for App Store submission
+
