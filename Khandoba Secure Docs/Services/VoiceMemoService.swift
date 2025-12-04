@@ -35,98 +35,126 @@ final class VoiceMemoService: NSObject, ObservableObject {
     }
     
     /// Generate voice memo from text using text-to-speech
+    /// ROBUST APPROACH: Record system audio while synthesizer speaks
     func generateVoiceMemo(from text: String, title: String) async throws -> URL {
         isGenerating = true
         defer { isGenerating = false }
         
-        print("🎤 Starting voice memo generation")
-        print("📝 Text to synthesize: \(text.count) characters")
-        print("   First 100 chars: \(String(text.prefix(100)))")
+        print("🎤 ═══════════════════════════════════")
+        print("🎤 VOICE MEMO GENERATION START")
+        print("🎤 ═══════════════════════════════════")
+        print("📝 Text length: \(text.count) characters")
+        print("📝 Preview: \(String(text.prefix(150)))")
+        print("")
         
-        // For iOS 17, use direct speech synthesis to file
-        // This is more reliable than trying to capture buffers
-        
+        // Create output file
         let tempDir = FileManager.default.temporaryDirectory
-        let outputURL = tempDir.appendingPathComponent("\(UUID().uuidString)_voice_memo.m4a")
+        let outputURL = tempDir.appendingPathComponent("voice_memo_\(UUID().uuidString).m4a")
         
-        print("📁 Output URL: \(outputURL.path)")
+        print("📁 Output file: \(outputURL.lastPathComponent)")
+        print("📁 Full path: \(outputURL.path)")
+        print("")
         
-        // Use AVAudioEngine approach for reliable audio capture
-        return try await withCheckedThrowingContinuation { [weak self] continuation in
-            guard let self = self else {
-                continuation.resume(throwing: VoiceMemoError.generationFailed)
-                return
-            }
+        // Configure audio session for recording and playback
+        print("🔧 Configuring audio session...")
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+        try audioSession.setActive(true)
+        print("✅ Audio session configured")
+        print("")
+        
+        // Create audio recorder with settings
+        print("🎙️ Creating audio recorder...")
+        let settings: [String: Any] = [
+            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+            AVSampleRateKey: 44100.0,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+            AVEncoderBitRateKey: 128000
+        ]
+        
+        let recorder = try AVAudioRecorder(url: outputURL, settings: settings)
+        recorder.prepareToRecord()
+        recorder.record()
+        print("✅ Recorder started")
+        print("")
+        
+        // Create utterance for synthesis
+        print("🗣️ Creating speech utterance...")
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        utterance.rate = 0.50  // Natural speed
+        utterance.pitchMultiplier = 1.0
+        utterance.volume = 1.0
+        print("✅ Utterance created")
+        print("   Language: en-US")
+        print("   Rate: 0.50")
+        print("   Estimated duration: ~\(text.count / 150) seconds")
+        print("")
+        
+        // Use async/await to wait for speech completion
+        return try await withCheckedThrowingContinuation { continuation in
+            // Track if we've already resumed
+            var hasResumed = false
             
-            // Create utterance
-            let utterance = AVSpeechUtterance(string: text)
-            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-            utterance.rate = 0.50
-            utterance.pitchMultiplier = 1.0
-            utterance.volume = 1.0
+            // Set up speech delegate
+            speechSynthesizer.delegate = self
             
-            // Set delegate to track completion
-            self.speechSynthesizer.delegate = self
-            
-            // Store continuation for delegate callback
-            self.speechCompletionHandler = { success in
-                if success {
-                    print("✅ Speech synthesis completed successfully")
-                    self.currentOutputURL = outputURL
-                    continuation.resume(returning: outputURL)
-                } else {
-                    print("❌ Speech synthesis failed")
-                    continuation.resume(throwing: VoiceMemoError.synthesisError)
-                }
-            }
-            
-            // IMPORTANT: Use write method that actually captures audio
-            print("🎤 Starting speech synthesis...")
-            
-            // iOS 17+ approach: Write to output file directly
-            let audioFile = try? AVAudioFile(
-                forWriting: outputURL,
-                settings: [
-                    AVFormatIDKey: kAudioFormatMPEG4AAC,
-                    AVSampleRateKey: 44100.0,
-                    AVNumberOfChannelsKey: 1,
-                    AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
-                ]
-            )
-            
-            var totalFrames: AVAudioFrameCount = 0
-            
-            self.speechSynthesizer.write(utterance) { buffer in
-                guard let pcmBuffer = buffer as? AVAudioPCMBuffer, 
-                      pcmBuffer.frameLength > 0,
-                      let file = audioFile else {
-                    // Completion
-                    print("📊 Total frames written: \(totalFrames)")
-                    if totalFrames > 0 {
-                        print("✅ Audio file created with content")
-                        self.speechCompletionHandler?(true)
-                    } else {
-                        print("⚠️ No audio frames written")
-                        self.speechCompletionHandler?(false)
-                    }
-                    return
-                }
+            // Store completion handler
+            speechCompletionHandler = { [weak recorder] in
+                guard !hasResumed else { return }
+                hasResumed = true
                 
-                // Write buffer to file
-                do {
-                    try file.write(from: pcmBuffer)
-                    totalFrames += pcmBuffer.frameLength
-                    print("   📝 Wrote buffer: \(pcmBuffer.frameLength) frames (total: \(totalFrames))")
-                } catch {
-                    print("❌ Error writing buffer: \(error)")
-                    self.speechCompletionHandler?(false)
+                print("")
+                print("🛑 Speech completed - stopping recorder...")
+                recorder?.stop()
+                
+                // Small delay to ensure final audio is captured
+                Task {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    
+                    // Check file size
+                    do {
+                        let attributes = try FileManager.default.attributesOfItem(atPath: outputURL.path)
+                        let fileSize = attributes[.size] as? UInt64 ?? 0
+                        
+                        print("📊 Final audio file:")
+                        print("   Size: \(fileSize) bytes")
+                        print("   Path: \(outputURL.lastPathComponent)")
+                        
+                        if fileSize > 10000 {  // At least 10KB = has audio content
+                            print("✅ SUCCESS: Voice memo generated with audio content")
+                            print("🎤 ═══════════════════════════════════")
+                            print("")
+                            await MainActor.run {
+                                self?.currentOutputURL = outputURL
+                            }
+                            continuation.resume(returning: outputURL)
+                        } else {
+                            print("❌ FAILURE: Audio file too small (\(fileSize) bytes)")
+                            print("   Expected: >10,000 bytes")
+                            print("   This indicates no audio was captured")
+                            print("🎤 ═══════════════════════════════════")
+                            print("")
+                            continuation.resume(throwing: VoiceMemoError.generationFailed)
+                        }
+                    } catch {
+                        print("❌ Error checking file: \(error)")
+                        continuation.resume(throwing: VoiceMemoError.generationFailed)
+                    }
                 }
             }
+            
+            // Start speaking
+            print("🗣️ Starting speech synthesis...")
+            print("   This will capture system audio while speaking")
+            print("")
+            speechSynthesizer.speak(utterance)
         }
     }
     
     // MARK: - Completion Handler
-    private var speechCompletionHandler: ((Bool) -> Void)?
+    private var speechCompletionHandler: (() -> Void)?
     
     /// Play voice memo
     func playVoiceMemo(url: URL) async throws {
@@ -551,7 +579,8 @@ enum InsightPriority: String {
 extension VoiceMemoService: AVSpeechSynthesizerDelegate {
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor in
-            print("✅ Speech synthesis finished")
+            print("🎙️ Speech synthesis finished - calling completion handler")
+            speechCompletionHandler?()
         }
     }
     
