@@ -32,10 +32,25 @@ struct VideoRecordingView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Camera Preview
-                CameraPreviewView(camera: camera)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black)
+                // Camera Preview - Shows LIVE feed immediately
+                ZStack {
+                    Color.black
+                    
+                    if camera.hasPermission && camera.preview != nil {
+                        CameraPreviewView(camera: camera)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        VStack(spacing: 16) {
+                            Image(systemName: "video.slash")
+                                .font(.system(size: 60))
+                                .foregroundColor(.white.opacity(0.5))
+                            Text(camera.hasPermission ? "Loading camera..." : "Camera access required")
+                                .font(theme.typography.body)
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
                 // Controls
                 VStack(spacing: UnifiedTheme.Spacing.lg) {
@@ -324,35 +339,39 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
 
 // MARK: - Camera Preview
 struct CameraPreviewView: UIViewRepresentable {
-    let camera: CameraViewModel
+    @ObservedObject var camera: CameraViewModel
     
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
+    func makeUIView(context: Context) -> PreviewContainerView {
+        let view = PreviewContainerView()
         view.backgroundColor = .black
-        
-        // Add preview layer when camera is set up
-        DispatchQueue.main.async {
-            if let preview = camera.preview {
-                // Remove any existing sublayers
-                view.layer.sublayers?.removeAll()
-                preview.frame = view.bounds
-                view.layer.addSublayer(preview)
-            }
-        }
-        
         return view
     }
     
-    func updateUIView(_ uiView: UIView, context: Context) {
-        DispatchQueue.main.async {
-            if let preview = camera.preview {
-                // Ensure preview layer is added
-                if preview.superlayer != uiView.layer {
-                    uiView.layer.sublayers?.removeAll()
-                    uiView.layer.addSublayer(preview)
-                }
-                // Update frame
+    func updateUIView(_ uiView: PreviewContainerView, context: Context) {
+        // Update preview layer immediately when available
+        if let preview = camera.preview {
+            if preview.superlayer != uiView.layer {
+                // Remove old layers
+                uiView.layer.sublayers?.forEach { $0.removeFromSuperlayer() }
+                // Add preview layer
+                uiView.layer.insertSublayer(preview, at: 0)
+            }
+            // Always update frame to match view bounds
+            DispatchQueue.main.async {
                 preview.frame = uiView.bounds
+            }
+        }
+    }
+}
+
+// Custom UIView for camera preview
+class PreviewContainerView: UIView {
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // Update preview layer frame when view layout changes
+        layer.sublayers?.forEach { sublayer in
+            if sublayer is AVCaptureVideoPreviewLayer {
+                sublayer.frame = bounds
             }
         }
     }
@@ -366,19 +385,42 @@ struct VideoPreviewView: View {
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @StateObject private var playerViewModel = VideoPlayerViewModel()
+    @State private var isPlaying = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         
         VStack(spacing: 0) {
-            // Video Player (simplified - would use AVPlayer in production)
-            Rectangle()
-                .fill(Color.black)
-                .overlay(
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 60))
-                        .foregroundColor(.white.opacity(0.7))
-                )
+            // Video Player with Live Preview
+            ZStack {
+                Color.black
+                
+                VideoPlayerView(player: playerViewModel.player)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear {
+                        playerViewModel.loadVideo(url: videoURL)
+                        playerViewModel.play()
+                    }
+                    .onDisappear {
+                        playerViewModel.pause()
+                    }
+                
+                // Play/Pause Overlay
+                if !isPlaying {
+                    Button {
+                        if playerViewModel.isPlaying {
+                            playerViewModel.pause()
+                        } else {
+                            playerViewModel.play()
+                        }
+                    } label: {
+                        Image(systemName: playerViewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                }
+            }
             
             // Actions
             HStack(spacing: UnifiedTheme.Spacing.lg) {
@@ -413,5 +455,55 @@ struct VideoPreviewView: View {
             .padding(UnifiedTheme.Spacing.xl)
             .background(colors.surface)
         }
+    }
+}
+
+// MARK: - Video Player View
+import AVKit
+
+struct VideoPlayerView: UIViewControllerRepresentable {
+    let player: AVPlayer
+    
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.showsPlaybackControls = true
+        controller.videoGravity = .resizeAspect
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
+        // Updates handled by AVPlayer
+    }
+}
+
+// MARK: - Video Player ViewModel
+@MainActor
+class VideoPlayerViewModel: ObservableObject {
+    @Published var player: AVPlayer
+    @Published var isPlaying = false
+    
+    init() {
+        player = AVPlayer()
+    }
+    
+    func loadVideo(url: URL) {
+        let playerItem = AVPlayerItem(url: url)
+        player.replaceCurrentItem(with: playerItem)
+        
+        // Observe playback status
+        player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main) { [weak self] _ in
+            self?.isPlaying = self?.player.rate != 0
+        }
+    }
+    
+    func play() {
+        player.play()
+        isPlaying = true
+    }
+    
+    func pause() {
+        player.pause()
+        isPlaying = false
     }
 }
