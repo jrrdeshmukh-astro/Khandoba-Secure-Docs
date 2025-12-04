@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
 import PDFKit
-import SwiftData
+import Combine
 
 struct RedactionView: View {
     let document: Document
@@ -188,9 +188,9 @@ struct RedactionView: View {
         modelContext.insert(version)
         
         // Mark document as redacted
-        document.title = document.title.contains("(Redacted)") ? 
-            document.title : 
-            document.title + " (Redacted)"
+        document.name = document.name.contains("(Redacted)") ? 
+            document.name : 
+            document.name + " (Redacted)"
         
         // Log redaction event
         print("✅ Redactions saved: \(redactionAreas.count) areas marked")

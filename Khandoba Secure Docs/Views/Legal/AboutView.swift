@@ -5,6 +5,7 @@
 //  About the app
 
 import SwiftUI
+import Combine
 
 struct AboutView: View {
     @Environment(\.unifiedTheme) var theme

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Charts
+import Combine
 
 struct IntelReportView: View {
     @Environment(\.unifiedTheme) var theme

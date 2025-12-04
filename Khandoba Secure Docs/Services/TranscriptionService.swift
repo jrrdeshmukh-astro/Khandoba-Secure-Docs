@@ -219,7 +219,7 @@ final class TranscriptionService: NSObject, ObservableObject {
             transcriptionProgress = Double(index) / Double(documents.count)
             
             // Extract audio URL from document
-            if let audioData = document.encryptedData {
+            if let audioData = document.encryptedFileData {
                 let tempURL = FileManager.default.temporaryDirectory
                     .appendingPathComponent(document.id.uuidString + ".m4a")
                 
@@ -229,7 +229,7 @@ final class TranscriptionService: NSObject, ObservableObject {
                     let transcription = try await transcribeAudio(url: tempURL)
                     transcriptions[document.id] = transcription
                 } catch {
-                    print("Failed to transcribe \(document.title): \(error)")
+                    print("Failed to transcribe \(document.name): \(error)")
                 }
             }
         }

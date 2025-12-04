@@ -182,7 +182,7 @@ final class EnhancedIntelReportService: ObservableObject {
         for index in indices {
             // Add topic observations
             for topic in index.topics {
-                formalLogicEngine.addObservation(Observation(
+                formalLogicEngine.addObservation(LogicalObservation(
                     subject: index.documentTitle,
                     property: "topic",
                     value: topic,
@@ -192,7 +192,7 @@ final class EnhancedIntelReportService: ObservableObject {
             
             // Add confidential marker if in topics
             if index.topics.contains("confidential") {
-                formalLogicEngine.addObservation(Observation(
+                formalLogicEngine.addObservation(LogicalObservation(
                     subject: index.documentTitle,
                     property: "is_confidential",
                     value: "true",

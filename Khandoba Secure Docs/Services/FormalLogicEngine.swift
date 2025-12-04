@@ -17,7 +17,7 @@ final class FormalLogicEngine: ObservableObject {
     @Published var statisticalInferences: [LogicalInference] = []
     
     private var knowledgeBase: [Fact] = []
-    private var observations: [Observation] = []
+    private var observations: [LogicalObservation] = []
     
     nonisolated init() {}
     
@@ -522,7 +522,7 @@ final class FormalLogicEngine: ObservableObject {
     
     // MARK: - Add Observations
     
-    func addObservation(_ observation: Observation) {
+    func addObservation(_ observation: LogicalObservation) {
         observations.append(observation)
     }
     
@@ -613,7 +613,7 @@ struct Hypothesis {
     let testable: String
 }
 
-struct Observation {
+struct LogicalObservation {
     let subject: String
     let property: String
     let value: String

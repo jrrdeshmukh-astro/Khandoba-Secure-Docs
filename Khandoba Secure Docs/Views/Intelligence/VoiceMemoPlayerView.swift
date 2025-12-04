@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVFoundation
+import Combine
 
 struct VoiceMemoPlayerView: View {
     let document: Document
@@ -33,7 +34,7 @@ struct VoiceMemoPlayerView: View {
                     
                     // Title
                     VStack(spacing: UnifiedTheme.Spacing.xs) {
-                        Text(document.title)
+                        Text(document.name)
                             .font(theme.typography.title2)
                             .foregroundColor(colors.textPrimary)
                             .multilineTextAlignment(.center)
@@ -167,7 +168,7 @@ struct VoiceMemoPlayerView: View {
     }
     
     private func loadAudio() {
-        guard let audioData = document.encryptedData else { return }
+        guard let audioData = document.encryptedFileData else { return }
         
         // Save to temporary file
         let tempURL = FileManager.default.temporaryDirectory
@@ -367,7 +368,7 @@ struct MiniVoiceMemoPlayer: View {
             
             // Progress
             VStack(alignment: .leading, spacing: 4) {
-                Text(document.title)
+                Text(document.name)
                     .font(theme.typography.subheadline)
                     .foregroundColor(colors.textPrimary)
                     .lineLimit(1)

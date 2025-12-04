@@ -8,6 +8,7 @@
 import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
+import Combine
 
 struct DocumentUploadView: View {
     let vault: Vault

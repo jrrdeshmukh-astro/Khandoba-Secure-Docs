@@ -548,31 +548,6 @@ enum VoiceMemoError: LocalizedError {
     }
 }
 
-// MARK: - Models
-
-struct IntelReport: Identifiable {
-    let id = UUID()
-    let sourceCount: Int
-    let sinkCount: Int
-    let narrative: String
-    let keyFinding: String?
-    let insights: [String]
-    let timestamp: Date
-    
-    init(
-        sourceCount: Int = 0,
-        sinkCount: Int = 0,
-        narrative: String = "",
-        keyFinding: String? = nil,
-        insights: [String] = [],
-        timestamp: Date = Date()
-    ) {
-        self.sourceCount = sourceCount
-        self.sinkCount = sinkCount
-        self.narrative = narrative
-        self.keyFinding = keyFinding
-        self.insights = insights
-        self.timestamp = timestamp
-    }
-}
+// NOTE: IntelReport struct is defined in IntelReportService.swift
+// to avoid duplication and maintain single source of truth
 

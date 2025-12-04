@@ -151,7 +151,7 @@ struct VoiceReportGeneratorView: View {
                                     HStack {
                                         Image(systemName: "doc.text.fill")
                                             .foregroundColor(colors.primary)
-                                        Text(document.title)
+                                        Text(document.name)
                                             .font(theme.typography.headline)
                                             .foregroundColor(colors.textPrimary)
                                     }

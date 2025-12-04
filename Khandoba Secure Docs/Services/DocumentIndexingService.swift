@@ -33,7 +33,7 @@ final class DocumentIndexingService: ObservableObject {
         isIndexing = true
         defer { isIndexing = false }
         
-        print("🔍 Indexing document: \(document.title)")
+        print("🔍 Indexing document: \(document.name)")
         
         // Extract text content
         let text = await extractText(from: document)
@@ -48,7 +48,7 @@ final class DocumentIndexingService: ObservableObject {
         let tags = await generateSmartTags(from: text, entities: entities)
         
         // Step 4: Suggest improved name
-        let suggestedName = generateSmartName(from: text, entities: entities, currentName: document.title)
+        let suggestedName = generateSmartName(from: text, entities: entities, currentName: document.name)
         
         // Step 5: Extract key concepts
         let keyConcepts = extractKeyConcepts(from: text)
@@ -76,7 +76,7 @@ final class DocumentIndexingService: ObservableObject {
         // Create comprehensive index
         let index = DocumentIndex(
             documentID: document.id,
-            documentTitle: document.title,
+            documentTitle: document.name,
             suggestedName: suggestedName,
             language: language,
             entities: entities,
@@ -113,8 +113,8 @@ final class DocumentIndexingService: ObservableObject {
         // Combine with metadata for better analysis
         var fullText = extractedText
         
-        if !fullText.contains(document.title) {
-            fullText = document.title + "\n" + fullText
+        if !fullText.contains(document.name) {
+            fullText = document.name + "\n" + fullText
         }
         
         if let desc = document.documentDescription, !fullText.contains(desc) {

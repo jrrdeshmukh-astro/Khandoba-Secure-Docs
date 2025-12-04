@@ -67,8 +67,8 @@ struct PDFTextExtractor {
     
     /// Extract text based on file type
     static func extractText(from document: Document) async -> String {
-        guard let data = document.encryptedData else {
-            return document.title
+        guard let data = document.encryptedFileData else {
+            return document.name
         }
         
         let fileType = document.fileType.lowercased()
@@ -89,8 +89,8 @@ struct PDFTextExtractor {
             return String(data: data, encoding: .utf8) ?? ""
         }
         
-        // Fallback: Use title + description
-        var text = document.title
+        // Fallback: Use name + description
+        var text = document.name
         if let desc = document.documentDescription {
             text += " " + desc
         }

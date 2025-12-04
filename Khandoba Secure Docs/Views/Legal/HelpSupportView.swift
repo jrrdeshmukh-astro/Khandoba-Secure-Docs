@@ -5,6 +5,7 @@
 //  Help and support information
 
 import SwiftUI
+import Combine
 
 struct HelpSupportView: View {
     @Environment(\.unifiedTheme) var theme
