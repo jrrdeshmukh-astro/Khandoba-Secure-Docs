@@ -581,50 +581,48 @@ final class StoryNarrativeGenerator: ObservableObject {
     /// Generate opening hook (like a movie opening)
     private func generateOpening(elements: StoryElements, timeline: [Event]) -> String {
         let timespan = calculateTimespan(timeline)
-        let documentCount = timeline.count
-        let primarySetting = elements.settings.first ?? "your vaults"
+        let primarySetting = elements.settings.first ?? "your documents"
         
-        var opening = "Your vault chronicles a story"
+        var opening = ""
+        
+        // Cinematic opening (no meta info)
+        if elements.conflicts.count > 0 {
+            opening += "A story of tension unfolds"
+        } else if elements.characters.count > 3 {
+            opening += "Threads of connection emerge"
+        } else {
+            opening += "A narrative takes shape"
+        }
         
         if !timespan.isEmpty {
-            opening += " spanning \(timespan)"
+            opening += " over \(timespan)"
         }
         
-        opening += ", captured across \(documentCount) moments. "
-        
-        // Add cinematic flair
-        if elements.conflicts.count > 0 {
-            opening += "Like a thriller waiting to unfold, "
-        } else if elements.characters.count > 3 {
-            opening += "Like an ensemble drama, "
-        } else {
-            opening += "Like frames in a documentary, "
-        }
-        
-        opening += "the narrative begins in \(primarySetting)."
+        opening += " in \(primarySetting). "
         
         return opening
     }
     
     /// Generate Act 1: Setup
     private func generateActOne(events: [Event], elements: StoryElements) -> String {
-        var text = "Act One: The Beginning. "
+        var text = ""
         
         if let firstEvent = events.first {
-            text += "Our story opens on \(formatDate(firstEvent.date)). "
+            // No "our story opens" - just describe
+            text += "On \(formatDate(firstEvent.date)), "
             
             // Describe the scene
             if !firstEvent.description.isEmpty {
-                text += "\(firstEvent.description.capitalized). "
+                text += "\(firstEvent.description.lowercased()). "
             }
         }
         
-        // Introduce characters
+        // Introduce characters (no "our cast")
         if !elements.characters.isEmpty {
-            text += "Our cast: "
+            text += "Key figures: "
             text += elements.characters.prefix(3).joined(separator: ", ")
             if elements.characters.count > 3 {
-                text += ", and \(elements.characters.count - 3) others"
+                text += ", among others"
             }
             text += ". "
         }
@@ -641,31 +639,31 @@ final class StoryNarrativeGenerator: ObservableObject {
     
     /// Generate Act 2: Conflict
     private func generateActTwo(events: [Event], elements: StoryElements) -> String {
-        var text = "Act Two: Rising Action. "
+        var text = ""
         
         if !elements.conflicts.isEmpty {
             text += "Tension builds as \(elements.conflicts.first!.lowercased()) emerges. "
-            text += "Like the second act of a thriller, complications arise. "
+            text += "Complications arise. "
         } else {
-            text += "The plot develops through a series of connected events. "
+            text += "Events unfold in succession. "
         }
         
-        // Describe key midpoint events
+        // Describe key midpoint events (remove "turning point" meta)
         if events.count > 0 {
             let midpoint = events.count / 2
             if let midEvent = events[safe: midpoint] {
-                text += "The turning point arrives on \(formatDate(midEvent.date))"
+                text += "On \(formatDate(midEvent.date)), "
                 if !midEvent.description.isEmpty {
-                    text += "—\(midEvent.description). "
+                    text += "\(midEvent.description.lowercased()). "
                 } else {
-                    text += ". "
+                    text += "a significant shift occurs. "
                 }
             }
         }
         
-        // Build suspense
+        // Build suspense (no "storylines interweave" meta)
         if elements.conflicts.count > 1 {
-            text += "Multiple storylines interweave: \(elements.conflicts.prefix(2).joined(separator: ", ")). "
+            text += "Layered complexities: \(elements.conflicts.prefix(2).joined(separator: ", ")). "
         }
         
         return text
@@ -673,22 +671,22 @@ final class StoryNarrativeGenerator: ObservableObject {
     
     /// Generate Act 3: Resolution
     private func generateActThree(events: [Event], elements: StoryElements) -> String {
-        var text = "Act Three: Resolution. "
+        var text = ""
         
         if !elements.resolutions.isEmpty {
-            text += "Like a satisfying finale, \(elements.resolutions.first!.lowercased()) brings closure. "
+            text += "\(elements.resolutions.first!.capitalized) brings closure. "
         } else if let lastEvent = events.last {
-            text += "The story reaches its current state on \(formatDate(lastEvent.date)). "
+            text += "As of \(formatDate(lastEvent.date)), the situation stands. "
         }
         
-        // Climax description
+        // Climax description (no "climactic moment" meta)
         if let significantEvent = events.max(by: { $0.significance < $1.significance }) {
-            text += "The climactic moment: \(significantEvent.description). "
+            text += "\(significantEvent.description.capitalized). "
         }
         
-        // Denouement
+        // Denouement (no "threads" meta)
         if !elements.resolutions.isEmpty && elements.resolutions.count > 1 {
-            text += "Multiple threads find resolution: \(elements.resolutions.joined(separator: ", ")). "
+            text += "Resolution on multiple fronts: \(elements.resolutions.joined(separator: ", ")). "
         }
         
         return text
@@ -696,24 +694,17 @@ final class StoryNarrativeGenerator: ObservableObject {
     
     /// Generate closing reflection
     private func generateClosing(elements: StoryElements, timeline: [Event]) -> String {
-        var closing = "Epilogue: "
+        var closing = ""
         
         if !elements.themes.isEmpty {
-            closing += "Throughout this vault runs a theme—\(elements.themes.first!.lowercased()). "
+            closing += "The central theme: \(elements.themes.first!.lowercased()). "
         }
         
-        if let lastEvent = timeline.last {
-            closing += "As of \(formatDate(lastEvent.date)), "
-        }
-        
-        closing += "your documents tell a complete story: "
-        closing += "from setup through conflict to resolution. "
-        
-        // Movie reference
+        // Remove all meta references (epilogue, narrative arc, cinema)
         if elements.conflicts.count > 0 && elements.resolutions.count > 0 {
-            closing += "A narrative arc worthy of the best cinema."
+            closing += "From complication to resolution, the pattern is clear."
         } else {
-            closing += "A story still unfolding."
+            closing += "The story continues."
         }
         
         return closing

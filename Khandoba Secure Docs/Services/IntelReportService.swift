@@ -231,47 +231,35 @@ final class IntelReportService: ObservableObject {
     ) async -> String {
         var narrative = ""
         
-        // Opening - conversational tone
-        narrative += "VAULT INTELLIGENCE REPORT\n\n"
+        // Focus only on insights, no meta information
         
-        narrative += "Hi. Here's what I found in your vaults.\n\n"
+        // Content themes (no file counts)
+        var themes: [String] = []
         
-        // Overall statistics
-        narrative += "What's in your vaults:\n"
-        narrative += "You have \(sourceCount) files you created yourself, and \(sinkCount) files you received from others.\n\n"
-        
-        // Source document insights
-        if sourceCount > 0 {
-            narrative += "Files you created:\n"
-            narrative += "You've made \(sourceCount) files on your own, taking up about \(ByteCountFormatter.string(fromByteCount: sourceAnalysis.totalSize, countStyle: .file)) of space.\n"
-            
-            if !sourceAnalysis.topTags.isEmpty {
-                narrative += "Most of your files are about: \(sourceAnalysis.topTags.prefix(5).joined(separator: ", ")).\n"
-            }
-            
-            if !sourceAnalysis.entities.isEmpty {
-                narrative += "You often mention: \(sourceAnalysis.entities.prefix(3).joined(separator: ", ")).\n"
-            }
-            narrative += "\n"
+        if !sourceAnalysis.topTags.isEmpty {
+            themes.append(contentsOf: sourceAnalysis.topTags.prefix(5))
         }
         
-        // Sink document insights
-        if sinkCount > 0 {
-            narrative += "Files you received:\n"
-            narrative += "You've gotten \(sinkCount) files from other people, taking up about \(ByteCountFormatter.string(fromByteCount: sinkAnalysis.totalSize, countStyle: .file)).\n"
-            
-            if !sinkAnalysis.topTags.isEmpty {
-                narrative += "These files are mostly about: \(sinkAnalysis.topTags.prefix(5).joined(separator: ", ")).\n"
-            }
-            
-            if !sinkAnalysis.entities.isEmpty {
-                narrative += "They often mention: \(sinkAnalysis.entities.prefix(3).joined(separator: ", ")).\n"
-            }
-            narrative += "\n"
+        if !sinkAnalysis.topTags.isEmpty {
+            themes.append(contentsOf: sinkAnalysis.topTags.prefix(5))
         }
         
-        // Comparative insights
-        narrative += "Patterns I noticed:\n"
+        if !themes.isEmpty {
+            let uniqueThemes = Array(Set(themes)).prefix(5)
+            narrative += "Your documents focus on \(uniqueThemes.joined(separator: ", ")). "
+        }
+        
+        // Key entities (people, places, organizations)
+        var entities: [String] = []
+        entities.append(contentsOf: sourceAnalysis.entities.prefix(3))
+        entities.append(contentsOf: sinkAnalysis.entities.prefix(3))
+        
+        if !entities.isEmpty {
+            let uniqueEntities = Array(Set(entities)).prefix(3)
+            narrative += "Key names and locations mentioned include \(uniqueEntities.joined(separator: ", ")). "
+        }
+        
+        // Comparative insights (no technical jargon)
         narrative += await generateComparativeInsights(sourceAnalysis: sourceAnalysis, sinkAnalysis: sinkAnalysis)
         
         // Interesting findings
@@ -279,10 +267,8 @@ final class IntelReportService: ObservableObject {
             sourceAnalysis: sourceAnalysis,
             sinkAnalysis: sinkAnalysis
         ) {
-            narrative += "\nSomething interesting:\n\(interestingFinding)\n"
+            narrative += "\(interestingFinding) "
         }
-        
-        narrative += "\nThat's all for now. Let me know if you need anything else."
         
         return narrative
     }
@@ -293,35 +279,27 @@ final class IntelReportService: ObservableObject {
     ) async -> String {
         var insights = ""
         
-        // Compare tag overlap
+        // Compare tag overlap (cleaner, insight-focused language)
         let sourceTags = Set(sourceAnalysis.topTags)
         let sinkTags = Set(sinkAnalysis.topTags)
         let commonTags = sourceTags.intersection(sinkTags)
         
         if !commonTags.isEmpty {
-            insights += "The files you make and the ones you receive both deal with: \(commonTags.joined(separator: ", ")). "
-        } else {
-            insights += "The stuff you create is pretty different from what you receive. "
+            insights += "There's a common thread: \(commonTags.joined(separator: ", ")). "
+        } else if !sourceTags.isEmpty && !sinkTags.isEmpty {
+            insights += "Your documents explore contrasting themes. "
         }
         
-        // Compare entities
+        // Compare entities (remove "I see" phrasing)
         let sourceEntities = Set(sourceAnalysis.entities)
         let sinkEntities = Set(sinkAnalysis.entities)
         let commonEntities = sourceEntities.intersection(sinkEntities)
         
         if !commonEntities.isEmpty {
-            insights += "I see the same names or topics in both: \(commonEntities.prefix(3).joined(separator: ", ")). "
+            insights += "Recurring references to \(commonEntities.prefix(3).joined(separator: ", ")) suggest ongoing connections. "
         }
         
-        // Size comparison
-        let ratio = Double(sourceAnalysis.totalSize) / Double(max(sinkAnalysis.totalSize, 1))
-        if ratio > 2 {
-            insights += "You're creating way more stuff than you're receiving - about \(String(format: "%.0f", ratio)) times more. "
-        } else if ratio < 0.5 {
-            insights += "You're receiving way more stuff than you're creating - about \(String(format: "%.0f", 1/ratio)) times more. "
-        } else {
-            insights += "You've got a nice balance between what you create and what you receive. "
-        }
+        // Remove file size comparisons completely - pure insights only
         
         return insights
     }
@@ -332,13 +310,13 @@ final class IntelReportService: ObservableObject {
     ) async -> String? {
         var findings: [String] = []
         
-        // Detect if user is creating similar content to what they receive
+        // Detect patterns (cleaner language, no "you")
         let sourceTags = Set(sourceAnalysis.topTags)
         let sinkTags = Set(sinkAnalysis.topTags)
         let overlap = sourceTags.intersection(sinkTags)
         
         if overlap.count >= 3 {
-            findings.append("You tend to create content similar to what you receive, suggesting an active engagement with shared topics: \(overlap.joined(separator: ", ")).")
+            findings.append("Active engagement with shared topics: \(overlap.joined(separator: ", ")).")
         }
         
         // Detect medical/legal patterns
