@@ -549,31 +549,36 @@ final class IntelReportService: ObservableObject {
     
     /// OPTIMIZED: Generate audio file from report text using text-to-speech
     private func generateVoiceReportAudio(from text: String) async throws -> URL {
-        // OPTIMIZATION: Limit text length to prevent hanging on long reports
-        let _ = String(text.prefix(2000)) // Max ~2 minutes of speech (for future use)
+        print("   📢 Using VoiceMemoService for REAL audio generation...")
         
-        return try await withCheckedThrowingContinuation { continuation in
-            // Create temp file URL
-            let tempURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-                .appendingPathExtension("m4a")
-            
-            // OPTIMIZATION: Use background queue for synthesis
-            DispatchQueue.global(qos: .userInitiated).async {
-                // For v1.0: Create lightweight placeholder
-                // Production would use AVAudioEngine to capture actual speech
-                
-                let minimalAudioData = Data([0xFF, 0xF1, 0x50, 0x80, 0x00, 0x1F, 0xFC])
-                
-                do {
-                    try minimalAudioData.write(to: tempURL)
-                    continuation.resume(returning: tempURL)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
+        // IMPORTANT: Use the actual VoiceMemoService that works!
+        let voiceMemoService = VoiceMemoService()
+        
+        // Configure if we have model context
+        if let modelContext = modelContext {
+            voiceMemoService.configure(modelContext: modelContext)
         }
+        
+        // Generate real audio with TTS
+        print("   🎤 Generating speech from \(text.count) characters...")
+        let audioURL = try await voiceMemoService.generateVoiceMemo(
+            from: text,
+            title: "Intel Report Voice"
+        )
+        
+        // Verify file has content
+        let fileSize = try FileManager.default.attributesOfItem(atPath: audioURL.path)[.size] as? UInt64 ?? 0
+        print("   📊 Generated audio file: \(fileSize) bytes")
+        
+        if fileSize < 10000 {
+            print("   ⚠️ WARNING: Audio file seems small, but continuing...")
+        } else {
+            print("   ✅ Audio file has content!")
+        }
+        
+        return audioURL
     }
+    
 }
 
 // MARK: - Models
