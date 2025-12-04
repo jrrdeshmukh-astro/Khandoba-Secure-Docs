@@ -39,74 +39,94 @@ final class VoiceMemoService: NSObject, ObservableObject {
         isGenerating = true
         defer { isGenerating = false }
         
-        // Create output file
+        print("🎤 Starting voice memo generation")
+        print("📝 Text to synthesize: \(text.count) characters")
+        print("   First 100 chars: \(String(text.prefix(100)))")
+        
+        // For iOS 17, use direct speech synthesis to file
+        // This is more reliable than trying to capture buffers
+        
         let tempDir = FileManager.default.temporaryDirectory
-        let outputURL = tempDir.appendingPathComponent("\(UUID().uuidString)_voice_memo.caf")
+        let outputURL = tempDir.appendingPathComponent("\(UUID().uuidString)_voice_memo.m4a")
         
-        // Create speech utterance
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = 0.52 // Slightly slower for better comprehension
-        utterance.pitchMultiplier = 1.0
-        utterance.volume = 1.0
-        utterance.preUtteranceDelay = 0.0
-        utterance.postUtteranceDelay = 0.0
+        print("📁 Output URL: \(outputURL.path)")
         
-        print("🎤 Generating voice memo to: \(outputURL.lastPathComponent)")
-        print("📝 Text length: \(text.count) characters")
-        
-        // Configure audio session for recording
-        let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.playAndRecord, mode: .default, options: [])
-        try audioSession.setActive(true)
-        
-        // Use simpler approach: synthesize to audio engine and export
-        return try await withCheckedThrowingContinuation { continuation in
-            var audioFile: AVAudioFile?
-            var hasResumed = false
-            var bufferCount = 0
+        // Use AVAudioEngine approach for reliable audio capture
+        return try await withCheckedThrowingContinuation { [weak self] continuation in
+            guard let self = self else {
+                continuation.resume(throwing: VoiceMemoError.generationFailed)
+                return
+            }
             
-            // Set up synthesis completion handler
-            speechSynthesizer.write(utterance) { [weak self] buffer in
-                bufferCount += 1
-                
-                // Check if this is a valid PCM buffer
-                guard let pcmBuffer = buffer as? AVAudioPCMBuffer, pcmBuffer.frameLength > 0 else {
-                    // Empty or non-PCM buffer signals completion
-                    if !hasResumed && bufferCount > 0 {
-                        print("✅ Voice memo generation complete (\(bufferCount) buffers)")
-                        self?.currentOutputURL = outputURL
-                        hasResumed = true
-                        continuation.resume(returning: outputURL)
+            // Create utterance
+            let utterance = AVSpeechUtterance(string: text)
+            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+            utterance.rate = 0.50
+            utterance.pitchMultiplier = 1.0
+            utterance.volume = 1.0
+            
+            // Set delegate to track completion
+            self.speechSynthesizer.delegate = self
+            
+            // Store continuation for delegate callback
+            self.speechCompletionHandler = { success in
+                if success {
+                    print("✅ Speech synthesis completed successfully")
+                    self.currentOutputURL = outputURL
+                    continuation.resume(returning: outputURL)
+                } else {
+                    print("❌ Speech synthesis failed")
+                    continuation.resume(throwing: VoiceMemoError.synthesisError)
+                }
+            }
+            
+            // IMPORTANT: Use write method that actually captures audio
+            print("🎤 Starting speech synthesis...")
+            
+            // iOS 17+ approach: Write to output file directly
+            let audioFile = try? AVAudioFile(
+                forWriting: outputURL,
+                settings: [
+                    AVFormatIDKey: kAudioFormatMPEG4AAC,
+                    AVSampleRateKey: 44100.0,
+                    AVNumberOfChannelsKey: 1,
+                    AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+                ]
+            )
+            
+            var totalFrames: AVAudioFrameCount = 0
+            
+            self.speechSynthesizer.write(utterance) { buffer in
+                guard let pcmBuffer = buffer as? AVAudioPCMBuffer, 
+                      pcmBuffer.frameLength > 0,
+                      let file = audioFile else {
+                    // Completion
+                    print("📊 Total frames written: \(totalFrames)")
+                    if totalFrames > 0 {
+                        print("✅ Audio file created with content")
+                        self.speechCompletionHandler?(true)
+                    } else {
+                        print("⚠️ No audio frames written")
+                        self.speechCompletionHandler?(false)
                     }
                     return
                 }
                 
                 // Write buffer to file
                 do {
-                    if audioFile == nil {
-                        // Create audio file on first buffer
-                        audioFile = try AVAudioFile(
-                            forWriting: outputURL,
-                            settings: pcmBuffer.format.settings,
-                            commonFormat: .pcmFormatFloat32,
-                            interleaved: false
-                        )
-                        print("📝 Created audio file: \(outputURL.lastPathComponent)")
-                    }
-                    
-                    try audioFile?.write(from: pcmBuffer)
-                    print("   Written buffer \(bufferCount): \(pcmBuffer.frameLength) frames")
+                    try file.write(from: pcmBuffer)
+                    totalFrames += pcmBuffer.frameLength
+                    print("   📝 Wrote buffer: \(pcmBuffer.frameLength) frames (total: \(totalFrames))")
                 } catch {
-                    if !hasResumed {
-                        print("❌ Error writing audio buffer: \(error)")
-                        hasResumed = true
-                        continuation.resume(throwing: VoiceMemoError.generationFailed)
-                    }
+                    print("❌ Error writing buffer: \(error)")
+                    self.speechCompletionHandler?(false)
                 }
             }
         }
     }
+    
+    // MARK: - Completion Handler
+    private var speechCompletionHandler: ((Bool) -> Void)?
     
     /// Play voice memo
     func playVoiceMemo(url: URL) async throws {
