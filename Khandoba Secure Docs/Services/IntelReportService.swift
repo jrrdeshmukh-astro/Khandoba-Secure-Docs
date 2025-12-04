@@ -16,13 +16,18 @@ import AVFoundation
 final class IntelReportService: ObservableObject {
     @Published var currentReport: IntelReport?
     @Published var isGenerating = false
+    @Published var voiceMemoURL: URL?
     
     private var modelContext: ModelContext?
+    private let voiceMemoService = VoiceMemoService()
+    private var vaultService: VaultService?
     
     nonisolated init() {}
     
-    func configure(modelContext: ModelContext) {
+    func configure(modelContext: ModelContext, vaultService: VaultService? = nil) {
         self.modelContext = modelContext
+        self.vaultService = vaultService
+        voiceMemoService.configure(modelContext: modelContext)
     }
     
     /// Generate an intel report comparing source vs sink documents
@@ -71,7 +76,79 @@ final class IntelReportService: ObservableObject {
         )
         
         currentReport = report
+        
+        // 🎤 GENERATE VOICE MEMO FOR THE REPORT
+        await generateAndSaveVoiceMemo(for: report, vaults: vaults)
+        
         return report
+    }
+    
+    // MARK: - Voice Memo Generation
+    
+    /// Generate voice memo from report and save to Intel Vault
+    private func generateAndSaveVoiceMemo(for report: IntelReport, vaults: [Vault]) async {
+        do {
+            print("🎤 Generating voice memo for Intel Report...")
+            
+            // Find or create Intel Vault
+            guard let intelVault = await findOrCreateIntelVault(vaults: vaults) else {
+                print("❌ Failed to find/create Intel Vault")
+                return
+            }
+            
+            // Generate full narrative text for voice memo
+            let voiceText = buildVoiceNarrative(from: report)
+            
+            // Generate audio file from text
+            let audioURL = try await voiceMemoService.generateVoiceMemo(
+                from: voiceText,
+                title: "Intel Report \(Date().formatted(date: .abbreviated, time: .shortened))"
+            )
+            
+            print("✅ Voice memo audio generated: \(audioURL.lastPathComponent)")
+            
+            // Save to Intel Vault
+            let document = try await voiceMemoService.saveVoiceMemoToVault(
+                audioURL,
+                vault: intelVault,
+                title: "Intel Report - \(Date().formatted(date: .abbreviated, time: .shortened))",
+                description: "AI-generated intelligence analysis with actionable insights"
+            )
+            
+            print("✅ Voice memo saved to Intel Vault: \(document.name)")
+            voiceMemoURL = audioURL
+            
+        } catch {
+            print("❌ Error generating voice memo: \(error)")
+        }
+    }
+    
+    /// Build voice-optimized narrative from report
+    private func buildVoiceNarrative(from report: IntelReport) -> String {
+        var text = ""
+        
+        text += "Intelligence Report for \(Date().formatted(date: .long, time: .omitted)).\n\n"
+        text += report.narrative
+        text += "\n\nKey Insights:\n"
+        
+        for (index, insight) in report.insights.enumerated() {
+            text += "\(index + 1). \(insight)\n"
+        }
+        
+        text += "\nEnd of report."
+        
+        return text
+    }
+    
+    /// Find Intel Vault or return first vault as fallback
+    private func findOrCreateIntelVault(vaults: [Vault]) async -> Vault? {
+        // Try to find Intel Reports vault
+        if let intelVault = vaults.first(where: { $0.name == "Intel Reports" }) {
+            return intelVault
+        }
+        
+        // Fallback: use first available vault
+        return vaults.first
     }
     
     // MARK: - Analysis

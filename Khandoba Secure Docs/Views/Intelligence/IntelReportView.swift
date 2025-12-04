@@ -12,10 +12,12 @@ import Combine
 struct IntelReportView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.modelContext) var modelContext
     @EnvironmentObject var vaultService: VaultService
     
     @StateObject private var intelService = IntelReportService()
     @State private var isLoading = false
+    @State private var hasConfigured = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -192,6 +194,10 @@ struct IntelReportView: View {
             }
         }
         .task {
+            if !hasConfigured {
+                intelService.configure(modelContext: modelContext, vaultService: vaultService)
+                hasConfigured = true
+            }
             await generateReport()
         }
     }
@@ -200,5 +206,10 @@ struct IntelReportView: View {
         isLoading = true
         _ = await intelService.generateIntelReport(for: vaultService.vaults)
         isLoading = false
+        
+        // Show success message if voice memo was generated
+        if intelService.voiceMemoURL != nil {
+            print("✅ Intel Report voice memo ready in Intel Vault")
+        }
     }
 }
