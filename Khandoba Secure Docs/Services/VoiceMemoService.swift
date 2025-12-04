@@ -114,17 +114,16 @@ final class VoiceMemoService: NSObject, ObservableObject {
         
         // Create document
         let document = Document(
-            title: title,
-            fileType: "audio/m4a",
+            name: title,
+            fileExtension: "m4a",
+            mimeType: "audio/m4a",
             fileSize: Int64(audioData.count),
-            encryptedData: audioData // Should be encrypted in production
+            documentType: "audio"
         )
-        document.documentDescription = description
+        document.encryptedFileData = audioData
         document.sourceSinkType = "source" // AI-generated content is "source"
         document.vault = vault
-        
-        // Add tags
-        document.tags = ["intel-report", "voice-memo", "ai-generated", "threat-analysis"]
+        document.aiTags = ["intel-report", "voice-memo", "ai-generated", "threat-analysis"]
         
         modelContext.insert(document)
         try modelContext.save()
@@ -201,9 +200,11 @@ final class VoiceMemoService: NSObject, ObservableObject {
         narrative += report.narrative
         narrative += "\n\n"
         
-        // Key Findings
-        if let keyFinding = report.keyFinding {
-            narrative += "Key Finding: \(keyFinding). "
+        // Key Insights from report
+        if !report.insights.isEmpty {
+            narrative += "Key Findings: "
+            narrative += report.insights.prefix(3).joined(separator: ". ")
+            narrative += ". "
             narrative += "\n\n"
         }
         
