@@ -553,6 +553,7 @@ enum VoiceMemoError: LocalizedError {
     case contextNotAvailable
     case audioSessionError
     case synthesisError
+    case generationFailed
     
     var errorDescription: String? {
         switch self {
@@ -562,6 +563,8 @@ enum VoiceMemoError: LocalizedError {
             return "Failed to configure audio session"
         case .synthesisError:
             return "Failed to synthesize speech"
+        case .generationFailed:
+            return "Failed to generate voice memo audio"
         }
     }
 }
