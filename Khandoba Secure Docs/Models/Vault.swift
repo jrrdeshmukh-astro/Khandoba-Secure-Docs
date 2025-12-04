@@ -18,6 +18,7 @@ final class Vault {
     var status: String = "locked" // "active", "locked", "archived"
     var keyType: String = "single" // "single", "dual"
     var vaultType: String = "both" // "source", "sink", "both" - DEFAULT VALUE FOR MIGRATION
+    var isSystemVault: Bool = false // System vaults (like Intel Reports) are read-only for users
     
     // Encryption
     var encryptionKeyData: Data?

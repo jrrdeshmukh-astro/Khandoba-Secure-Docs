@@ -21,8 +21,7 @@ final class SubscriptionService: ObservableObject {
     private var updateListenerTask: Task<Void, Error>?
     
     private let productIDs = [
-        "com.khandoba.premium.monthly",
-        "com.khandoba.premium.yearly"
+        "com.khandoba.premium.monthly"
     ]
     
     init() {

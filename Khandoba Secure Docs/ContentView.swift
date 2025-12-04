@@ -18,10 +18,15 @@ struct ContentView: View {
                 LoadingView("Initializing...")
             } else if !authService.isAuthenticated {
                 WelcomeView()
-            } else if needsAccountSetup {
-                AccountSetupView()
+            } else if needsPermissionsSetup {
+                // PERMISSIONS FIRST - right after signin
+                PermissionsSetupView()
             } else if needsSubscription {
+                // Then subscription
                 SubscriptionRequiredView()
+            } else if needsAccountSetup {
+                // Then profile setup
+                AccountSetupView()
             } else if authService.currentRole == nil {
                 RoleSelectionView()
             } else {
@@ -33,6 +38,16 @@ struct ContentView: View {
                 }
             }
         }
+    }
+    
+    /// Check if user needs permissions setup
+    /// Shows PermissionsSetupView after first signin
+    private var needsPermissionsSetup: Bool {
+        guard authService.isAuthenticated else { return false }
+        
+        // Check if permissions have been set up
+        let permissionsComplete = UserDefaults.standard.bool(forKey: "permissions_setup_complete")
+        return !permissionsComplete
     }
     
     /// Check if user needs to complete account setup

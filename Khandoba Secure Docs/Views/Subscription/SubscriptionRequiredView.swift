@@ -7,6 +7,7 @@
 
 import SwiftUI
 import StoreKit
+import Combine
 
 struct SubscriptionRequiredView: View {
     @Environment(\.unifiedTheme) var theme
@@ -33,16 +34,16 @@ struct SubscriptionRequiredView: View {
                     VStack(spacing: UnifiedTheme.Spacing.xl) {
                         // Header
                         VStack(spacing: UnifiedTheme.Spacing.md) {
-                            Image(systemName: "crown.fill")
+                            Image(systemName: "shield.checkered")
                                 .font(.system(size: 70))
-                                .foregroundColor(colors.warning)
+                                .foregroundColor(colors.primary)
                             
                             Text("Welcome to Khandoba")
                                 .font(theme.typography.largeTitle)
                                 .foregroundColor(colors.textPrimary)
                                 .fontWeight(.bold)
                             
-                            Text("Premium Protection Required")
+                            Text("Professional Security Platform")
                                 .font(theme.typography.title2)
                                 .foregroundColor(colors.textSecondary)
                         }
@@ -102,30 +103,17 @@ struct SubscriptionRequiredView: View {
                         .cornerRadius(UnifiedTheme.CornerRadius.xl)
                         .padding(.horizontal, UnifiedTheme.Spacing.xl)
                         
-                        // Plan Selection
+                        // Subscription Plan
                         VStack(spacing: UnifiedTheme.Spacing.md) {
-                            Text("Choose Your Plan")
+                            Text("Subscription")
                                 .font(theme.typography.headline)
                                 .foregroundColor(colors.textPrimary)
                                 .opacity(appeared ? 1 : 0)
                                 .offset(y: appeared ? 0 : 20)
                             
-                            // A/B Test: Show yearly first or monthly first
-                            if abService.shouldShowYearlyFirst() {
-                                // Variant A: Yearly first (with savings badge)
-                                yearlyPlanCard(colors: colors)
-                                    .staggeredAppearance(index: 0, total: 2)
-                                
+                            // Monthly plan only
                                 monthlyPlanCard(colors: colors)
-                                    .staggeredAppearance(index: 1, total: 2)
-                            } else {
-                                // Control: Monthly first
-                                monthlyPlanCard(colors: colors)
-                                    .staggeredAppearance(index: 0, total: 2)
-                                
-                                yearlyPlanCard(colors: colors)
-                                    .staggeredAppearance(index: 1, total: 2)
-                            }
+                                .staggeredAppearance(index: 0, total: 1)
                         }
                         .padding(.horizontal, UnifiedTheme.Spacing.xl)
                         .onAppear {
@@ -143,8 +131,8 @@ struct SubscriptionRequiredView: View {
                                     .tint(.white)
                             } else {
                                 HStack {
-                                    Image(systemName: "crown.fill")
-                                    Text("Start Premium Protection")
+                                    Image(systemName: "lock.shield.fill")
+                                    Text("Activate Protection")
                                     Image(systemName: "arrow.right")
                                 }
                                 .frame(maxWidth: .infinity)
@@ -188,15 +176,22 @@ struct SubscriptionRequiredView: View {
         
         Task {
             do {
-                // In production, integrate with StoreKit
+                // For development/testing: Auto-grant premium access
+                // In production, this will use actual StoreKit purchase
                 try await purchaseSubscription(selectedPlan)
                 
-                // Mark user as premium
+                // Mark user as premium and force UI update
                 if let user = authService.currentUser {
                     user.isPremiumSubscriber = true
-                    user.subscriptionExpiryDate = selectedPlan == .monthly ?
-                        Calendar.current.date(byAdding: .month, value: 1, to: Date()) :
-                        Calendar.current.date(byAdding: .year, value: 1, to: Date())
+                    user.subscriptionExpiryDate = Calendar.current.date(byAdding: .month, value: 1, to: Date())
+                    
+                    // Force save to ensure persistence
+                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s delay
+                    
+                    await MainActor.run {
+                        // Trigger authService refresh to update UI
+                        authService.objectWillChange.send()
+                    }
                 }
                 
                 // Track A/B test conversion
@@ -205,7 +200,7 @@ struct SubscriptionRequiredView: View {
                 await MainActor.run {
                     isPurchasing = false
                     HapticManager.shared.notification(.success)
-                    // Navigate to main app
+                    print("✅ Subscription activated - user should proceed to main app")
                 }
                 
             } catch {
@@ -234,43 +229,20 @@ struct SubscriptionRequiredView: View {
         }
     }
     
-    @ViewBuilder
-    private func yearlyPlanCard(colors: UnifiedTheme.Colors) -> some View {
-        ZStack(alignment: .topTrailing) {
-            SubscriptionPlanCard(
-                plan: .yearly,
-                isSelected: selectedPlan == .yearly,
-                colors: colors,
-                theme: theme
-            ) {
-                selectedPlan = .yearly
-                HapticManager.shared.selection()
-            }
-            
-            // Best Value Badge
-            Text("SAVE 40%")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(colors.success)
-                .cornerRadius(4)
-                .offset(x: -10, y: -10)
-                .glow(color: colors.success, radius: 4)
-        }
-    }
     
     private func purchaseSubscription(_ plan: SubscriptionPlan) async throws {
         // Simulate purchase delay
-        try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+        try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
         
-        // In production:
+        // For v1.0: Auto-grant access for testing
+        // In production with App Store Connect:
         // 1. Fetch products from StoreKit
         // 2. Purchase selected product
         // 3. Verify receipt
         // 4. Update user subscription status
         
-        print("✅ Subscription purchased: \(plan.rawValue)")
+        print("✅ DEV MODE: Subscription auto-granted for: \(plan.rawValue)")
+        print("   User will be marked as premium subscriber")
     }
 }
 
@@ -360,34 +332,21 @@ struct SubscriptionPlanCard: View {
 
 enum SubscriptionPlan: String {
     case monthly = "monthly"
-    case yearly = "yearly"
     
     var displayName: String {
-        switch self {
-        case .monthly: return "Monthly Plan"
-        case .yearly: return "Yearly Plan"
-        }
+        return "Professional Plan"
     }
     
     var description: String {
-        switch self {
-        case .monthly: return "Billed monthly"
-        case .yearly: return "Billed annually • Best Value"
-        }
+        return "Full access to security platform"
     }
     
     var price: String {
-        switch self {
-        case .monthly: return "$9.99"
-        case .yearly: return "$5.99"
-        }
+        return "$5.99"
     }
     
     var period: String {
-        switch self {
-        case .monthly: return "/month"
-        case .yearly: return "/month"
-        }
+        return "/month"
     }
 }
 

@@ -30,6 +30,22 @@ final class LocationService: NSObject, ObservableObject {
         locationManager.requestWhenInUseAuthorization()
     }
     
+    func requestLocationPermission() async {
+        // Request permission if not determined
+        if authorizationStatus == .notDetermined {
+            locationManager.requestWhenInUseAuthorization()
+            // Wait a moment for user response
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        }
+        
+        // Start tracking if authorized
+        if isAuthorized {
+            locationManager.startUpdatingLocation()
+            // Give it time to get first location
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        }
+    }
+    
     func startTracking() {
         guard isAuthorized else { return }
         locationManager.startUpdatingLocation()

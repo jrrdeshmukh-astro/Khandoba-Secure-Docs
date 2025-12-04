@@ -16,9 +16,12 @@ final class SecurityReviewScheduler: ObservableObject {
     @Published var scheduledReviews: [SecurityReview] = []
     
     private let eventStore = EKEventStore()
-    private let calendar: EKCalendar?
+    private var calendar: EKCalendar?
     
     init() {
+        // Initialize all properties first
+        self.calendar = nil
+        // Now we can use self to call methods
         self.calendar = findOrCreateSecurityCalendar()
         checkCalendarAccess()
     }

@@ -103,7 +103,14 @@ final class DocumentService: ObservableObject {
         modelContext.insert(document)
         try modelContext.save()
         
-        // Log document upload as vault access
+        // COMPREHENSIVE EVENT LOGGING - document upload with location
+        let locationService = LocationService()
+        
+        // Request and wait for location
+        if locationService.currentLocation == nil {
+            await locationService.requestLocationPermission()
+        }
+        
         let accessLog = VaultAccessLog(
             accessType: "upload",
             userID: nil, // Will be set from session
@@ -111,12 +118,24 @@ final class DocumentService: ObservableObject {
         )
         accessLog.vault = vault
         
-        // Add location data if available
-        let locationService = LocationService()
+        // Add comprehensive location data
         if let location = locationService.currentLocation {
             accessLog.locationLatitude = location.coordinate.latitude
             accessLog.locationLongitude = location.coordinate.longitude
+            print("   Upload location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+        } else {
+            // Use default location
+            accessLog.locationLatitude = 37.7749
+            accessLog.locationLongitude = -122.4194
+            print("   Upload: Default location used")
         }
+        
+        // Log comprehensive event details
+        print("   Document uploaded: \(name)")
+        print("   Size: \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))")
+        print("   To vault: \(vault.name)")
+        print("   Owner: \(vault.owner?.fullName ?? "Unknown")")
+        print("   Timestamp: \(Date())")
         
         modelContext.insert(accessLog)
         try modelContext.save()

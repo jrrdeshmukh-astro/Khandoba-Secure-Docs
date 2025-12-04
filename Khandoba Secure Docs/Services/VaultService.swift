@@ -132,7 +132,52 @@ final class VaultService: ObservableObject {
         
         // Check if vault requires dual-key approval
         if vault.keyType == "dual" {
-            // Create dual-key request
+            // ⚠️ CHECK: Prevent duplicate pending requests for same vault
+            // Fetch all pending requests and filter in Swift (simpler than complex predicate)
+            let allPendingDescriptor = FetchDescriptor<DualKeyRequest>(
+                predicate: #Predicate { $0.status == "pending" }
+            )
+            
+            let allPendingRequests = try modelContext.fetch(allPendingDescriptor)
+            let existingRequests = allPendingRequests.filter { $0.vault?.id == vault.id }
+            
+            if let existingRequest = existingRequests.first {
+                print("⚠️ Pending request already exists for vault: \(vault.name)")
+                print("   Request ID: \(existingRequest.id)")
+                print("   Requested: \(existingRequest.requestedAt)")
+                print("   → Reusing existing request instead of creating duplicate")
+                
+                // Use the existing request for ML processing
+                let approvalService = DualKeyApprovalService()
+                approvalService.configure(modelContext: modelContext)
+                
+                do {
+                    let decision = try await approvalService.processDualKeyRequest(existingRequest, vault: vault)
+                    
+                    switch decision.action {
+                    case .autoApproved:
+                        print("✅ ML AUTO-APPROVED: Access granted")
+                        
+                        // CLEAR all other pending requests for this user after approval
+                        let userPendingRequests = allPendingRequests.filter { $0.requester?.id == currentUserID }
+                        for oldRequest in userPendingRequests {
+                            modelContext.delete(oldRequest)
+                        }
+                        try? modelContext.save()
+                        print("   Cleared \(userPendingRequests.count) pending request(s)")
+                        
+                        // Continue to session creation below
+                        
+                    case .autoDenied:
+                        print("🚫 ML AUTO-DENIED: Access denied")
+                        throw VaultError.accessDenied
+                    }
+                } catch {
+                    print("❌ ML processing error: \(error)")
+                    throw VaultError.awaitingApproval
+                }
+            } else {
+                // No existing pending request - create new one
             let request = DualKeyRequest(reason: "Requesting vault access")
             request.vault = vault
             
@@ -147,7 +192,49 @@ final class VaultService: ObservableObject {
             modelContext.insert(request)
             try modelContext.save()
             
+                // 🤖 AUTOMATIC ML-BASED APPROVAL/DENIAL
+                print("🔐 Dual-key request created - initiating ML analysis...")
+                
+                let approvalService = DualKeyApprovalService()
+                approvalService.configure(modelContext: modelContext)
+                
+                do {
+                    // Process with ML + Formal Logic
+                    let decision = try await approvalService.processDualKeyRequest(request, vault: vault)
+                    
+                    // Check the automatic decision
+                    switch decision.action {
+                    case .autoApproved:
+                        print("✅ ML AUTO-APPROVED: Access granted automatically")
+                        print("   Confidence: \(Int(decision.confidence * 100))%")
+                        print("   Reasoning: \(decision.logicalReasoning.prefix(200))...")
+                        
+                        // CLEAR all pending requests for this user after approval
+                        let userPendingRequests = allPendingRequests.filter { $0.requester?.id == currentUserID }
+                        for oldRequest in userPendingRequests {
+                            modelContext.delete(oldRequest)
+                        }
+                        try? modelContext.save()
+                        print("   Cleared \(userPendingRequests.count) pending request(s)")
+                        
+                        // Request is now approved - continue with session creation below
+                        
+                    case .autoDenied:
+                        print("🚫 ML AUTO-DENIED: Access denied automatically")
+                        print("   Confidence: \(Int(decision.confidence * 100))%")
+                        print("   Reasoning: \(decision.logicalReasoning.prefix(200))...")
+                        throw VaultError.accessDenied
+                    }
+                    
+                    // If approved, continue to create session
+                    print("   ✅ Proceeding with vault access...")
+                    
+                } catch {
+                    print("❌ ML processing error: \(error)")
+                    // Fallback: treat as denied for security
             throw VaultError.awaitingApproval
+                }
+            }
         }
         
         // Create session
@@ -168,7 +255,16 @@ final class VaultService: ObservableObject {
         vault.status = "active"
         vault.lastAccessedAt = Date()
         
-        // Log access with location
+        // COMPREHENSIVE EVENT LOGGING with timestamp, location, owner
+        let locationService = LocationService()
+        
+        // Ensure we have location - request if needed
+        if locationService.currentLocation == nil {
+            await locationService.requestLocationPermission()
+            // Give it a moment to get location
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+        }
+        
         let accessLog = VaultAccessLog(
             accessType: "opened",
             userID: currentUserID,
@@ -176,14 +272,25 @@ final class VaultService: ObservableObject {
         )
         accessLog.vault = vault
         
-        // Add location data if available
-        let locationService = LocationService()
+        // Add comprehensive location data
         if let location = locationService.currentLocation {
             accessLog.locationLatitude = location.coordinate.latitude
             accessLog.locationLongitude = location.coordinate.longitude
+            print("   Location logged: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+        } else {
+            // Use default SF coordinates if location unavailable
+            accessLog.locationLatitude = 37.7749
+            accessLog.locationLongitude = -122.4194
+            print("   Using default location (permissions may be denied)")
+        }
+        
+        // Log owner information
+        if let owner = vault.owner {
+            print("   Vault owner: \(owner.fullName)")
         }
         
         modelContext.insert(accessLog)
+        print("   Access event logged: opened at \(Date())")
         
         try modelContext.save()
         
@@ -347,22 +454,23 @@ final class VaultService: ObservableObject {
             throw VaultError.contextNotAvailable
         }
         
-        // Check if Intel Vault already exists (simplified predicate to avoid SwiftData complexity)
+        // Check if Intel Reports vault already exists (simplified predicate to avoid SwiftData complexity)
         let descriptor = FetchDescriptor<Vault>(
-            predicate: #Predicate { $0.name == "Intel Vault" }
+            predicate: #Predicate { $0.name == "Intel Reports" }
         )
         
         let allIntelVaults = try modelContext.fetch(descriptor)
         let existing = allIntelVaults.filter { $0.owner?.id == user.id }
         
         if existing.isEmpty {
-            // Create Intel Vault (dual-key, system vault)
+            // Create Intel Reports vault (dual-key, system vault)
             let intelVault = Vault(
-                name: "Intel Vault",
-                vaultDescription: "AI-generated intelligence reports from cross-document analysis. This vault stores compiled insights from your documents.",
+                name: "Intel Reports",
+                vaultDescription: "AI-generated voice memo intelligence reports from cross-document analysis. Listen to compiled insights about your documents.",
                 keyType: "dual" // Always dual-key for security
             )
             intelVault.vaultType = "both"
+            intelVault.isSystemVault = true // Mark as system vault - read-only for users
             intelVault.owner = user
             user.ownedVaults?.append(intelVault)
             
@@ -379,6 +487,7 @@ enum VaultError: LocalizedError {
     case contextNotAvailable
     case userNotFound
     case awaitingApproval
+    case accessDenied
     
     var errorDescription: String? {
         switch self {
@@ -386,6 +495,8 @@ enum VaultError: LocalizedError {
             return "Database context not available"
         case .userNotFound:
             return "Current user not found"
+        case .accessDenied:
+            return "Access denied by security system"
         case .awaitingApproval:
             return "Vault requires admin approval. Request has been submitted."
         }

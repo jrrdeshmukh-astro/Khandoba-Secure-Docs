@@ -119,8 +119,8 @@ struct StoreView: View {
     
     // MARK: - Subscription Section
     
+    @ViewBuilder
     private var subscriptionSection: some View {
-        Group {
             if subscriptionService.isLoading {
                 ProgressView()
                     .padding()
@@ -158,7 +158,7 @@ struct StoreView: View {
                                 action: {
                                     Task {
                                         do {
-                                            try await subscriptionService.purchase()
+                                            try await subscriptionService.purchase(product)
                                         } catch {
                                             errorMessage = error.localizedDescription
                                             showError = true
@@ -175,7 +175,7 @@ struct StoreView: View {
                             Button("Restore Purchases") {
                                 Task {
                                     do {
-                                        try await subscriptionService.restore()
+                                        try await subscriptionService.restorePurchases()
                                     } catch {
                                         errorMessage = error.localizedDescription
                                         showError = true
@@ -220,7 +220,6 @@ struct StoreView: View {
                     .padding(UnifiedTheme.Spacing.lg)
                 }
                 .padding(.horizontal)
-            }
         }
     }
     

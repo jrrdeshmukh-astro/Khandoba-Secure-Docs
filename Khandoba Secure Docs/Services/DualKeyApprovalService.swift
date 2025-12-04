@@ -31,54 +31,37 @@ final class DualKeyApprovalService: ObservableObject {
     
     func configure(modelContext: ModelContext) {
         self.modelContext = modelContext
-        formalLogicEngine.configure(modelContext: modelContext)
     }
     
-    /// Process dual-key request with ML + Formal Logic reasoning
+    /// Process dual-key request with ML including geospatial analysis
     func processDualKeyRequest(_ request: DualKeyRequest, vault: Vault) async throws -> DualKeyDecision {
         isProcessing = true
         defer { isProcessing = false }
         
-        print("🤖 ML + Logic: Processing dual-key request for vault: \(vault.name)")
+        print("ML: Processing dual-key request for vault: \(vault.name)")
         
-        // Step 1: Calculate threat score
-        let threatScore = await calculateThreatScore(for: vault, request: request)
-        print("   Threat Score: \(String(format: "%.1f", threatScore))/100")
+        // Calculate threat score
+        let threatScore = await calculateThreatScoreOptimized(for: vault)
         
-        // Step 2: Analyze geospatial risk
-        let geoRisk = await calculateGeospatialRisk(request: request, vault: vault)
-        print("   Geospatial Risk: \(String(format: "%.1f", geoRisk))/100")
+        // GEOSPATIAL RISK ANALYSIS with actual location
+        let geoRisk = await calculateGeospatialRiskOptimized(vault: vault)
         
-        // Step 3: Analyze behavioral patterns
-        let behaviorScore = await analyzeBehaviorPatterns(requester: request.requester, vault: vault)
-        print("   Behavior Score: \(String(format: "%.1f", behaviorScore))/100")
+        // Behavioral analysis
+        let behaviorScore = await analyzeBehaviorOptimized(vault: vault)
         
-        // Step 4: Calculate combined ML score
+        // Calculate combined ML score
         let mlScore = calculateCombinedMLScore(
             threatScore: threatScore,
             geoRisk: geoRisk,
             behaviorScore: behaviorScore
         )
-        print("   📊 Combined ML Score: \(String(format: "%.1f", mlScore))/100")
+        print("   Threat: \(String(format: "%.0f", threatScore))% | Geo: \(String(format: "%.0f", geoRisk))% | Behavior: \(String(format: "%.0f", behaviorScore))%")
+        print("   Combined ML Score: \(String(format: "%.1f", mlScore))/100")
         
-        // Step 5: Build observations for formal logic
-        buildLogicalObservations(
-            request: request,
-            vault: vault,
+        // OPTIMIZATION: Skip formal logic engine for performance
+        // Make direct decision based on ML score
+        let decision = makeQuickDecision(
             mlScore: mlScore,
-            threatScore: threatScore,
-            geoRisk: geoRisk,
-            behaviorScore: behaviorScore
-        )
-        
-        // Step 6: Apply formal logic reasoning
-        let logicalAnalysis = formalLogicEngine.performCompleteLogicalAnalysis()
-        print("   🎓 Formal Logic: \(logicalAnalysis.totalInferences) inferences generated")
-        
-        // Step 7: Make decision with logical reasoning
-        let decision = makeIntelligentDecision(
-            mlScore: mlScore,
-            logicalAnalysis: logicalAnalysis,
             request: request,
             vault: vault,
             threatScore: threatScore,
@@ -86,12 +69,146 @@ final class DualKeyApprovalService: ObservableObject {
             behaviorScore: behaviorScore
         )
         
-        // Step 8: Log decision
-        try await logDecision(decision, for: request, vault: vault, mlScore: mlScore)
-        
-        // Step 9: Execute decision
+        // Execute decision (fast)
         try await executeDecision(decision, for: request)
         
+        return decision
+    }
+    
+    // OPTIMIZED: Lightweight threat calculation
+    private func calculateThreatScoreOptimized(for vault: Vault) async -> Double {
+        // Quick check without heavy analysis
+        let logs = vault.accessLogs ?? []
+        
+        if logs.isEmpty {
+            return 10.0 // New vault, low risk
+        }
+        
+        // Check for recent failed attempts only
+        let recentLogs = logs.suffix(10)
+        let failedCount = recentLogs.filter { $0.accessType == "failed" }.count
+        
+        return Double(failedCount * 10) // Simple scoring
+    }
+    
+    // GEOSPATIAL RISK: Analyze location patterns
+    private func calculateGeospatialRiskOptimized(vault: Vault) async -> Double {
+        let locationService = LocationService()
+        
+        guard let currentLocation = locationService.currentLocation else {
+            print("   Geo: No location available")
+            return 30.0 // Unknown location = moderate risk
+        }
+        
+        let currentLat = currentLocation.coordinate.latitude
+        let currentLon = currentLocation.coordinate.longitude
+        print("   Current location: \(currentLat), \(currentLon)")
+        
+        // Get historical locations from logs
+        let logs = vault.accessLogs ?? []
+        let logsWithLocation = logs.filter { $0.locationLatitude != nil && $0.locationLongitude != nil }
+        
+        if logsWithLocation.isEmpty {
+            print("   Geo: First access from this location")
+            return 25.0 // New location, moderate risk
+        }
+        
+        // Calculate distance from typical locations
+        var minDistance = Double.infinity
+        
+        for log in logsWithLocation.suffix(20) { // Check last 20 locations
+            if let logLat = log.locationLatitude, let logLon = log.locationLongitude {
+                let distance = calculateDistanceKm(
+                    from: (currentLat, currentLon),
+                    to: (logLat, logLon)
+                )
+                minDistance = min(minDistance, distance)
+            }
+        }
+        
+        print("   Distance from familiar location: \(String(format: "%.1f", minDistance)) km")
+        
+        // Risk based on distance
+        if minDistance < 1 {
+            return 5.0 // Very close to known location
+        } else if minDistance < 10 {
+            return 10.0 // Nearby
+        } else if minDistance < 50 {
+            return 20.0 // Same city
+        } else if minDistance < 200 {
+            return 40.0 // Different city
+        } else {
+            print("   Warning: Access from distant location")
+            return 60.0 // Far away, higher risk
+        }
+    }
+    
+    // BEHAVIORAL ANALYSIS: Access patterns
+    private func analyzeBehaviorOptimized(vault: Vault) async -> Double {
+        let logs = vault.accessLogs ?? []
+        
+        if logs.count < 3 {
+            return 20.0 // Not enough data, moderate risk
+        }
+        
+        let recentLogs = logs.suffix(10)
+        
+        // Check access frequency
+        if recentLogs.count >= 5 {
+            let timeSpan = recentLogs.first!.timestamp.timeIntervalSince(recentLogs.last!.timestamp)
+            if timeSpan < 300 { // 5 accesses in 5 minutes
+                print("   Behavior: Rapid access detected")
+                return 35.0
+            }
+        }
+        
+        return 15.0 // Normal behavior
+    }
+    
+    // Helper: Calculate distance between coordinates
+    private func calculateDistanceKm(from: (Double, Double), to: (Double, Double)) -> Double {
+        let earthRadius = 6371.0 // km
+        
+        let lat1 = from.0 * .pi / 180
+        let lat2 = to.0 * .pi / 180
+        let deltaLat = (to.0 - from.0) * .pi / 180
+        let deltaLon = (to.1 - from.1) * .pi / 180
+        
+        let a = sin(deltaLat / 2) * sin(deltaLat / 2) +
+                cos(lat1) * cos(lat2) *
+                sin(deltaLon / 2) * sin(deltaLon / 2)
+        
+        let c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        
+        return earthRadius * c
+    }
+    
+    // OPTIMIZED: Quick decision without formal logic
+    private func makeQuickDecision(
+        mlScore: Double,
+        request: DualKeyRequest,
+        vault: Vault,
+        threatScore: Double,
+        geoRisk: Double,
+        behaviorScore: Double
+    ) -> DualKeyDecision {
+        var decision = DualKeyDecision()
+        decision.mlScore = mlScore
+        decision.timestamp = Date()
+        decision.vaultName = vault.name
+        
+        if mlScore < autoApproveThreshold {
+            decision.action = .autoApproved
+            decision.confidence = 1.0 - (mlScore / 100.0)
+            decision.reason = "ACCESS APPROVED\n\nSecurity check passed. Your request looks safe.\n\nSafety Score: \(String(format: "%.0f", mlScore))% (Low Risk)\n\nYour vault access is approved."
+            
+        } else {
+            decision.action = .autoDenied
+            decision.confidence = mlScore / 100.0
+            decision.reason = "ACCESS DENIED\n\nSecurity check flagged some concerns.\n\nRisk Level: \(String(format: "%.0f", mlScore))% (High Risk)\n\nTry again later or contact support."
+        }
+        
+        decision.logicalReasoning = decision.reason
         return decision
     }
     
@@ -357,7 +474,7 @@ final class DualKeyApprovalService: ObservableObject {
         // Add facts for formal reasoning
         if let requester = request.requester {
             formalLogicEngine.addFact(Fact(
-                subject: requester.name,
+                subject: requester.fullName,
                 predicate: "requests_access_to",
                 object: vault.name,
                 source: request.id,
@@ -382,39 +499,36 @@ final class DualKeyApprovalService: ObservableObject {
         
         // Binary decision: Approve or Deny (NO manual review)
         if mlScore < autoApproveThreshold {
-            // APPROVE with logical reasoning
+            // APPROVE with simple explanation
             decision.action = .autoApproved
             decision.confidence = 1.0 - (mlScore / 100.0)
             
-            // Build formal logic explanation
-            var reasoning = "✅ **APPROVED - Formal Logic Analysis:**\n\n"
+            // Build simple, clear explanation
+            var reasoning = "ACCESS APPROVED\n\n"
             
-            // Deductive reasoning
-            reasoning += "**Deductive Logic (Certain):**\n"
-            reasoning += "• Premise: If ML score < 50 AND no critical threats, then approve access\n"
-            reasoning += "• Observation: ML score = \(String(format: "%.1f", mlScore)) < 50\n"
-            reasoning += "• Observation: Threat level = \(threatScore < 60 ? "acceptable" : "elevated")\n"
-            reasoning += "• Conclusion (Modus Ponens): Access APPROVED with logical certainty\n"
-            reasoning += "• Formula: P→Q, P ⊢ Q\n\n"
+            reasoning += "Why was this approved?\n"
+            reasoning += "We checked your security profile and everything looks good. Here's what we found:\n\n"
             
-            // Statistical reasoning
-            reasoning += "**Statistical Analysis:**\n"
-            reasoning += "• Combined risk score: \(String(format: "%.1f", mlScore))/100\n"
-            reasoning += "• Threat component: \(String(format: "%.1f", threatScore))/100\n"
-            reasoning += "• Geographic component: \(String(format: "%.1f", geoRisk))/100\n"
-            reasoning += "• Behavioral component: \(String(format: "%.1f", behaviorScore))/100\n"
-            reasoning += "• Confidence interval: 95% certainty of safe access\n\n"
+            reasoning += "Security Check Results:\n"
+            reasoning += "Overall Safety Score: \(String(format: "%.0f", mlScore))% (Low Risk)\n"
+            reasoning += "Threat Level: \(threatScore < 30 ? "Safe" : threatScore < 60 ? "Normal" : "Elevated")\n"
+            reasoning += "Your Location: \(geoRisk < 30 ? "Recognized" : geoRisk < 60 ? "Familiar" : "Unusual")\n"
+            reasoning += "Behavior Pattern: \(behaviorScore < 30 ? "Typical" : behaviorScore < 60 ? "Normal" : "Different than usual")\n\n"
             
-            // Inductive reasoning
+            reasoning += "What this means:\n"
+            reasoning += "Everything about this access request appears safe. Your location and behavior match your normal patterns, and we haven't detected any security concerns.\n\n"
+            
+            // Add patterns if available
             if !logicalAnalysis.inductiveInferences.isEmpty {
-                reasoning += "**Inductive Patterns:**\n"
+                reasoning += "Additional Notes:\n"
                 for inference in logicalAnalysis.inductiveInferences.prefix(2) {
-                    reasoning += "• \(inference.conclusion)\n"
+                    let simplified = simplifyInference(inference.conclusion)
+                    reasoning += "\(simplified)\n"
                 }
                 reasoning += "\n"
             }
             
-            reasoning += "**Final Decision:** Access granted based on low-risk profile and formal logical certainty."
+            reasoning += "Bottom Line: Your vault access is approved. You're good to go!"
             
             decision.reason = reasoning
             decision.logicalReasoning = reasoning
@@ -422,53 +536,54 @@ final class DualKeyApprovalService: ObservableObject {
             print("   ✅ APPROVED: Score \(String(format: "%.1f", mlScore)) < \(autoApproveThreshold)")
             
         } else {
-            // DENY with logical reasoning
+            // DENY with simple explanation
             decision.action = .autoDenied
             decision.confidence = mlScore / 100.0
             
-            // Build formal logic explanation
-            var reasoning = "🚫 **DENIED - Formal Logic Analysis:**\n\n"
+            // Build simple, clear explanation
+            var reasoning = "ACCESS DENIED\n\n"
             
-            // Deductive reasoning
-            reasoning += "**Deductive Logic (Certain):**\n"
-            reasoning += "• Premise: If ML score ≥ 50 OR critical threats detected, then deny access\n"
-            reasoning += "• Observation: ML score = \(String(format: "%.1f", mlScore)) ≥ 50\n"
-            reasoning += "• Conclusion (Modus Ponens): Access DENIED with logical certainty\n"
-            reasoning += "• Formula: P→Q, P ⊢ Q\n\n"
+            reasoning += "Why was this blocked?\n"
+            reasoning += "We detected some security concerns with this access attempt. For your protection, we're denying access.\n\n"
             
-            // Abductive reasoning (find cause)
-            reasoning += "**Abductive Analysis (Root Cause):**\n"
+            reasoning += "Security Check Results:\n"
+            reasoning += "Overall Risk Level: \(String(format: "%.0f", mlScore))% (High Risk)\n"
+            reasoning += "Threat Level: \(threatScore < 30 ? "Safe" : threatScore < 60 ? "Moderate" : "High")\n"
+            reasoning += "Your Location: \(geoRisk < 30 ? "Recognized" : geoRisk < 60 ? "Familiar" : "Unusual or far from home")\n"
+            reasoning += "Behavior Pattern: \(behaviorScore < 30 ? "Normal" : behaviorScore < 60 ? "Slightly different" : "Very different than usual")\n\n"
+            
+            reasoning += "What triggered this:\n"
+            var reasons: [String] = []
             if threatScore > 50 {
-                reasoning += "• Most likely cause: Elevated threat level (\(String(format: "%.1f", threatScore))/100)\n"
-                reasoning += "• Evidence: Suspicious access patterns or security indicators\n"
+                reasons.append("We detected some suspicious activity or security warnings")
             }
             if geoRisk > 50 {
-                reasoning += "• Geographic anomaly: Access from unusual location\n"
-                reasoning += "• Risk: \(String(format: "%.1f", geoRisk))/100\n"
+                reasons.append("You're trying to access from an unfamiliar or distant location")
             }
             if behaviorScore > 50 {
-                reasoning += "• Behavioral anomaly: Unusual access pattern for this user\n"
-                reasoning += "• Deviation: \(String(format: "%.1f", behaviorScore))/100\n"
+                reasons.append("Your access pattern is different from your normal behavior")
+            }
+            
+            if reasons.isEmpty {
+                reasoning += "Overall risk score is too high for automatic approval\n"
+            } else {
+                for reason in reasons {
+                    reasoning += "\(reason)\n"
+                }
             }
             reasoning += "\n"
             
-            // Modal logic (necessity)
-            reasoning += "**Modal Logic (Necessity):**\n"
-            reasoning += "• Given security policy: □(High-risk access → Denial required)\n"
-            reasoning += "• Current state: High-risk access detected\n"
-            reasoning += "• Necessary conclusion: Denial is MANDATORY\n\n"
-            
-            // Abductive inferences from engine
+            // Add best explanation if available
             if !logicalAnalysis.abductiveInferences.isEmpty {
-                reasoning += "**Most Likely Explanation:**\n"
+                reasoning += "Most likely reason:\n"
                 if let bestExplanation = logicalAnalysis.abductiveInferences.first {
-                    reasoning += "• \(bestExplanation.conclusion)\n"
-                    reasoning += "• Likelihood: \(Int(bestExplanation.confidence * 100))%\n"
+                    let simplified = simplifyInference(bestExplanation.conclusion)
+                    reasoning += "\(simplified)\n\n"
                 }
-                reasoning += "\n"
             }
             
-            reasoning += "**Final Decision:** Access denied for security reasons. Risk score exceeds acceptable threshold."
+            reasoning += "What to do:\n"
+            reasoning += "This is a security precaution. If this is really you, try again later when you're in your usual location. Contact support if you believe this is an error."
             
             decision.reason = reasoning
             decision.logicalReasoning = reasoning
@@ -608,6 +723,18 @@ final class DualKeyApprovalService: ObservableObject {
         // Return hours with >10% of accesses
         let threshold = logs.count / 10
         return Set(hours.filter { $0.value > max(threshold, 1) }.map { $0.key })
+    }
+    
+    // Helper to simplify technical inference conclusions into plain English
+    private func simplifyInference(_ technical: String) -> String {
+        // Convert technical language to plain English
+        let simplified = technical
+            .replacingOccurrences(of: "Pattern:", with: "We noticed:")
+            .replacingOccurrences(of: "typically", with: "usually")
+            .replacingOccurrences(of: "documents", with: "files")
+            .replacingOccurrences(of: "property:", with: "")
+        
+        return simplified
     }
 }
 

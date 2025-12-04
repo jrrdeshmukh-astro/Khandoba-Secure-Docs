@@ -21,6 +21,8 @@ struct VideoRecordingView: View {
     @State private var isRecording = false
     @State private var showPreview = false
     @State private var recordedVideoURL: URL?
+    @State private var recordingDuration: TimeInterval = 0
+    @State private var recordingTimer: Timer?
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -37,8 +39,9 @@ struct VideoRecordingView: View {
                 
                 // Controls
                 VStack(spacing: UnifiedTheme.Spacing.lg) {
-                    // Recording Indicator
+                    // Recording Indicator with Timer
                     if isRecording {
+                        VStack(spacing: 4) {
                         HStack(spacing: 8) {
                             Circle()
                                 .fill(Color.red)
@@ -46,9 +49,19 @@ struct VideoRecordingView: View {
                                 .scaleEffect(isRecording ? 1.2 : 1.0)
                                 .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: isRecording)
                             
-                            Text("Recording...")
+                                Text("Recording")
                                 .font(theme.typography.subheadline)
+                                    .foregroundColor(.white)
+                            }
+                            
+                            // Timer Display
+                            Text(formatDuration(recordingDuration))
+                                .font(.system(size: 28, weight: .medium, design: .monospaced))
                                 .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.black.opacity(0.5))
+                                .cornerRadius(8)
                         }
                     }
                     
@@ -114,27 +127,66 @@ struct VideoRecordingView: View {
     
     private func toggleRecording() {
         if isRecording {
+            // Stop recording and timer
+            stopTimer()
             camera.stopRecording { url in
                 recordedVideoURL = url
                 showPreview = true
             }
         } else {
+            // Start recording and timer
+            recordingDuration = 0
+            startTimer()
             camera.startRecording()
         }
         isRecording.toggle()
     }
     
+    private func startTimer() {
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            recordingDuration += 0.1
+        }
+    }
+    
+    private func stopTimer() {
+        recordingTimer?.invalidate()
+        recordingTimer = nil
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        let deciseconds = Int((duration.truncatingRemainder(dividingBy: 1)) * 10)
+        return String(format: "%02d:%02d.%01d", minutes, seconds, deciseconds)
+    }
+    
     private func saveVideo(_ url: URL) async {
-        
         do {
-            // Premium subscription - unlimited video recording
+            print("🎥 Saving video recording...")
             
             // Load video data
             let data = try Data(contentsOf: url)
             let fileName = "video_\(Date().timeIntervalSince1970).mp4"
             
-            // Upload
-            _ = try await documentService.uploadDocument(
+            print("   📊 File size: \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))")
+            print("   ⏱️ Duration: \(formatDuration(recordingDuration))")
+            
+            // 🤖 GENERATE AI TAGS FOR VIDEO
+            print("   🤖 Generating AI tags...")
+            let tags = await NLPTaggingService.generateTags(
+                for: data,
+                mimeType: "video/mp4",
+                documentName: fileName
+            )
+            
+            if !tags.isEmpty {
+                print("   ✅ Generated \(tags.count) AI tags: \(tags.joined(separator: ", "))")
+            } else {
+                print("   ℹ️ No AI tags generated")
+            }
+            
+            // Upload with AI tags
+            let document = try await documentService.uploadDocument(
                 data: data,
                 name: fileName,
                 mimeType: "video/mp4",
@@ -142,9 +194,16 @@ struct VideoRecordingView: View {
                 uploadMethod: .videoRecording
             )
             
+            // Add AI tags to document
+            if !tags.isEmpty {
+                document.aiTags = tags
+                print("   📝 AI tags applied to document")
+            }
+            
+            print("   ✅ Video saved successfully to vault: \(vault.name)")
             dismiss()
         } catch {
-            print("Error saving video: \(error)")
+            print("❌ Error saving video: \(error)")
         }
     }
 }

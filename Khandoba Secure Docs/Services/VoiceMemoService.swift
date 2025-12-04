@@ -39,50 +39,48 @@ final class VoiceMemoService: NSObject, ObservableObject {
         isGenerating = true
         defer { isGenerating = false }
         
-        // Configure audio session
-        let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.playAndRecord, mode: .default)
-        try audioSession.setActive(true)
-        
-        // Create temporary output file
+        // Create output file
         let tempDir = FileManager.default.temporaryDirectory
-        let outputURL = tempDir.appendingPathComponent("\(UUID().uuidString)_voice_memo.m4a")
+        let outputURL = tempDir.appendingPathComponent("\(UUID().uuidString)_voice_memo.caf")
         
-        // Set up audio recorder to capture synthesized speech
-        let settings: [String: Any] = [
-            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 44100.0,
-            AVNumberOfChannelsKey: 1,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
-        ]
-        
-        audioRecorder = try AVAudioRecorder(url: outputURL, settings: settings)
-        audioRecorder?.prepareToRecord()
-        audioRecorder?.record()
-        
-        // Synthesize speech
+        // Create speech utterance
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = 0.50 // Slightly slower for better comprehension
+        utterance.rate = 0.52 // Slightly slower for better comprehension
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
+        utterance.preUtteranceDelay = 0.0
+        utterance.postUtteranceDelay = 0.0
         
-        // Speak the text
-        speechSynthesizer.speak(utterance)
+        print("🎤 Generating voice memo to: \(outputURL.lastPathComponent)")
+        print("📝 Text length: \(text.count) characters")
         
-        // Wait for speech to finish
-        while speechSynthesizer.isSpeaking {
-            try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Use AVSpeechSynthesizer to write audio to file
+        return try await withCheckedThrowingContinuation { continuation in
+            // Write synthesized speech to file
+            speechSynthesizer.write(utterance) { [weak self] buffer in
+                guard let buffer = buffer else {
+                    print("✅ Voice memo generation complete")
+                    self?.currentOutputURL = outputURL
+                    continuation.resume(returning: outputURL)
+                    return
+                }
+                
+                // Write buffer to file
+                do {
+                    let audioFile = try AVAudioFile(
+                        forWriting: outputURL,
+                        settings: buffer.format.settings,
+                        commonFormat: .pcmFormatFloat32,
+                        interleaved: false
+                    )
+                    try audioFile.write(from: buffer)
+                } catch {
+                    print("❌ Error writing audio buffer: \(error)")
+                    continuation.resume(throwing: VoiceMemoError.generationFailed)
+                }
+            }
         }
-        
-        // Stop recording
-        audioRecorder?.stop()
-        audioRecorder = nil
-        
-        currentOutputURL = outputURL
-        
-        print("✅ Voice memo generated: \(outputURL.lastPathComponent)")
-        return outputURL
     }
     
     /// Play voice memo
@@ -115,15 +113,16 @@ final class VoiceMemoService: NSObject, ObservableObject {
         // Create document
         let document = Document(
             name: title,
-            fileExtension: "m4a",
-            mimeType: "audio/m4a",
+            fileExtension: "caf",
+            mimeType: "audio/x-caf",
             fileSize: Int64(audioData.count),
             documentType: "audio"
         )
         document.encryptedFileData = audioData
         document.sourceSinkType = "source" // AI-generated content is "source"
         document.vault = vault
-        document.aiTags = ["intel-report", "voice-memo", "ai-generated", "threat-analysis"]
+        document.aiTags = ["intel-report", "voice-memo", "ai-generated", "threat-analysis", "ai-narrated"]
+        document.status = "active"
         
         modelContext.insert(document)
         try modelContext.save()

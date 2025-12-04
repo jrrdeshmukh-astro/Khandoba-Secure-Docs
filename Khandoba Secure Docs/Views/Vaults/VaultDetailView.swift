@@ -239,8 +239,8 @@ struct VaultDetailView: View {
                         .padding(.horizontal)
                     }
                     
-                    // Media Actions
-                    if hasActiveSession {
+                    // Media Actions - Hidden for system vaults like Intel Reports
+                    if hasActiveSession && !vault.isSystemVault {
                         VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                             Text("Media Actions")
                                 .font(theme.typography.headline)

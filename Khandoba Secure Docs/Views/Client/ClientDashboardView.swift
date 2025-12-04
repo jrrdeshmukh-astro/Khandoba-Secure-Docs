@@ -14,11 +14,17 @@ struct ClientDashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var vaultService: VaultService
     
-    @Query private var accessLogs: [VaultAccessLog]
+    // OPTIMIZATION: Only fetch recent logs (last 50) to prevent hanging
+    @Query(sort: \VaultAccessLog.timestamp, order: .reverse)
+    private var allAccessLogs: [VaultAccessLog]
     
     @State private var isLoading = false
     @State private var totalDocuments = 0
     @State private var activeSessions = 0
+    
+    private var accessLogs: [VaultAccessLog] {
+        Array(allAccessLogs.prefix(50))
+    }
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -208,17 +214,55 @@ struct ActivityRow: View {
                     .frame(width: 30)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(log.accessType.capitalized)
+                    // Enhanced description with context
+                    Text(descriptionForActivity(log))
                         .font(theme.typography.subheadline)
                         .foregroundColor(colors.textPrimary)
                     
+                    // Vault name if available
+                    if let vaultName = log.vault?.name {
+                        Text(vaultName)
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textSecondary)
+                    }
+                    
                     Text(log.timestamp, style: .relative)
-                        .font(theme.typography.caption)
-                        .foregroundColor(colors.textSecondary)
+                        .font(theme.typography.caption2)
+                        .foregroundColor(colors.textTertiary)
                 }
                 
                 Spacer()
             }
+        }
+    }
+    
+    private func descriptionForActivity(_ log: VaultAccessLog) -> String {
+        let vaultName = log.vault?.name ?? "vault"
+        
+        switch log.accessType {
+        case "opened":
+            return "Opened \(vaultName)"
+        case "closed":
+            return "Closed \(vaultName)"
+        case "viewed":
+            return "Viewed documents"
+        case "modified":
+            return "Modified content"
+        case "deleted":
+            return "Deleted items"
+        case "upload":
+            // Check if we can infer document type
+            if vaultName.lowercased().contains("medical") {
+                return "Uploaded medical document"
+            } else if vaultName.lowercased().contains("legal") {
+                return "Uploaded legal document"
+            } else {
+                return "Uploaded document to \(vaultName)"
+            }
+        case "created":
+            return "Created new vault"
+        default:
+            return log.accessType.capitalized
         }
     }
     

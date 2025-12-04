@@ -7,18 +7,21 @@
 
 import SwiftUI
 import MapKit
+import SwiftData
 
 struct AccessMapView: View {
     let vault: Vault
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.modelContext) private var modelContext
     @State private var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
     @State private var annotations: [AccessAnnotation] = []
     @State private var selectedAnnotation: AccessAnnotation?
+    @State private var eventTypeFilter: EventFilter = .all
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -28,29 +31,48 @@ struct AccessMapView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Summary Stats
+                // Summary Stats & Filter
                 if !annotations.isEmpty {
+                    VStack(spacing: UnifiedTheme.Spacing.sm) {
                     HStack(spacing: UnifiedTheme.Spacing.md) {
                         StatBadge(
                             icon: "mappin.circle.fill",
-                            value: "\(annotations.count)",
-                            label: "Access Points",
+                                value: "\(filteredAnnotations.count)",
+                                label: "Events",
                             color: colors.primary
                         )
                         
                         StatBadge(
                             icon: "location.fill",
-                            value: "\(Set(annotations.map { "\($0.coordinate.latitude),\($0.coordinate.longitude)" }).count)",
+                                value: "\(Set(filteredAnnotations.map { "\($0.coordinate.latitude),\($0.coordinate.longitude)" }).count)",
                             label: "Locations",
                             color: colors.secondary
                         )
                     }
-                    .padding()
+                        
+                        // Event Type Filter
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: UnifiedTheme.Spacing.sm) {
+                                ForEach(EventFilter.allCases, id: \.self) { filter in
+                                    FilterChip(
+                                        label: filter.rawValue,
+                                        icon: filter.icon,
+                                        isSelected: eventTypeFilter == filter,
+                                        count: countForFilter(filter)
+                                    ) {
+                                        eventTypeFilter = filter
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical)
                     .background(colors.surface)
                 }
                 
                 // Map with Enhanced Annotations
-                Map(coordinateRegion: $region, annotationItems: annotations) { annotation in
+                Map(coordinateRegion: $region, annotationItems: filteredAnnotations) { annotation in
                     MapAnnotation(coordinate: annotation.coordinate) {
                         Button {
                             selectedAnnotation = annotation
@@ -211,23 +233,152 @@ struct AccessMapView: View {
         }
         .navigationTitle("Access Map")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
+        .task {
+            // Ensure location permissions are granted
+            let locationService = LocationService()
+            await locationService.requestLocationPermission()
+            
+            // Load access points after permission check
             loadAccessPoints()
         }
     }
     
+    private var filteredAnnotations: [AccessAnnotation] {
+        if eventTypeFilter == .all {
+            return annotations
+        }
+        return annotations.filter { $0.eventCategory == eventTypeFilter.rawValue }
+    }
+    
+    private func countForFilter(_ filter: EventFilter) -> Int {
+        if filter == .all {
+            return annotations.count
+        }
+        return annotations.filter { $0.eventCategory == filter.rawValue }.count
+    }
+    
     private func loadAccessPoints() {
+        var allAnnotations: [AccessAnnotation] = []
+        
+        // OPTIMIZATION: Limit to recent events to prevent hanging
+        let maxEvents = 50
+        
+        // 1. VAULT ACCESS LOGS (opening, closing, viewing)
+        print("MAP: Loading vault events (limit: \(maxEvents))...")
         let logs: [VaultAccessLog] = vault.accessLogs ?? []
-        annotations = logs.compactMap { log in
-            guard let lat = log.locationLatitude,
-                  let lon = log.locationLongitude else { return nil }
-            
-            return AccessAnnotation(
+        print("MAP: Found \(logs.count) access logs total")
+        
+        // Only process most recent logs
+        let recentLogs = logs.sorted { $0.timestamp > $1.timestamp }.prefix(maxEvents)
+        
+        var logAnnotations: [AccessAnnotation] = []
+        for log in recentLogs {
+            if let lat = log.locationLatitude, let lon = log.locationLongitude {
+                let annotation = AccessAnnotation(
                 id: log.id,
                 coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
                 accessType: log.accessType,
-                timestamp: log.timestamp
-            )
+                    timestamp: log.timestamp,
+                    eventCategory: "Access",
+                    details: log.userName ?? "Unknown User"
+                )
+                logAnnotations.append(annotation)
+            }
+        }
+        
+        allAnnotations.append(contentsOf: logAnnotations)
+        print("MAP: Loaded \(logAnnotations.count) access events")
+        
+        // 2. DUAL-KEY REQUESTS
+        // Note: Dual-key requests use location from the access log at request time
+        let dualKeyRequests: [DualKeyRequest] = vault.dualKeyRequests ?? []
+        var requestAnnotations: [AccessAnnotation] = []
+        
+        for request in dualKeyRequests {
+            // Find the access log that corresponds to this request (same timestamp)
+            if let matchingLog = logs.first(where: { 
+                abs($0.timestamp.timeIntervalSince(request.requestedAt)) < 5.0 
+            }), let lat = matchingLog.locationLatitude,
+               let lon = matchingLog.locationLongitude {
+                
+                let status = request.status
+                let accessType = status == "approved" ? "dual_key_approved" : 
+                               status == "denied" ? "dual_key_denied" : "dual_key_pending"
+                
+                let annotation = AccessAnnotation(
+                    id: request.id,
+                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                    accessType: accessType,
+                    timestamp: request.requestedAt,
+                    eventCategory: "Dual-Key",
+                    details: request.reason ?? "Access request"
+                )
+                requestAnnotations.append(annotation)
+            }
+        }
+        
+        allAnnotations.append(contentsOf: requestAnnotations)
+        print("   ✅ Loaded \(requestAnnotations.count) dual-key requests")
+        
+        // 3. DOCUMENT UPLOADS
+        // OPTIMIZATION: Only show recent uploads
+        let documents: [Document] = vault.documents ?? []
+        let recentDocuments = documents.sorted { $0.uploadedAt > $1.uploadedAt }.prefix(20)
+        var uploadAnnotations: [AccessAnnotation] = []
+        
+        for document in recentDocuments {
+            // Find access log near upload time
+            if let matchingLog = logs.first(where: { 
+                abs($0.timestamp.timeIntervalSince(document.uploadedAt)) < 300 // Within 5 minutes
+            }), let lat = matchingLog.locationLatitude,
+               let lon = matchingLog.locationLongitude {
+                
+                let annotation = AccessAnnotation(
+                    id: document.id,
+                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                    accessType: "upload",
+                    timestamp: document.uploadedAt,
+                    eventCategory: "Upload",
+                    details: document.name
+                )
+                uploadAnnotations.append(annotation)
+            }
+        }
+        
+        allAnnotations.append(contentsOf: uploadAnnotations)
+        print("MAP: Loaded \(uploadAnnotations.count) upload events")
+        
+        // 4. REPORT GENERATION EVENTS
+        // Track when intel reports are generated (stored in vault access logs)
+        var reportAnnotations: [AccessAnnotation] = []
+        for log in logs where log.accessType == "report_generated" {
+            if let lat = log.locationLatitude, let lon = log.locationLongitude {
+                let annotation = AccessAnnotation(
+                    id: log.id,
+                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                    accessType: "report_generated",
+                    timestamp: log.timestamp,
+                    eventCategory: "Report",
+                    details: "Intel report generated"
+                )
+                reportAnnotations.append(annotation)
+            }
+        }
+        allAnnotations.append(contentsOf: reportAnnotations)
+        print("MAP: Loaded \(reportAnnotations.count) report generation events")
+        
+        // Sort by timestamp (most recent first)
+        annotations = allAnnotations.sorted { $0.timestamp > $1.timestamp }
+        
+        print("MAP SUMMARY: Total events on map: \(annotations.count)")
+        print("   Access: \(logAnnotations.count)")
+        print("   Dual-Key: \(requestAnnotations.count)")
+        print("   Uploads: \(uploadAnnotations.count)")
+        print("   Reports: \(reportAnnotations.count)")
+        
+        // Debug: Print first few coordinates
+        for (index, annotation) in annotations.prefix(3).enumerated() {
+            print("   Event \(index + 1): \(annotation.accessType) at \(annotation.coordinate.latitude), \(annotation.coordinate.longitude)")
         }
         
         // Calculate region from all access points
@@ -277,11 +428,24 @@ struct AccessMapView: View {
     
     private func iconForAccessType(_ type: String) -> String {
         switch type {
+        // Access events
         case "opened": return "lock.open.fill"
         case "closed": return "lock.fill"
         case "viewed": return "eye.fill"
         case "modified": return "pencil.circle.fill"
         case "deleted": return "trash.fill"
+        
+        // Dual-key events
+        case "dual_key_approved": return "checkmark.shield.fill"
+        case "dual_key_denied": return "xmark.shield.fill"
+        case "dual_key_pending": return "clock.badge.questionmark.fill"
+        
+        // Upload events
+        case "upload": return "arrow.up.doc.fill"
+        
+        // Report events
+        case "report_generated": return "chart.bar.doc.horizontal.fill"
+        
         default: return "circle.fill"
         }
     }
@@ -289,11 +453,24 @@ struct AccessMapView: View {
     private func colorForAccessType(_ type: String) -> Color {
         let colors = theme.colors(for: colorScheme)
         switch type {
-        case "opened": return colors.primary
+        // Access events
+        case "opened": return colors.success
         case "closed": return colors.textTertiary
-        case "viewed": return colors.secondary
+        case "viewed": return colors.info
         case "modified": return colors.warning
         case "deleted": return colors.error
+        
+        // Dual-key events
+        case "dual_key_approved": return colors.success
+        case "dual_key_denied": return colors.error
+        case "dual_key_pending": return colors.warning
+        
+        // Upload events
+        case "upload": return colors.primary
+        
+        // Report events
+        case "report_generated": return Color.purple
+        
                 default: return colors.textTertiary
         }
     }
@@ -345,11 +522,69 @@ struct MetadataItem: View {
     }
 }
 
+// MARK: - Event Filter
+enum EventFilter: String, CaseIterable {
+    case all = "All"
+    case access = "Access"
+    case dualKey = "Dual-Key"
+    case upload = "Upload"
+    case report = "Report"
+    
+    var icon: String {
+        switch self {
+        case .all: return "circle.grid.3x3.fill"
+        case .access: return "lock.open.fill"
+        case .dualKey: return "key.fill"
+        case .upload: return "arrow.up.doc.fill"
+        case .report: return "chart.bar.doc.horizontal.fill"
+        }
+    }
+}
+
+struct FilterChip: View {
+    let label: String
+    let icon: String
+    let isSelected: Bool
+    let count: Int
+    let action: () -> Void
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption)
+                Text(label)
+                    .font(theme.typography.caption)
+                if count > 0 {
+                    Text("(\(count))")
+                        .font(theme.typography.caption2)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(isSelected ? colors.primary : colors.surface)
+            .foregroundColor(isSelected ? .white : colors.textPrimary)
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(isSelected ? Color.clear : colors.textTertiary.opacity(0.2), lineWidth: 1)
+            )
+        }
+    }
+}
+
 struct AccessAnnotation: Identifiable {
     let id: UUID
     let coordinate: CLLocationCoordinate2D
     let accessType: String
     let timestamp: Date
+    let eventCategory: String  // "Access", "Dual-Key", "Upload", "Report"
+    let details: String
 }
 
 struct AccessLogMapRow: View {
