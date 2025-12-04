@@ -35,7 +35,7 @@ struct StoreView: View {
                         subscriptionSection
                         
                         // Manage Subscription
-                        if subscriptionService.isSubscribed {
+                        if subscriptionService.subscriptionStatus == .active {
                             manageSection
                         }
                     }
@@ -61,7 +61,7 @@ struct StoreView: View {
     private var currentStatusSection: some View {
         StandardCard {
             VStack(spacing: UnifiedTheme.Spacing.md) {
-                if subscriptionService.isSubscribed {
+                if subscriptionService.subscriptionStatus == .active {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 60))
                         .foregroundColor(colors.success)
@@ -124,7 +124,7 @@ struct StoreView: View {
             if subscriptionService.isLoading {
                 ProgressView()
                     .padding()
-            } else if let product = subscriptionService.availableSubscriptions.first {
+            } else if let product = subscriptionService.products.first {
                 StandardCard {
                     VStack(spacing: UnifiedTheme.Spacing.md) {
                         HStack {
@@ -151,7 +151,7 @@ struct StoreView: View {
                             }
                         }
                         
-                        if !subscriptionService.isSubscribed {
+                        if subscriptionService.subscriptionStatus != .active {
                             StandardButton(
                                 "Subscribe Now",
                                 style: .primary,
@@ -231,7 +231,14 @@ struct StoreView: View {
             VStack(spacing: UnifiedTheme.Spacing.md) {
                 Button {
                     Task {
-                        await subscriptionService.manageSubscriptions()
+                        // Open Apple's subscription management
+                        if let windowScene = await UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                            do {
+                                try await AppStore.showManageSubscriptions(in: windowScene)
+                            } catch {
+                                print("❌ Failed to show manage subscriptions: \(error)")
+                            }
+                        }
                     }
                 } label: {
                     HStack {
