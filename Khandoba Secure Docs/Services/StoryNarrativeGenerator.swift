@@ -17,6 +17,7 @@ import AVFoundation
 import UIKit
 import CoreLocation
 import SwiftData
+import Combine
 
 @MainActor
 final class StoryNarrativeGenerator: ObservableObject {
