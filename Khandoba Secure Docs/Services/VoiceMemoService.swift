@@ -55,17 +55,26 @@ final class VoiceMemoService: NSObject, ObservableObject {
         print("🎤 Generating voice memo to: \(outputURL.lastPathComponent)")
         print("📝 Text length: \(text.count) characters")
         
-        // Use AVSpeechSynthesizer to write audio to file
+        // Configure audio session for recording
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setCategory(.playAndRecord, mode: .default, options: [])
+        try audioSession.setActive(true)
+        
+        // Use simpler approach: synthesize to audio engine and export
         return try await withCheckedThrowingContinuation { continuation in
             var audioFile: AVAudioFile?
             var hasResumed = false
+            var bufferCount = 0
             
-            // Write synthesized speech to file
+            // Set up synthesis completion handler
             speechSynthesizer.write(utterance) { [weak self] buffer in
-                guard let buffer = buffer else {
-                    // nil buffer means we're done
-                    if !hasResumed {
-                        print("✅ Voice memo generation complete")
+                bufferCount += 1
+                
+                // Check if this is a valid PCM buffer
+                guard let pcmBuffer = buffer as? AVAudioPCMBuffer, pcmBuffer.frameLength > 0 else {
+                    // Empty or non-PCM buffer signals completion
+                    if !hasResumed && bufferCount > 0 {
+                        print("✅ Voice memo generation complete (\(bufferCount) buffers)")
                         self?.currentOutputURL = outputURL
                         hasResumed = true
                         continuation.resume(returning: outputURL)
@@ -73,23 +82,21 @@ final class VoiceMemoService: NSObject, ObservableObject {
                     return
                 }
                 
-                // Cast to AVAudioPCMBuffer (required for write)
-                guard let pcmBuffer = buffer as? AVAudioPCMBuffer else {
-                    print("⚠️ Skipping non-PCM buffer")
-                    return
-                }
-                
                 // Write buffer to file
                 do {
                     if audioFile == nil {
+                        // Create audio file on first buffer
                         audioFile = try AVAudioFile(
                             forWriting: outputURL,
                             settings: pcmBuffer.format.settings,
                             commonFormat: .pcmFormatFloat32,
                             interleaved: false
                         )
+                        print("📝 Created audio file: \(outputURL.lastPathComponent)")
                     }
+                    
                     try audioFile?.write(from: pcmBuffer)
+                    print("   Written buffer \(bufferCount): \(pcmBuffer.frameLength) frames")
                 } catch {
                     if !hasResumed {
                         print("❌ Error writing audio buffer: \(error)")
