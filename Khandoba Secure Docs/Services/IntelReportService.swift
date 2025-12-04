@@ -130,7 +130,7 @@ final class IntelReportService: ObservableObject {
     private func buildVoiceNarrative(from report: IntelReport) async -> String {
         var text = ""
         
-        text += "Intelligence Report for \(Date().formatted(date: .long, time: .omitted)).\n\n"
+        // NO META INFO - Pure insights only
         
         // Check if we have media documents to create story narrative
         let allDocuments = await getAllDocuments()
@@ -143,19 +143,18 @@ final class IntelReportService: ObservableObject {
             print("   🎬 Generating story narrative from \(mediaDocuments.count) media files...")
             let storyNarrative = await storyGenerator.generateStoryNarrative(from: mediaDocuments)
             text += storyNarrative
-            text += "\n\n"
         } else {
             // Fallback to standard narrative
             text += report.narrative
-            text += "\n\n"
         }
         
-        text += "Key Insights:\n"
-        for (index, insight) in report.insights.enumerated() {
-            text += "\(index + 1). \(insight)\n"
+        // Add insights naturally (no numbered list)
+        if !report.insights.isEmpty {
+            text += " "
+            text += report.insights.joined(separator: " ")
         }
         
-        text += "\nEnd of report."
+        // NO "End of report" - just end naturally
         
         return text
     }
