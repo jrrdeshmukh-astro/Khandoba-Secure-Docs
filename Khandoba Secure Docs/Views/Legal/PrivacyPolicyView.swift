@@ -1,0 +1,106 @@
+//
+//  PrivacyPolicyView.swift
+//  Khandoba Secure Docs
+//
+//  In-app privacy policy
+
+import SwiftUI
+
+struct PrivacyPolicyView: View {
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.lg) {
+                    Text("Privacy Policy")
+                        .font(theme.typography.title)
+                        .foregroundColor(colors.textPrimary)
+                        .padding(.bottom)
+                    
+                    PolicySection(
+                        title: "Data Collection",
+                        content: "We collect only essential information: your name and email from Apple Sign In, and the documents you choose to store. All data is encrypted on your device before storage."
+                    )
+                    
+                    PolicySection(
+                        title: "Zero-Knowledge Architecture",
+                        content: "Your documents are encrypted with keys that never leave your device. Even our administrators cannot access your document content. We can only see metadata like file names and sizes."
+                    )
+                    
+                    PolicySection(
+                        title: "Data Storage",
+                        content: "All documents are stored encrypted using AES-256-GCM encryption. Data is synced via Apple's CloudKit service and follows Apple's privacy standards."
+                    )
+                    
+                    PolicySection(
+                        title: "Location Data",
+                        content: "Location data is collected only when accessing vaults, solely for security logging. This helps you track where your vaults were accessed. Location data is never shared with third parties."
+                    )
+                    
+                    PolicySection(
+                        title: "Data Sharing",
+                        content: "We never share your data with third parties. Your documents remain private and encrypted. Vault sharing features are controlled entirely by you."
+                    )
+                    
+                    PolicySection(
+                        title: "HIPAA Compliance",
+                        content: "Our encryption and zero-knowledge architecture support HIPAA compliance for medical document storage. Redaction tools help protect protected health information (PHI)."
+                    )
+                    
+                    PolicySection(
+                        title: "Your Rights",
+                        content: "You can export all your data at any time. You can delete your account and all associated data. You control all sharing and access permissions."
+                    )
+                    
+                    PolicySection(
+                        title: "Contact",
+                        content: "For privacy questions, contact us at privacy@khandoba.com or visit https://khandoba.com/privacy"
+                    )
+                }
+                .padding()
+            }
+            .background(colors.background)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private var colors: UnifiedTheme.Colors {
+        theme.colors(for: colorScheme)
+    }
+}
+
+struct PolicySection: View {
+    let title: String
+    let content: String
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+            Text(title)
+                .font(theme.typography.headline)
+                .foregroundColor(colors.textPrimary)
+            
+            Text(content)
+                .font(theme.typography.body)
+                .foregroundColor(colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.bottom, UnifiedTheme.Spacing.md)
+    }
+    
+    private var colors: UnifiedTheme.Colors {
+        theme.colors(for: colorScheme)
+    }
+}

@@ -1,0 +1,69 @@
+format_version: '11'
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+
+project_type: ios
+
+app:
+  envs:
+  - BITRISE_PROJECT_PATH: Khandoba.xcodeproj
+  - BITRISE_SCHEME: Khandoba
+
+workflows:
+  primary:
+    steps:
+    - activate-ssh-key@6:
+        inputs:
+        - ssh_private_key: "$SSH_RSA_PRIVATE_KEY"
+    - git-clone@7: {}
+    - activate-build-cache-for-xcode@1:
+        inputs:
+          push_new_cache_entries: "true"
+    - xcode-archive@5:
+        inputs:
+        - project_path: "$BITRISE_PROJECT_PATH"
+        - scheme: "$BITRISE_SCHEME"
+        - export_method: app-store
+        - distribution_method: app-store
+        - configuration: Release
+    - deploy-to-bitrise-io@2: {}
+  
+  test:
+    steps:
+    - activate-ssh-key@6:
+        inputs:
+        - ssh_private_key: "$SSH_RSA_PRIVATE_KEY"
+    - git-clone@7: {}
+    - activate-build-cache-for-xcode@1:
+        inputs:
+          push_new_cache_entries: "true"
+    - xcode-test@4:
+        inputs:
+        - project_path: "$BITRISE_PROJECT_PATH"
+        - scheme: "$BITRISE_SCHEME"
+        - test_device: "iPhone 15"
+        - test_platform: "simulator"
+        - simulator_os_version: "latest"
+  
+  deploy:
+    steps:
+    - activate-ssh-key@6:
+        inputs:
+        - ssh_private_key: "$SSH_RSA_PRIVATE_KEY"
+    - git-clone@7: {}
+    - activate-build-cache-for-xcode@1:
+        inputs:
+          push_new_cache_entries: "true"
+    - certificate-and-profile-installer@2: {}
+    - xcode-archive@5:
+        inputs:
+        - project_path: "$BITRISE_PROJECT_PATH"
+        - scheme: "$BITRISE_SCHEME"
+        - export_method: app-store
+        - distribution_method: app-store
+        - configuration: Release
+    - deploy-to-bitrise-io@2: {}
+
+meta:
+  bitrise.io:
+    stack: osx-xcode-26.0.x-edge
+

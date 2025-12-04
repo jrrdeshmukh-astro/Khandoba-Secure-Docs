@@ -1,0 +1,62 @@
+App Preview Text Overlays for Khandoba Secure Docs
+===================================================
+
+Use these exact text overlays in your 30-second app preview video.
+
+Scene 1 (0:00-0:03):
+"Military-Grade Security"
+
+Scene 2 (0:04-0:07):
+"Unlimited Secure Vaults"
+
+Scene 3 (0:08-0:11):
+"Dual-Key Protection"
+
+Scene 4 (0:12-0:16):
+"AI-Powered Intelligence"
+
+Scene 5 (0:17-0:21):
+"Intel Reports"
+
+Scene 6 (0:22-0:25):
+"Real-Time Monitoring"
+
+Scene 7 (0:26-0:27):
+"Share Securely"
+
+Scene 8 (0:28-0:30):
+"$5.99/month • Unlimited"
+
+---
+
+Style Guidelines:
+- Font: San Francisco Bold (iOS native)
+- Color: White (#FFFFFF)
+- Shadow: Subtle black shadow (20% opacity)
+- Position: Centered
+- Animation: Fade in 0.2s, Fade out 0.2s
+- Duration: 1.5-2 seconds per overlay
+
+---
+
+Alternative Shorter Overlays (if 30 seconds feels cramped):
+
+1. "Military-Grade Security"
+2. "AI Intelligence"
+3. "Dual-Key Vaults"
+4. "Intel Reports"
+5. "$5.99/month"
+
+---
+
+Key Messages to Convey:
+✓ Security (military-grade encryption)
+✓ Intelligence (AI-powered features)
+✓ Unique features (Intel Reports, Dual-Key)
+✓ Value (unlimited for $5.99)
+✓ Professional quality
+
+---
+
+Use these overlays when editing in iMovie or Final Cut Pro.
+

@@ -1,0 +1,235 @@
+//
+//  RedactionView.swift
+//  Khandoba Secure Docs
+//
+//  Created by Jai Deshmukh on 12/2/25.
+//
+
+import SwiftUI
+import SwiftData
+import PDFKit
+import SwiftData
+
+struct RedactionView: View {
+    let document: Document
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.dismiss) var dismiss
+    @Environment(\.modelContext) private var modelContext
+    
+    @State private var redactionAreas: [CGRect] = []
+    @State private var showSaveConfirm = false
+    @State private var autoDetectedPHI: [PHIMatch] = []
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        VStack(spacing: 0) {
+            // HIPAA Warning
+            StandardCard {
+                HStack(spacing: UnifiedTheme.Spacing.sm) {
+                    Image(systemName: "shield.checkered")
+                        .foregroundColor(colors.warning)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("HIPAA Redaction")
+                            .font(theme.typography.subheadline)
+                            .foregroundColor(colors.textPrimary)
+                            .fontWeight(.semibold)
+                        
+                        Text("Redactions are permanent and cannot be undone")
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textSecondary)
+                    }
+                }
+            }
+            .padding()
+            
+            // Document Preview with Redaction Overlay
+            ZStack {
+                colors.background
+                
+                if document.documentType == "pdf" || document.documentType == "image" {
+                    // Placeholder for document preview
+                    Rectangle()
+                        .fill(colors.surface)
+                        .overlay(
+                            VStack(spacing: UnifiedTheme.Spacing.sm) {
+                                Image(systemName: "doc.text.fill")
+                                    .font(.system(size: 60))
+                                    .foregroundColor(colors.textTertiary)
+                                
+                                Text("Document Preview")
+                                    .font(theme.typography.headline)
+                                    .foregroundColor(colors.textPrimary)
+                                
+                                Text("Tap and drag to mark areas for redaction")
+                                    .font(theme.typography.caption)
+                                    .foregroundColor(colors.textSecondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            .padding()
+                        )
+                    
+                    // Redaction overlays
+                    ForEach(Array(redactionAreas.enumerated()), id: \.offset) { index, rect in
+                        Rectangle()
+                            .fill(Color.black)
+                            .frame(width: rect.width, height: rect.height)
+                            .position(x: rect.midX, y: rect.midY)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            // Auto-detected PHI
+            if !autoDetectedPHI.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: UnifiedTheme.Spacing.sm) {
+                        ForEach(autoDetectedPHI) { phi in
+                            PHIChip(phi: phi) {
+                                // Add to redaction areas
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .frame(height: 60)
+                .background(colors.surface)
+            }
+            
+            // Actions
+            HStack(spacing: UnifiedTheme.Spacing.md) {
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Cancel")
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                
+                Button {
+                    showSaveConfirm = true
+                } label: {
+                    HStack {
+                        Image(systemName: "checkmark.shield.fill")
+                        Text("Apply Redactions")
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(redactionAreas.isEmpty && autoDetectedPHI.isEmpty)
+            }
+            .padding()
+            .background(colors.surface)
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Apply Redactions", isPresented: $showSaveConfirm) {
+            Button("Apply (Permanent)", role: .destructive) {
+                applyRedactions()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This action is permanent and cannot be undone. The redacted information will be permanently removed from the document.")
+        }
+        .task {
+            await detectPHI()
+        }
+    }
+    
+    private func detectPHI() async {
+        guard let text = document.extractedText else { return }
+        
+        // Auto-detect PHI patterns
+        var detected: [PHIMatch] = []
+        
+        // SSN pattern (XXX-XX-XXXX)
+        let ssnPattern = #"\b\d{3}-\d{2}-\d{4}\b"#
+        if let regex = try? NSRegularExpression(pattern: ssnPattern) {
+            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            for match in matches {
+                if let range = Range(match.range, in: text) {
+                    detected.append(PHIMatch(type: "SSN", value: String(text[range])))
+                }
+            }
+        }
+        
+        // Date of Birth patterns
+        let dobPattern = #"\b\d{1,2}/\d{1,2}/\d{2,4}\b"#
+        if let regex = try? NSRegularExpression(pattern: dobPattern) {
+            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            for match in matches {
+                if let range = Range(match.range, in: text) {
+                    detected.append(PHIMatch(type: "DOB", value: String(text[range])))
+                }
+            }
+        }
+        
+        // Medical Record Numbers (MRN)
+        let mrnPattern = #"\bMRN[:\s-]?\d{6,10}\b"#
+        if let regex = try? NSRegularExpression(pattern: mrnPattern, options: .caseInsensitive) {
+            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            for match in matches {
+                if let range = Range(match.range, in: text) {
+                    detected.append(PHIMatch(type: "MRN", value: String(text[range])))
+                }
+            }
+        }
+        
+        autoDetectedPHI = detected
+    }
+    
+    private func applyRedactions() {
+        document.isRedacted = true
+        document.lastModifiedAt = Date()
+        
+        // Create version before redaction
+        let version = DocumentVersion(
+            versionNumber: (document.versions ?? []).count + 1,
+            fileSize: document.fileSize,
+            changes: "Pre-redaction version"
+        )
+        version.encryptedFileData = document.encryptedFileData
+        version.document = document
+        
+        modelContext.insert(version)
+        
+        // In production: Apply actual redactions to the file data
+        // This would involve PDF manipulation or image processing
+        
+        try? modelContext.save()
+        dismiss()
+    }
+}
+
+struct PHIMatch: Identifiable {
+    let id = UUID()
+    let type: String
+    let value: String
+}
+
+struct PHIChip: View {
+    let phi: PHIMatch
+    let onSelect: () -> Void
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        Button(action: onSelect) {
+            VStack(spacing: 2) {
+                Text(phi.type)
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                Text(phi.value)
+                    .font(.caption)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(colors.error)
+            .cornerRadius(UnifiedTheme.CornerRadius.md)
+        }
+    }
+}

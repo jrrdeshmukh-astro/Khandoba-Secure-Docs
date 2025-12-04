@@ -1,0 +1,44 @@
+//
+//  AppConfig.swift
+//  Khandoba Secure Docs
+//
+//  Created by Jai Deshmukh on 12/2/25.
+//
+
+import Foundation
+
+struct AppConfig {
+    // PRODUCTION MODE - Real Apple Sign In required
+    static let isDevelopmentMode = false
+    
+    // App Information
+    static let appVersion = "1.0"
+    static let appBuildNumber = "1"
+    static let appName = "Khandoba Secure Docs"
+    
+    // Production Configuration
+    static let apiBaseURL = "https://api.khandoba.com" // Configure your API endpoint
+    static let cloudKitContainer = "iCloud.com.khandoba.securedocs"
+    
+    // Feature Flags
+    static let enableAnalytics = true
+    static let enableCrashReporting = true
+    static let enablePushNotifications = true
+    
+    // Security
+    static let requireBiometricAuth = true
+    static let sessionTimeoutMinutes = 30
+    static let maxLoginAttempts = 5
+    
+    // Development user credentials (only used if isDevelopmentMode = true)
+    static let devUserID = "dev-user-123"
+    static let devUserName = "Developer User"
+    static let devUserEmail = "dev@khandoba.local"
+    
+    // Admin Emails - Users with these emails automatically get admin role
+    static let adminEmails = [
+        "jai.deshmukh@icloud.com",
+        "dev@khandoba.local"
+    ]
+}
+

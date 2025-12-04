@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2025 Khandoba. All rights reserved.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is required to record videos and scan documents for your secure vault.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is required to record audio with your videos and voice memos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is required to upload images and documents to your secure vault.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location access is used for access logging and geofencing security features.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Contacts access is required to share vaults with your friends and family via iMessage.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Calendar access is required to schedule automated security reviews for your vaults.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Reminders access is required to set up security review notifications.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Speech recognition is required to transcribe audio documents and voice memos for intelligence analysis.</string>
+</dict>
+</plist>
