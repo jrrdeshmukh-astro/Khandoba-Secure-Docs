@@ -39,9 +39,7 @@ final class StoryNarrativeGenerator: ObservableObject {
         isGenerating = true
         defer { isGenerating = false }
         
-        print("🎬 STORY NARRATIVE GENERATOR")
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("📊 Analyzing \(documents.count) documents for story creation")
+        print("🎬 Analyzing \(documents.count) documents for story...")
         
         // Step 1: Analyze all media content
         generationProgress = 0.1
@@ -550,26 +548,26 @@ final class StoryNarrativeGenerator: ObservableObject {
     ) -> String {
         var narrative = ""
         
-        // Opening (Hook the audience)
+        // Opening (Hook the audience) - NO newlines between sections
         narrative += generateOpening(elements: elements, timeline: timeline)
-        narrative += "\n\n"
+        narrative += " "
         
         // Act 1: Setup (Introduce world, characters, setting)
         if !arc.setup.isEmpty {
             narrative += generateActOne(events: arc.setup, elements: elements)
-            narrative += "\n\n"
+            narrative += " "
         }
         
         // Act 2: Conflict (Rising action, complications)
         if !arc.conflict.isEmpty || arc.hasConflict {
             narrative += generateActTwo(events: arc.conflict, elements: elements)
-            narrative += "\n\n"
+            narrative += " "
         }
         
         // Act 3: Resolution (Climax and denouement)
         if !arc.resolution.isEmpty || arc.hasResolution {
             narrative += generateActThree(events: arc.resolution, elements: elements)
-            narrative += "\n\n"
+            narrative += " "
         }
         
         // Closing (Reflection and themes)
