@@ -67,15 +67,16 @@ struct ContentView: View {
         
         // Check if user has active premium subscription
         if !user.isPremiumSubscriber {
-            return true
+            return true  // Not a premium subscriber → needs subscription
         }
         
         // Check if subscription has expired
         if let expiryDate = user.subscriptionExpiryDate {
-            return expiryDate < Date()
+            return expiryDate < Date()  // Expired → needs subscription
         }
         
-        return true // No subscription data = needs subscription
+        // No expiry date means active subscription (perpetual or not set)
+        return false  // Has premium, no expiry → doesn't need subscription ✅
     }
 }
 
