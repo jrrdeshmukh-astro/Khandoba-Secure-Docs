@@ -57,27 +57,45 @@ final class VoiceMemoService: NSObject, ObservableObject {
         
         // Use AVSpeechSynthesizer to write audio to file
         return try await withCheckedThrowingContinuation { continuation in
+            var audioFile: AVAudioFile?
+            var hasResumed = false
+            
             // Write synthesized speech to file
             speechSynthesizer.write(utterance) { [weak self] buffer in
                 guard let buffer = buffer else {
-                    print("✅ Voice memo generation complete")
-                    self?.currentOutputURL = outputURL
-                    continuation.resume(returning: outputURL)
+                    // nil buffer means we're done
+                    if !hasResumed {
+                        print("✅ Voice memo generation complete")
+                        self?.currentOutputURL = outputURL
+                        hasResumed = true
+                        continuation.resume(returning: outputURL)
+                    }
+                    return
+                }
+                
+                // Cast to AVAudioPCMBuffer (required for write)
+                guard let pcmBuffer = buffer as? AVAudioPCMBuffer else {
+                    print("⚠️ Skipping non-PCM buffer")
                     return
                 }
                 
                 // Write buffer to file
                 do {
-                    let audioFile = try AVAudioFile(
-                        forWriting: outputURL,
-                        settings: buffer.format.settings,
-                        commonFormat: .pcmFormatFloat32,
-                        interleaved: false
-                    )
-                    try audioFile.write(from: buffer)
+                    if audioFile == nil {
+                        audioFile = try AVAudioFile(
+                            forWriting: outputURL,
+                            settings: pcmBuffer.format.settings,
+                            commonFormat: .pcmFormatFloat32,
+                            interleaved: false
+                        )
+                    }
+                    try audioFile?.write(from: pcmBuffer)
                 } catch {
-                    print("❌ Error writing audio buffer: \(error)")
-                    continuation.resume(throwing: VoiceMemoError.generationFailed)
+                    if !hasResumed {
+                        print("❌ Error writing audio buffer: \(error)")
+                        hasResumed = true
+                        continuation.resume(throwing: VoiceMemoError.generationFailed)
+                    }
                 }
             }
         }
