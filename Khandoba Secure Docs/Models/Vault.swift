@@ -132,7 +132,11 @@ final class DualKeyRequest {
     var status: String // "pending", "approved", "denied"
     var reason: String?
     var approvedAt: Date?
+    var deniedAt: Date?
     var approverID: UUID?
+    var mlScore: Double?
+    var logicalReasoning: String? // Formal logic explanation
+    var decisionMethod: String? // "ml_auto" or "logic_reasoning"
     
     var vault: Vault?
     var requester: User?

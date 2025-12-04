@@ -71,7 +71,7 @@ struct PDFTextExtractor {
             return document.name
         }
         
-        let fileType = document.fileType.lowercased()
+        let fileType = document.documentType.lowercased()
         
         // PDF
         if fileType.contains("pdf") {
@@ -89,10 +89,10 @@ struct PDFTextExtractor {
             return String(data: data, encoding: .utf8) ?? ""
         }
         
-        // Fallback: Use name + description
+        // Fallback: Use name + extracted text if available
         var text = document.name
-        if let desc = document.documentDescription {
-            text += " " + desc
+        if let extracted = document.extractedText {
+            text += " " + extracted
         }
         
         return text

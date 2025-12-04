@@ -11,6 +11,8 @@ import Speech
 import AVFoundation
 import Vision
 import SwiftData
+import UIKit
+import NaturalLanguage
 
 @MainActor
 final class TranscriptionService: NSObject, ObservableObject {
@@ -93,7 +95,7 @@ final class TranscriptionService: NSObject, ObservableObject {
                     confidence: segment.confidence
                 )
             },
-            confidence: result.bestTranscription.segments.map { $0.confidence }.reduce(0, +) / Double(result.bestTranscription.segments.count),
+            confidence: result.bestTranscription.segments.map { Double($0.confidence) }.reduce(0, +) / Double(result.bestTranscription.segments.count),
             duration: result.bestTranscription.segments.last?.timestamp ?? 0,
             transcribedAt: Date()
         )
@@ -215,7 +217,7 @@ final class TranscriptionService: NSObject, ObservableObject {
         var transcriptions: [UUID: Transcription] = [:]
         
         for (index, document) in documents.enumerated() {
-            guard document.fileType.contains("audio") else { continue }
+            guard document.documentType.contains("audio") else { continue }
             
             transcriptionProgress = Double(index) / Double(documents.count)
             

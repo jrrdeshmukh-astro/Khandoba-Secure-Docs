@@ -137,7 +137,7 @@ final class EnhancedIntelReportService: ObservableObject {
     // MARK: - Audio Transcription
     
     private func transcribeAudioDocuments(_ documents: [Document]) async throws -> [UUID: Transcription] {
-        let audioDocuments = documents.filter { $0.fileType.contains("audio") }
+        let audioDocuments = documents.filter { $0.documentType.contains("audio") }
         
         if audioDocuments.isEmpty {
             return [:]
@@ -372,7 +372,7 @@ final class EnhancedIntelReportService: ObservableObject {
             narrative += "\(transcriptions.count) audio documents transcribed and analyzed.\n\n"
             
             for (docID, transcription) in transcriptions.prefix(3) {
-                let summary = await generateSummary(from: transcription)
+                let summary = generateSummary(from: transcription)
                 narrative += "**Audio Summary:** \(summary)\n\n"
             }
         }
@@ -396,6 +396,25 @@ final class EnhancedIntelReportService: ObservableObject {
         }
         
         return narrative
+    }
+    
+    // MARK: - Generate Summary
+    
+    private func generateSummary(from transcription: Transcription) -> String {
+        let text = transcription.text
+        
+        // Extract first few sentences
+        let sentences = text.split(separator: ".").prefix(3)
+        if sentences.isEmpty {
+            return "Audio transcription available"
+        }
+        
+        var summary = sentences.joined(separator: ". ")
+        if summary.count > 200 {
+            summary = String(summary.prefix(200)) + "..."
+        }
+        
+        return summary
     }
     
     // MARK: - Deep Insights Extraction

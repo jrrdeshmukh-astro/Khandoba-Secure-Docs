@@ -217,11 +217,11 @@ final class DocumentIndexingService: ObservableObject {
                 tags.insert("people")
             case .organization:
                 tags.insert("organizations")
-            case .placeName:
+            case .location:
                 tags.insert("locations")
             case .date:
                 tags.insert("dates")
-            @unknown default:
+            case .other:
                 break
             }
         }
@@ -289,8 +289,13 @@ final class DocumentIndexingService: ObservableObject {
     // MARK: - Sentiment Analysis
     
     private func analyzeSentiment(_ text: String) -> Double {
+        guard let predictor = sentimentPredictor else {
+            // Sentiment predictor not available
+            return 0.0
+        }
+        
         do {
-            let prediction = try sentimentPredictor.predictedLabel(for: text)
+            let prediction = try predictor.predictedLabel(for: text)
             
             // Convert to score: -1.0 (very negative) to 1.0 (very positive)
             if let label = prediction {

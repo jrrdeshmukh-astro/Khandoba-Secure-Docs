@@ -45,9 +45,9 @@ struct WelcomeView: View {
                 
                 // Feature highlights
                 VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                    FeatureRow(icon: "lock.shield.fill", text: "End-to-end encryption", colors: colors)
-                    FeatureRow(icon: "icloud.fill", text: "Secure cloud backup", colors: colors)
-                    FeatureRow(icon: "checkmark.seal.fill", text: "Privacy first", colors: colors)
+                    WelcomeFeatureRow(icon: "lock.shield.fill", text: "End-to-end encryption", colors: colors)
+                    WelcomeFeatureRow(icon: "icloud.fill", text: "Secure cloud backup", colors: colors)
+                    WelcomeFeatureRow(icon: "checkmark.seal.fill", text: "Privacy first", colors: colors)
                 }
                 .padding(.horizontal, UnifiedTheme.Spacing.xl)
                 
@@ -114,8 +114,8 @@ struct WelcomeView: View {
     }
 }
 
-// MARK: - Feature Row Component
-struct FeatureRow: View {
+// MARK: - Welcome Feature Row Component
+private struct WelcomeFeatureRow: View {
     let icon: String
     let text: String
     let colors: UnifiedTheme.Colors

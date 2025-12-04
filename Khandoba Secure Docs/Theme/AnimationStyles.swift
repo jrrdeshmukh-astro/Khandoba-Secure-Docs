@@ -147,21 +147,29 @@ extension View {
     
     /// Animated appearance (fade + scale)
     func animatedAppearance(delay: Double = 0) -> some View {
-        self
-            .opacity(0)
-            .scaleEffect(0.9)
-            .onAppear {
-                withAnimation(AnimationStyles.spring.delay(delay)) {
-                    self.opacity = 1
-                    self.scaleEffect = 1.0
-                }
-            }
+        self.modifier(AnimatedAppearanceModifier(delay: delay))
     }
     
     /// Staggered list appearance
     func staggeredAppearance(index: Int, total: Int = 10) -> some View {
         let delay = Double(index) * (0.6 / Double(total))
         return self.modifier(StaggeredAppearance(delay: delay))
+    }
+}
+
+struct AnimatedAppearanceModifier: ViewModifier {
+    let delay: Double
+    @State private var appeared = false
+    
+    func body(content: Content) -> some View {
+        content
+            .opacity(appeared ? 1 : 0)
+            .scaleEffect(appeared ? 1.0 : 0.9)
+            .onAppear {
+                withAnimation(AnimationStyles.spring.delay(delay)) {
+                    appeared = true
+                }
+            }
     }
 }
 

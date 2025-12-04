@@ -39,11 +39,12 @@ struct VoiceMemoPlayerView: View {
                             .foregroundColor(colors.textPrimary)
                             .multilineTextAlignment(.center)
                         
-                        if let description = document.documentDescription {
-                            Text(description)
+                        if let extractedText = document.extractedText, !extractedText.isEmpty {
+                            Text(extractedText.prefix(100))
                                 .font(theme.typography.caption)
                                 .foregroundColor(colors.textSecondary)
                                 .multilineTextAlignment(.center)
+                                .lineLimit(2)
                         }
                     }
                     .padding(.horizontal, UnifiedTheme.Spacing.xl)
@@ -397,10 +398,11 @@ struct MiniVoiceMemoPlayer: View {
 
 #Preview {
     VoiceMemoPlayerView(document: Document(
-        title: "Security Intelligence Report",
-        fileType: "audio/m4a",
+        name: "Security Intelligence Report",
+        fileExtension: "m4a",
+        mimeType: "audio/m4a",
         fileSize: 1024,
-        encryptedData: Data()
+        documentType: "audio"
     ))
 }
 
