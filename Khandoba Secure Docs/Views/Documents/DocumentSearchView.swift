@@ -293,10 +293,11 @@ struct DocumentSearchView: View {
                 }
                 
                 let intelService = IntelReportService()
-                intelService.configure(modelContext: modelContext)
+                intelService.configure(modelContext: modelContext, vaultService: vaultService)
                 
-                let report = try await intelService.compileReportFromDocuments(selected)
-                try await intelService.saveReportToIntelVault(report, for: currentUser, modelContext: modelContext)
+                // Use NEW clean method - generates pure insights
+                let vaults = vaultService?.vaults ?? []
+                _ = await intelService.generateIntelReport(for: vaults)
                 
                 isCompilingReport = false
                 showSuccessAlert = true

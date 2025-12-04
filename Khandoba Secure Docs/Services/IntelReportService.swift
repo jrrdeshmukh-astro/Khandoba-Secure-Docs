@@ -385,52 +385,8 @@ final class IntelReportService: ObservableObject {
         return insights
     }
     
-    func compileReportFromDocuments(_ documents: [Document]) async throws -> String {
-        guard documents.count >= 2 else {
-            throw IntelReportError.insufficientDocuments
-        }
-        
-        var report = "# Intel Report - Cross-Document Analysis\n\n"
-        report += "**Generated:** \(Date().formatted(date: .long, time: .shortened))\n"
-        report += "**Documents Analyzed:** \(documents.count)\n\n"
-        
-        // Common keywords
-        let allTags = documents.flatMap { $0.aiTags }
-        let tagFreq = Dictionary(grouping: allTags, by: { $0 }).mapValues { $0.count }.sorted { $0.value > $1.value }
-        
-        report += "## Key Topics\n\n"
-        for (tag, count) in tagFreq.prefix(10) {
-            report += "- **\(tag)**: \(count) occurrences\n"
-        }
-        report += "\n"
-        
-        // Source vs Sink
-        let sourceCount = documents.filter { $0.sourceSinkType == "source" }.count
-        let sinkCount = documents.filter { $0.sourceSinkType == "sink" }.count
-        
-        report += "## Data Origin\n\n"
-        report += "- Created (Source): \(sourceCount)\n"
-        report += "- Received (Sink): \(sinkCount)\n\n"
-        
-        // Timeline
-        let dates = documents.map { $0.uploadedAt }.sorted()
-        if let earliest = dates.first, let latest = dates.last {
-            let days = Calendar.current.dateComponents([.day], from: earliest, to: latest).day ?? 0
-            report += "## Timeline\n\n"
-            report += "- Range: \(earliest.formatted(date: .abbreviated, time: .omitted)) - \(latest.formatted(date: .abbreviated, time: .omitted))\n"
-            report += "- Span: \(days) days\n\n"
-        }
-        
-        // Insights
-        report += "## Insights\n\n"
-        if sourceCount > sinkCount * 2 {
-            report += "Active content creator.\n"
-        } else if sinkCount > sourceCount * 2 {
-            report += "Content aggregator.\n"
-        }
-        
-        return report
-    }
+    // OLD FUNCTION REMOVED - Use generateIntelReport() instead
+    // This function had all the meta info that was being spoken!
     
     func saveReportToIntelVault(_ report: String, for user: User?, modelContext: ModelContext) async throws {
         guard let user = user else {
