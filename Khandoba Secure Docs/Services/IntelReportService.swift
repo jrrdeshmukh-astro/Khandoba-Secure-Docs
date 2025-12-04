@@ -90,38 +90,43 @@ final class IntelReportService: ObservableObject {
     /// Generate voice memo from report and save to Intel Vault
     private func generateAndSaveVoiceMemo(for report: IntelReport, vaults: [Vault]) async {
         do {
-            print("🎤 Generating voice memo for Intel Report...")
+            print("🎤 Generating voice memo...")
             
             // Find or create Intel Vault
             guard let intelVault = await findOrCreateIntelVault(vaults: vaults) else {
-                print("❌ Failed to find/create Intel Vault")
+                print("❌ No Intel Vault")
                 return
             }
             
-            // Generate full narrative text for voice memo (with story if media available)
+            // Build narrative text (NO meta info)
             let voiceText = await buildVoiceNarrative(from: report)
             
-            // Generate audio file from text
+            // DEBUG: Show EXACT text being spoken
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print("📝 VOICE TEXT TO BE SPOKEN:")
+            print(voiceText)
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print("📊 Length: \(voiceText.count) characters")
+            
+            // Generate audio
             let audioURL = try await voiceMemoService.generateVoiceMemo(
                 from: voiceText,
-                title: "Intel Report \(Date().formatted(date: .abbreviated, time: .shortened))"
+                title: "Intel_\(Date().timeIntervalSince1970)"
             )
             
-            print("✅ Voice memo audio generated: \(audioURL.lastPathComponent)")
-            
-            // Save to Intel Vault
+            // Save to vault
             let document = try await voiceMemoService.saveVoiceMemoToVault(
                 audioURL,
                 vault: intelVault,
-                title: "Intel Report - \(Date().formatted(date: .abbreviated, time: .shortened))",
-                description: "AI-generated intelligence analysis with actionable insights"
+                title: "Intel Report",
+                description: "Intelligence analysis"
             )
             
-            print("✅ Voice memo saved to Intel Vault: \(document.name)")
+            print("✅ Saved: \(document.name)")
             voiceMemoURL = audioURL
             
         } catch {
-            print("❌ Error generating voice memo: \(error)")
+            print("❌ Error: \(error)")
         }
     }
     
