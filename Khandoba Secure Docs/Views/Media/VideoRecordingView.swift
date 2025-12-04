@@ -303,8 +303,10 @@ class CameraViewModel: NSObject, ObservableObject {
             preview?.videoGravity = .resizeAspectFill
             
             // Start session on background thread
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.session.startRunning()
+            Task {
+                await MainActor.run {
+                    session.startRunning()
+                }
             }
         } catch {
             print("Camera setup failed: \(error)")
@@ -493,7 +495,9 @@ class VideoPlayerViewModel: ObservableObject {
         
         // Observe playback status
         player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main) { [weak self] _ in
-            self?.isPlaying = self?.player.rate != 0
+            Task { @MainActor in
+                self?.isPlaying = self?.player.rate != 0
+            }
         }
     }
     

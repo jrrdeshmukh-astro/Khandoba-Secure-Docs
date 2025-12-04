@@ -296,7 +296,7 @@ struct DocumentSearchView: View {
                 intelService.configure(modelContext: modelContext, vaultService: vaultService)
                 
                 // Use NEW clean method - generates pure insights
-                let vaults = vaultService?.vaults ?? []
+                let vaults = vaultService.vaults
                 _ = await intelService.generateIntelReport(for: vaults)
                 
                 isCompilingReport = false
