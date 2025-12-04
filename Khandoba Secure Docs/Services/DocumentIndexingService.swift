@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 import NaturalLanguage
 import CoreML
 import Vision
@@ -18,7 +19,8 @@ final class DocumentIndexingService: ObservableObject {
     
     private var modelContext: ModelContext?
     private let tagger = NLTagger(tagSchemes: [.nameType, .lexicalClass, .language])
-    private let sentimentPredictor = NLModel(mlModel: try! NLModel(contentsOf: NLModel.sentimentModel))
+    // Sentiment analysis - optional feature (requires trained model)
+    private var sentimentPredictor: NLModel?
     
     nonisolated init() {}
     
@@ -92,7 +94,7 @@ final class DocumentIndexingService: ObservableObject {
         )
         
         // Update document with generated metadata
-        document.tags = tags
+        document.aiTags = tags
         
         if let modelContext = modelContext {
             modelContext.insert(index)
@@ -117,9 +119,8 @@ final class DocumentIndexingService: ObservableObject {
             fullText = document.name + "\n" + fullText
         }
         
-        if let desc = document.documentDescription, !fullText.contains(desc) {
-            fullText += "\n" + desc
-        }
+        // Document description not available in model
+        // Additional metadata could be added here if needed
         
         return fullText
     }
@@ -216,9 +217,11 @@ final class DocumentIndexingService: ObservableObject {
                 tags.insert("people")
             case .organization:
                 tags.insert("organizations")
-            case .location:
+            case .placeName:
                 tags.insert("locations")
-            case .other:
+            case .date:
+                tags.insert("dates")
+            @unknown default:
                 break
             }
         }
