@@ -303,10 +303,8 @@ class CameraViewModel: NSObject, ObservableObject {
             preview?.videoGravity = .resizeAspectFill
             
             // Start session on background thread
-            Task {
-                await MainActor.run {
-                    session.startRunning()
-                }
+            DispatchQueue.global(qos: .userInitiated).async {
+                session.startRunning()
             }
         } catch {
             print("Camera setup failed: \(error)")

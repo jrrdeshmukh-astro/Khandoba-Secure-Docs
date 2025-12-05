@@ -162,21 +162,8 @@ struct DocumentSearchView: View {
                     allTags: getAllTags()
                 )
             }
-            .alert("Intel Report Created", isPresented: $showSuccessAlert) {
-                Button("OK", role: .cancel) {
-                    isSelectionMode = false
-                    selectedDocumentIDs.removeAll()
-                }
-            } message: {
-                Text("Intel report has been compiled and saved to your Intel Vault.")
-            }
             .overlay {
-                if isCompilingReport {
-                    ZStack {
-                        Color.black.opacity(0.5)
-                        VStack(spacing: UnifiedTheme.Spacing.md) {
-                            ProgressView()
-                                .scaleEffect(1.5)
+                // Audio Intel processing handled in AudioIntelReportView
                                 .tint(.white)
                             Text("Compiling Intel Report...")
                                 .font(theme.typography.subheadline)
