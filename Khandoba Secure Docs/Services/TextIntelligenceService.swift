@@ -160,7 +160,7 @@ final class TextIntelligenceService: ObservableObject {
         try? handler.perform([faceRequest])
         if let faceCount = faceRequest.results?.count, faceCount > 0 {
             text += "\(faceCount) person\(faceCount > 1 ? "s" : "") visible. "
-            entities.append("\(faceCount) person\(faceCount > 1 : "s" : "")")
+            entities.append("\(faceCount) person\(faceCount > 1 ? "s" : "")")
         }
         
         // 3. Text Recognition (OCR)
