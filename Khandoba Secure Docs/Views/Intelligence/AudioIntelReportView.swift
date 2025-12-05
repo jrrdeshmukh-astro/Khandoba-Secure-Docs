@@ -185,27 +185,51 @@ struct AudioIntelReportView: View {
         }
         
         do {
-            let audioData = try Data(contentsOf: audioURL)
+            print("💾 Saving Intel debrief to vault: \(vault.name)")
             
+            // Load audio data
+            let audioData = try Data(contentsOf: audioURL)
+            print("   Audio size: \(audioData.count) bytes")
+            
+            // Create document
             let document = Document(
-                name: "Intel_Debrief_\(Date().timeIntervalSince1970).m4a",
+                name: "Intel_Debrief_\(Date().formatted(date: .abbreviated, time: .shortened)).m4a",
                 mimeType: "audio/m4a",
                 fileSize: Int64(audioData.count),
                 documentType: "audio",
                 isEncrypted: true
             )
             document.encryptedFileData = audioData
-            document.vault = vault
             document.sourceSinkType = "source"
             document.aiTags = ["Intel Report", "Audio Debrief", "AI Analysis"]
+            document.status = "active"
             
+            // Link to vault
+            document.vault = vault
+            
+            // CRITICAL: Add to vault's documents array
+            if vault.documents == nil {
+                vault.documents = []
+            }
+            vault.documents?.append(document)
+            
+            // Insert and save
             modelContext.insert(document)
             try modelContext.save()
             
-            print("✅ Intel debrief saved to vault")
+            print("✅ Intel debrief saved successfully!")
+            print("   Document: \(document.name)")
+            print("   Vault: \(vault.name)")
+            print("   Tags: \(document.aiTags.joined(separator: ", "))")
+            
+            // Cleanup temp file
+            try? FileManager.default.removeItem(at: audioURL)
+            print("   Temp file cleaned up")
+            
             dismiss()
             
         } catch {
+            print("❌ Save error: \(error)")
             errorMessage = "Failed to save: \(error.localizedDescription)"
             showError = true
         }
