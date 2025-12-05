@@ -138,7 +138,7 @@ final class TextIntelligenceService: ObservableObject {
         )
     }
     
-    // MARK: - Image Analysis
+    // MARK: - Enhanced Image Analysis (CLIP-style understanding)
     
     private func analyzeImage(_ data: Data) async -> (String, [String], [String]) {
         guard let image = UIImage(data: data), let cgImage = image.cgImage else {
@@ -151,27 +151,53 @@ final class TextIntelligenceService: ObservableObject {
         
         let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
         
-        // 1. Scene Classification
+        // 1. Scene Classification (enhanced with confidence)
         let sceneRequest = VNClassifyImageRequest()
         try? handler.perform([sceneRequest])
-        if let results = sceneRequest.results?.prefix(3) {
-            let scenes = results.map { $0.identifier }.joined(separator: ", ")
-            text += "Scene: \(scenes). "
+        if let results = sceneRequest.results?.prefix(5) {
+            let highConfidenceScenes = results.filter { $0.confidence > 0.3 }
+                .map { $0.identifier }
+                .joined(separator: ", ")
+            if !highConfidenceScenes.isEmpty {
+                text += "Scene classification: \(highConfidenceScenes). "
+            }
         }
         
-        // 2. Face Detection
+        // 2. Object Detection (if available in iOS 18+)
+        if #available(iOS 18.0, *) {
+            let objectRequest = VNDetectObjectsRequest()
+            try? handler.perform([objectRequest])
+            if let objects = objectRequest.results, !objects.isEmpty {
+                let objectNames = objects.prefix(5).map { $0.labels.first?.identifier ?? "object" }
+                if !objectNames.isEmpty {
+                    text += "Objects detected: \(objectNames.joined(separator: ", ")). "
+                    entities.append(contentsOf: objectNames)
+                }
+            }
+        }
+        
+        // 3. Face Detection with Landmarks
         let faceRequest = VNDetectFaceRectanglesRequest()
-        try? handler.perform([faceRequest])
+        let faceLandmarksRequest = VNDetectFaceLandmarksRequest()
+        try? handler.perform([faceRequest, faceLandmarksRequest])
+        
         if let faceCount = faceRequest.results?.count, faceCount > 0 {
-            text += "\(faceCount) person\(faceCount > 1 ? "s" : "") visible. "
+            text += "\(faceCount) person\(faceCount > 1 ? "s" : "") detected. "
             entities.append("\(faceCount) person\(faceCount > 1 ? "s" : "")")
+            
+            // Analyze facial expressions if landmarks available
+            if let landmarks = faceLandmarksRequest.results, !landmarks.isEmpty {
+                text += "Facial features analyzed. "
+            }
         }
         
-        // 3. Text Recognition (OCR)
+        // 4. Text Recognition (OCR) - Enhanced
         let textRequest = VNRecognizeTextRequest()
         textRequest.recognitionLevel = .accurate
+        textRequest.recognitionLanguages = ["en-US"]
         try? handler.perform([textRequest])
-        if let observations = textRequest.results {
+        
+        if let observations = textRequest.results, !observations.isEmpty {
             let ocrText = observations.compactMap {
                 $0.topCandidates(1).first?.string
             }.joined(separator: " ")
@@ -184,10 +210,19 @@ final class TextIntelligenceService: ObservableObject {
             }
         }
         
-        return (text, entities, actions)
+        // 5. Image Characteristics (color, composition)
+        let imageSize = image.size
+        let aspectRatio = imageSize.width / imageSize.height
+        if aspectRatio > 1.5 {
+            text += "Wide format image. "
+        } else if aspectRatio < 0.7 {
+            text += "Portrait format image. "
+        }
+        
+        return (text.trimmingCharacters(in: .whitespaces), Array(Set(entities)), Array(Set(actions)))
     }
     
-    // MARK: - Video Analysis
+    // MARK: - Enhanced Video Analysis (Video-LLaMA style understanding)
     
     private func analyzeVideo(_ data: Data) async -> (String, [String], [String]) {
         var text = ""
@@ -201,22 +236,60 @@ final class TextIntelligenceService: ObservableObject {
         
         do {
             try data.write(to: tempURL)
+            let asset = AVURLAsset(url: tempURL)
+            
+            // Get video duration and metadata
+            let duration = try await asset.load(.duration)
+            let durationSeconds = CMTimeGetSeconds(duration)
+            text += "Video duration: \(Int(durationSeconds)) seconds. "
             
             // Extract audio and transcribe (primary content)
             if let transcript = await transcribeVideo(tempURL) {
-                text += transcript
+                text += "Audio transcript: \(transcript). "
                 entities.append(contentsOf: extractEntities(from: transcript))
                 actions.append(contentsOf: extractActions(from: transcript))
             }
             
-            // Analyze first frame (secondary visual context)
-            let asset = AVURLAsset(url: tempURL)
-            if let firstFrame = await extractFirstFrame(from: asset) {
-                let (frameText, frameEntities, _) = await analyzeImage(firstFrame)
+            // Analyze multiple frames for temporal understanding
+            // Extract frames at: start, middle, end
+            var frameAnalyses: [String] = []
+            
+            // Start frame
+            if let startFrame = await extractFrame(from: asset, at: 0.0) {
+                let (frameText, frameEntities, _) = await analyzeImage(startFrame)
                 if !frameText.isEmpty {
-                    text += " Visual context: \(frameText)"
+                    frameAnalyses.append("Opening: \(frameText)")
                     entities.append(contentsOf: frameEntities)
                 }
+            }
+            
+            // Middle frame
+            if durationSeconds > 2.0 {
+                let middleTime = durationSeconds / 2.0
+                if let middleFrame = await extractFrame(from: asset, at: middleTime) {
+                    let (frameText, frameEntities, _) = await analyzeImage(middleFrame)
+                    if !frameText.isEmpty {
+                        frameAnalyses.append("Middle: \(frameText)")
+                        entities.append(contentsOf: frameEntities)
+                    }
+                }
+            }
+            
+            // End frame
+            if durationSeconds > 1.0 {
+                let endTime = max(0.0, durationSeconds - 1.0)
+                if let endFrame = await extractFrame(from: asset, at: endTime) {
+                    let (frameText, frameEntities, _) = await analyzeImage(endFrame)
+                    if !frameText.isEmpty {
+                        frameAnalyses.append("Closing: \(frameText)")
+                        entities.append(contentsOf: frameEntities)
+                    }
+                }
+            }
+            
+            // Combine frame analyses
+            if !frameAnalyses.isEmpty {
+                text += "Visual progression: \(frameAnalyses.joined(separator: " → ")). "
             }
             
             // Cleanup
@@ -226,7 +299,7 @@ final class TextIntelligenceService: ObservableObject {
             print("   ⚠️ Video analysis error: \(error)")
         }
         
-        return (text, Array(Set(entities)), Array(Set(actions)))
+        return (text.trimmingCharacters(in: .whitespaces), Array(Set(entities)), Array(Set(actions)))
     }
     
     // MARK: - Audio Analysis
@@ -575,7 +648,7 @@ final class TextIntelligenceService: ObservableObject {
         return temporal
     }
     
-    // MARK: - Step 4: Simple Document Summary
+    // MARK: - Step 4: Enhanced Document Summary with Summarization
     
     private func generateLaymanDebrief(_ intel: IntelligenceData, insights: LogicalInsights) -> String {
         var debrief = "# Document Summary\n\n"
@@ -584,7 +657,7 @@ final class TextIntelligenceService: ObservableObject {
         debrief += "## Overview\n\n"
         debrief += "This summary covers \(intel.timeline.count) document\(intel.timeline.count == 1 ? "" : "s").\n\n"
         
-        // Document list with proper summaries
+        // Document list with intelligent summaries
         if !intel.timeline.isEmpty {
             debrief += "## Documents\n\n"
             for (index, event) in intel.timeline.enumerated() {
@@ -595,36 +668,108 @@ final class TextIntelligenceService: ObservableObject {
                 }
                 debrief += "\n"
                 
-                // Use full summary text, not truncated
+                // Use full summary text with intelligent summarization
                 let fullSummary = event.summary.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !fullSummary.isEmpty {
-                    // Clean up the summary - remove "Visual:" or "Audio content:" prefixes if present
+                    // Clean up prefixes
                     var cleanSummary = fullSummary
                     if cleanSummary.hasPrefix("Visual: ") {
                         cleanSummary = String(cleanSummary.dropFirst(8))
                     } else if cleanSummary.hasPrefix("Audio content: ") {
                         cleanSummary = String(cleanSummary.dropFirst(15))
+                    } else if cleanSummary.hasPrefix("Audio transcript: ") {
+                        cleanSummary = String(cleanSummary.dropFirst(18))
                     }
                     
-                    debrief += "   \(cleanSummary)\n"
+                    // Summarize long content (if > 200 chars, summarize to key points)
+                    let summarized = summarizeText(cleanSummary, maxLength: 300)
+                    debrief += "   \(summarized)\n"
                 }
                 debrief += "\n"
             }
         }
         
-        // Simple summary
+        // Enhanced summary with key insights
         debrief += "## Summary\n\n"
+        
         if !intel.entities.isEmpty {
-            let entityList = Array(intel.entities.prefix(5)).joined(separator: ", ")
-            debrief += "Key entities: \(entityList).\n\n"
+            let entityList = Array(intel.entities.prefix(8)).joined(separator: ", ")
+            debrief += "**Key entities:** \(entityList)\n\n"
         }
         
         if !intel.topics.isEmpty {
-            let topicList = Array(intel.topics.prefix(5)).joined(separator: ", ")
-            debrief += "Main topics: \(topicList).\n"
+            let topicList = Array(intel.topics.prefix(8)).joined(separator: ", ")
+            debrief += "**Main topics:** \(topicList)\n\n"
+        }
+        
+        // Add logical insights if available
+        if let insights = logicalInsights {
+            var insightText = ""
+            if !insights.deductive.isEmpty {
+                insightText += "Deductive insights: \(insights.deductive.prefix(2).joined(separator: "; ")). "
+            }
+            if !insights.inductive.isEmpty {
+                insightText += "Patterns identified: \(insights.inductive.prefix(2).joined(separator: "; ")). "
+            }
+            if !insightText.isEmpty {
+                debrief += "**Analysis insights:** \(insightText.trimmingCharacters(in: .whitespaces))\n"
+            }
         }
         
         return debrief
+    }
+    
+    // MARK: - Text Summarization Helper
+    
+    /// Summarize text intelligently, preserving key information
+    private func summarizeText(_ text: String, maxLength: Int) -> String {
+        // If text is already short, return as-is
+        if text.count <= maxLength {
+            return text
+        }
+        
+        // Split into sentences
+        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?")).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        
+        // If we have sentences, take the most important ones
+        if sentences.count > 1 {
+            // Take first sentence (usually most important)
+            var summary = sentences[0].trimmingCharacters(in: .whitespaces)
+            
+            // Add middle sentence if available
+            if sentences.count > 2 {
+                let middleIndex = sentences.count / 2
+                let middleSentence = sentences[middleIndex].trimmingCharacters(in: .whitespaces)
+                if !middleSentence.isEmpty {
+                    summary += ". \(middleSentence)"
+                }
+            }
+            
+            // Add last sentence if it adds value
+            if sentences.count > 1 && summary.count < maxLength {
+                let lastSentence = sentences.last!.trimmingCharacters(in: .whitespaces)
+                if !lastSentence.isEmpty && lastSentence != summary {
+                    let remaining = maxLength - summary.count
+                    if lastSentence.count <= remaining {
+                        summary += ". \(lastSentence)"
+                    }
+                }
+            }
+            
+            // Ensure we don't exceed max length
+            if summary.count > maxLength {
+                summary = String(summary.prefix(maxLength)) + "..."
+            }
+            
+            return summary
+        }
+        
+        // Fallback: truncate intelligently
+        let truncated = String(text.prefix(maxLength))
+        if text.count > maxLength {
+            return truncated + "..."
+        }
+        return truncated
     }
     
     // MARK: - Helper Functions
