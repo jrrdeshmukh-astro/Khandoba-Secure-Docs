@@ -2,7 +2,7 @@
 
 ## 🎯 PROJECT OVERVIEW
 
-**App:** Khandoba Secure Docs v1.0 (Build 17)  
+**App:** Khandoba Secure Docs v1.0 (Build 18)  
 **Platform:** iOS 17.0+  
 **Language:** Swift 5.9+ with SwiftUI  
 **Status:** Production-ready, zero build errors
@@ -505,7 +505,7 @@ enum MyError: LocalizedError {
 - Push to GitHub
 - Deploy to App Store
 
-**Recent Changes (Build 17):**
+**Recent Changes (Build 18):**
 - 🤖 REMOVED ADMIN ROLE (everything autopilot)
 - ✅ Added LLM Support Chat
 - ✅ Archived 15+ admin views (~2,000 lines)

@@ -40,7 +40,6 @@ struct MarkdownTextView: View {
                 parseBoldText(text, colors: colors)
                     .font(fontSize)
                     .foregroundColor(colors.textPrimary)
-                    .fontWeight(.bold)
                     .padding(.top, level == 1 ? 0 : UnifiedTheme.Spacing.md)
             )
             

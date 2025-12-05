@@ -13,7 +13,7 @@ struct AppConfig {
     
     // App Information
     static let appVersion = "1.0"
-    static let appBuildNumber = "1"
+    static let appBuildNumber = "18"
     static let appName = "Khandoba Secure Docs"
     
     // Production Configuration
