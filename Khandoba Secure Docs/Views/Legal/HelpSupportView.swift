@@ -80,10 +80,10 @@ struct HelpSupportView: View {
                                         .frame(width: 24)
                                     
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Live Chat Support")
+                                        Text("AI Support Chat")
                                             .font(theme.typography.body)
                                             .foregroundColor(colors.textPrimary)
-                                        Text("Chat with an admin")
+                                        Text("Chat with AI assistant")
                                             .font(theme.typography.caption)
                                             .foregroundColor(colors.textSecondary)
                                     }
