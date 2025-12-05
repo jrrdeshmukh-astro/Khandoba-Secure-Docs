@@ -168,10 +168,8 @@ struct UnifiedTheme {
     }
     
     func color(for role: Role) -> Color {
-        switch role {
-        case .client: return Colors.dark.clientColor
-        case .admin: return Colors.dark.adminColor
-        }
+        // Single role system - everyone uses client color
+        return Colors.dark.clientColor
     }
 }
 
