@@ -71,10 +71,10 @@ struct VaultAccessControlView: View {
                     .padding(.horizontal)
                     
                     // Nominees Section
-                    if let nominees = vault.nominees, !nominees.isEmpty {
+                    if let nomineeList = vault.nomineeList, !nomineeList.isEmpty {
                         VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                             HStack {
-                                Text("NOMINEES (\(nominees.count))")
+                                Text("NOMINEES (\(nomineeList.count))")
                                     .font(theme.typography.caption)
                                     .foregroundColor(colors.textSecondary)
                                 
@@ -91,7 +91,7 @@ struct VaultAccessControlView: View {
                             
                             StandardCard {
                                 VStack(spacing: 0) {
-                                    ForEach(Array(nominees.enumerated()), id: \.element.id) { index, nominee in
+                                    ForEach(Array(nomineeList.enumerated()), id: \.element.id) { index, nominee in
                                         AccessUserRow(
                                             name: nominee.name,
                                             role: "Nominee",
@@ -106,7 +106,7 @@ struct VaultAccessControlView: View {
                                             }
                                         )
                                         
-                                        if index < nominees.count - 1 {
+                                        if index < nomineeList.count - 1 {
                                             Divider()
                                         }
                                     }
@@ -175,7 +175,7 @@ struct VaultAccessControlView: View {
                     .padding(.horizontal)
                     
                     // Add Nominee Button
-                    if vault.nominees?.isEmpty ?? true {
+                    if vault.nomineeList?.isEmpty ?? true {
                         Button {
                             showAddNominee = true
                         } label: {
