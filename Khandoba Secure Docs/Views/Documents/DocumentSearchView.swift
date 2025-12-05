@@ -162,20 +162,6 @@ struct DocumentSearchView: View {
                     allTags: getAllTags()
                 )
             }
-            .overlay {
-                // Audio Intel processing handled in AudioIntelReportView
-                                .tint(.white)
-                            Text("Compiling Intel Report...")
-                                .font(theme.typography.subheadline)
-                                .foregroundColor(.white)
-                        }
-                        .padding(UnifiedTheme.Spacing.xl)
-                        .background(colors.surface)
-                        .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                    }
-                    .ignoresSafeArea()
-                }
-            }
         }
     }
     
