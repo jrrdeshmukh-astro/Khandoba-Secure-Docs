@@ -46,6 +46,9 @@ final class VaultService: ObservableObject {
         
         guard let modelContext = modelContext else { return }
         
+        // ONE-TIME CLEANUP: Delete Intel Reports vault
+        try await deleteIntelReportsVault()
+        
         let descriptor = FetchDescriptor<Vault>(
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
@@ -54,6 +57,38 @@ final class VaultService: ObservableObject {
         
         // Load active sessions
         await loadActiveSessions()
+    }
+    
+    /// One-time cleanup: Delete Intel Reports vault completely
+    private func deleteIntelReportsVault() async throws {
+        guard let modelContext = modelContext else { return }
+        
+        // Find Intel Reports vault
+        let descriptor = FetchDescriptor<Vault>(
+            predicate: #Predicate { $0.name == "Intel Reports" || $0.isSystemVault == true }
+        )
+        
+        let intelVaults = try modelContext.fetch(descriptor)
+        
+        if !intelVaults.isEmpty {
+            print("🗑️ Deleting Intel Reports vaults...")
+            for vault in intelVaults {
+                // Delete all documents in the vault first
+                if let documents = vault.documents {
+                    print("   Deleting \(documents.count) documents from \(vault.name)")
+                    for document in documents {
+                        modelContext.delete(document)
+                    }
+                }
+                
+                // Delete vault itself
+                print("   Deleting vault: \(vault.name)")
+                modelContext.delete(vault)
+            }
+            
+            try modelContext.save()
+            print("✅ Intel Reports vault(s) permanently deleted")
+        }
     }
     
     func createVault(name: String, description: String?, keyType: String, vaultType: String = "both") async throws -> Vault {
