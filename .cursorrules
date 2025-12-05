@@ -2,12 +2,12 @@
 
 ## 🎯 PROJECT OVERVIEW
 
-**App:** Khandoba Secure Docs v1.0 (Build 15)  
+**App:** Khandoba Secure Docs v1.0 (Build 17)  
 **Platform:** iOS 17.0+  
 **Language:** Swift 5.9+ with SwiftUI  
 **Status:** Production-ready, zero build errors
 
-**Purpose:** Enterprise-grade secure document management with AI-powered intelligence, ML-based threat monitoring, and voice memo Intel Reports.
+**Purpose:** Enterprise-grade secure document management with ML-based threat monitoring, dual-key approvals, and comprehensive security features.
 
 ---
 
@@ -24,12 +24,11 @@
 
 ### Implementation Guides:
 - **Auth:** `APPLE_SIGNIN_DATA_GUIDE.md`, `AUTHENTICATION_DESIGN_RATIONALE.md`, `NAME_CAPTURE_ON_FIRST_LOGIN.md`
-- **AI/ML:** `FORMAL_LOGIC_REASONING_GUIDE.md`, `ML_INTELLIGENCE_SYSTEM_GUIDE.md`, `ML_THREAT_ANALYSIS_GUIDE.md`
+- **AI/ML:** `ML_THREAT_ANALYSIS_GUIDE.md`, `ML_INTELLIGENCE_SYSTEM_GUIDE.md`
 - **Security:** `ML_AUTO_APPROVAL_GUIDE.md`
-- **Intelligence:** `KHANDOBA_THREAT_INTELLIGENCE_NARRATIVE.md`, `IMPLEMENTATION_GUIDE_VOICE_INTEL.md`
 - **Media:** `🎊_VOICE_MEMOS_FIXED_🎊.md`, `📹_VIDEO_PREVIEW_FIXED_📹.md`
-- **Intel Reports:** `🎤_INTEL_REPORTS_COMPLETE_🎤.md`, `🎉_VOICE_MEMOS_NOW_WORK_🎉.md`
 - **Premium:** `SUBSCRIPTION_ACTIONABLE_INSIGHTS_GUIDE.md`
+- **Archived:** `Archive/Intel_Reports_Feature/` - Intel Reports completely removed (Build 17)
 
 ### Deployment:
 - **Upload:** `TRANSPORTER_UPLOAD_GUIDE.md`, `START_HERE_TRANSPORTER.md`
@@ -341,15 +340,75 @@ enum MyError: LocalizedError {
 
 ---
 
-## 🎓 LEARNING RESOURCES
+## 🎓 LEARNING RESOURCES & APPLE DOCUMENTATION
 
-**Apple Frameworks:**
-- Vision: developer.apple.com/documentation/vision
-- Speech: developer.apple.com/documentation/speech
-- SwiftData: developer.apple.com/documentation/swiftdata
-- StoreKit: developer.apple.com/documentation/storekit
+### **Apple Intelligence & Foundation Models (iOS 26+):**
+- **Foundation Models:** developer.apple.com/documentation/foundationmodels
+- **Guided Generation:** developer.apple.com/documentation/foundationmodels/adding-intelligent-app-features-with-generative-models
+- **System Language Model:** On-device LLM for text generation tasks
+- **Tool Calling:** Enable AI to call functions in your app
+- **Structured Output:** Generate Swift data structures programmatically
+- **Apple Intelligence Updates:** developer.apple.com/documentation/updates/apple-intelligence
+- **Writing Tools:** UIKit and AppKit integration for smart text editing
+- **Smart Reply:** Messaging and email context-aware responses
+- **Image Creator:** Programmatic image generation on supported devices
 
-**Story Structure:**
+### **Vision Framework:**
+- **Main Docs:** developer.apple.com/documentation/vision
+- **Sports Analysis Sample:** developer.apple.com/documentation/Vision/building-a-feature-rich-app-for-sports-analysis
+- **Capabilities:**
+  - Human and animal body pose tracking
+  - Text recognition (18 languages)
+  - Face detection and landmarks
+  - Hand tracking
+  - Aesthetics scoring for photos
+  - Lens smudge detection
+  - Table recognition in documents
+- **25+ Request Types:** VisionRequest protocol for various analysis tasks
+- **Core ML Integration:** Custom models for classification and object detection
+
+### **Speech Recognition:**
+- **Main Docs:** developer.apple.com/documentation/speech
+- **SpeechAnalyzer (iOS 26+):** Analyze spoken audio with live speech-to-text transcription
+- **Real-time Transcription:** Live speech-to-text capabilities
+- **Sample Code:** Bringing advanced speech-to-text capabilities to your app
+
+### **SwiftData:**
+- **Main Docs:** developer.apple.com/documentation/swiftdata
+- **Migration:** Adopting SwiftData for a Core Data app
+- **Swift-native persistence:** Intuitive data persistence
+- **@Model Macro:** Modern Swift approach to data modeling
+
+### **StoreKit & Subscriptions:**
+- **Main Docs:** developer.apple.com/documentation/storekit
+- **Implementation:** Implementing a store in your app using the StoreKit API
+- **In-App Purchases:** Offer IAP and manage entitlements
+- **Signed Transactions:** Secure transaction handling
+
+### **AVFoundation & Media:**
+- **Cinematic Video:** Capturing Cinematic video with adjustable depth of field
+- **Spatial Audio:** Capturing and editing Spatial Audio
+- **Video Effects:** Machine learning-based video effects with VideoToolbox
+- **Multiview Playback:** Creating seamless multiview experiences
+- **Camera App Sample:** AVCam - Building a camera app
+
+### **App Intents & Siri Integration:**
+- **Siri + Apple Intelligence:** Integrating actions with Siri and Apple Intelligence
+- **System Experiences:** Spotlight, visual intelligence, and Shortcuts
+- **App Entities:** Making app entities available in Spotlight
+- **Interactive Snippets:** Displaying static and interactive snippets
+
+### **Visual Intelligence:**
+- **Main Feature:** Include app content in visual intelligence search results
+- **Integration:** Integrating your app with visual intelligence
+- **Real-world Matching:** Find app content matching surroundings or objects onscreen
+
+### **Swift Concurrency:**
+- **Sample:** Code-along: Elevating an app with Swift concurrency
+- **Background Tasks:** Performing long-running tasks on iOS and iPadOS
+- **Best Practices:** Modern async/await patterns
+
+### **Story Structure (for Narrative Features):**
 - Three-Act Structure: en.wikipedia.org/wiki/Three-act_structure
 - Hero's Journey: en.wikipedia.org/wiki/Hero%27s_journey
 - Save the Cat blog posts
@@ -359,16 +418,29 @@ enum MyError: LocalizedError {
 
 ## 🚀 CURRENT FOCUS
 
+**Build 17 Status:**
+- ✅ Intel Reports feature completely removed
+- ✅ Clean, focused vault management app
+- ✅ Zero build errors
+- ✅ Production-ready
+
 **Active Work:**
-- Voice memo audio generation (record-while-speaking approach)
-- Intel Reports story-based narratives
-- Media content analysis (Vision + Speech)
+- Core vault and document management
+- Security and threat monitoring
+- Media capture (voice, video, photos)
+- Dual-key approval workflows
 
 **Next Up:**
-- Test voice memo generation on device
-- Implement StoryNarrativeGenerator
+- Test on device
 - Push to GitHub
 - Deploy to App Store
+
+**Recent Changes (Build 17):**
+- Archived 900+ lines of Intel Report code
+- Removed all Intel UI flows
+- Hidden Intel vault from users
+- Cleaned VoiceMemoService
+- Simplified app architecture
 
 ---
 
