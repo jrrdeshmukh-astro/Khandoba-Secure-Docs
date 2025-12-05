@@ -135,7 +135,7 @@ final class SharedVaultSessionService: ObservableObject {
     
     /// Check if user has privilege to manually lock vault
     func canLockVault(_ vault: Vault, user: User) -> Bool {
-        // Only vault owner can lock (no admin role in autopilot mode)
+        // Only vault owner can lock (admin role removed)
         return vault.owner?.id == user.id
     }
     
