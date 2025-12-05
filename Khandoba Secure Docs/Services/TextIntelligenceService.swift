@@ -22,6 +22,7 @@ final class TextIntelligenceService: ObservableObject {
     @Published var processingProgress: Double = 0.0
     @Published var currentStep: String = ""
     @Published var debriefText: String = ""
+    @Published var intelligenceData: IntelligenceData?
     
     private var modelContext: ModelContext?
     
@@ -57,6 +58,7 @@ final class TextIntelligenceService: ObservableObject {
         currentStep = "Extracting entities and metadata..."
         processingProgress = 0.4
         let intelligence = await extractIntelligence(from: textDescriptions, documents: documents)
+        intelligenceData = intelligence
         print("✅ Step 2: Intelligence extracted")
         
         // STEP 3: Apply formal logic reasoning

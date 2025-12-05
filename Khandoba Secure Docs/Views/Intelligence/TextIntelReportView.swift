@@ -17,13 +17,25 @@ struct TextIntelReportView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var vaultService: VaultService
+    @EnvironmentObject var authService: AuthenticationService
     
     @StateObject private var textIntel = TextIntelligenceService()
+    @StateObject private var graphService = ReasoningGraphService()
+    @StateObject private var chatService = IntelChatService()
+    
     @State private var debriefText: String = ""
     @State private var selectedVault: Vault?
     @State private var showVaultPicker = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var selectedTab: IntelTab = .debrief
+    @State private var intelligenceData: IntelligenceData?
+    
+    enum IntelTab: String, CaseIterable {
+        case debrief = "Debrief"
+        case graph = "Graph"
+        case chat = "Chat"
+    }
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -58,56 +70,56 @@ struct TextIntelReportView: View {
                         .frame(maxHeight: .infinity)
                     
                 } else if !debriefText.isEmpty {
-                    // Debrief display
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.lg) {
-                            // Debrief content
-                            Text(debriefText)
-                                .font(theme.typography.body)
-                                .foregroundColor(colors.textPrimary)
-                                .textSelection(.enabled)
-                                .padding()
-                            
-                            Divider()
-                            
-                            // Vault selector
-                            VStack(spacing: UnifiedTheme.Spacing.sm) {
-                                Text("Save to:")
-                                    .font(theme.typography.caption)
-                                    .foregroundColor(colors.textSecondary)
-                                
+                    // Tabbed interface
+                    VStack(spacing: 0) {
+                        // Tab selector
+                        HStack(spacing: 0) {
+                            ForEach(IntelTab.allCases, id: \.self) { tab in
                                 Button {
-                                    showVaultPicker = true
+                                    selectedTab = tab
                                 } label: {
-                                    HStack {
-                                        Image(systemName: "folder.fill")
-                                        Text(selectedVault?.name ?? "Choose Vault")
-                                        Spacer()
-                                        Image(systemName: "chevron.down")
-                                    }
-                                    .padding()
-                                    .background(colors.surface)
-                                    .cornerRadius(UnifiedTheme.CornerRadius.md)
-                                }
-                                .foregroundColor(colors.textPrimary)
-                                
-                                Button {
-                                    Task {
-                                        await saveToVault()
-                                    }
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "arrow.down.doc.fill")
-                                        Text("Save to Vault")
+                                    VStack(spacing: 4) {
+                                        Text(tab.rawValue)
+                                            .font(theme.typography.subheadline)
+                                            .foregroundColor(selectedTab == tab ? colors.primary : colors.textSecondary)
+                                        
+                                        Rectangle()
+                                            .fill(selectedTab == tab ? colors.primary : Color.clear)
+                                            .frame(height: 2)
                                     }
                                     .frame(maxWidth: .infinity)
-                                    .frame(height: 50)
                                 }
-                                .buttonStyle(PrimaryButtonStyle())
-                                .disabled(selectedVault == nil)
                             }
-                            .padding()
                         }
+                        .padding(.horizontal)
+                        .background(colors.surface)
+                        
+                        Divider()
+                        
+                        // Tab content
+                        TabView(selection: $selectedTab) {
+                            // Debrief Tab
+                            debriefTab(colors: colors)
+                                .tag(IntelTab.debrief)
+                            
+                            // Graph Tab
+                            if let graph = graphService.graph {
+                                ReasoningGraphView(graph: graph)
+                                    .tag(IntelTab.graph)
+                            } else {
+                                EmptyStateView(
+                                    icon: "network",
+                                    title: "No Graph Available",
+                                    message: "Graph will be generated with the report"
+                                )
+                                .tag(IntelTab.graph)
+                            }
+                            
+                            // Chat Tab
+                            IntelChatView(chatService: chatService)
+                                .tag(IntelTab.chat)
+                        }
+                        .tabViewStyle(.page(indexDisplayMode: .never))
                     }
                     
                 } else {
@@ -165,6 +177,7 @@ struct TextIntelReportView: View {
         }
         .onAppear {
             textIntel.configure(modelContext: modelContext)
+            graphService.configure(modelContext: modelContext)
             // Pre-select first non-system vault
             selectedVault = vaultService.vaults.first { !$0.isSystemVault && $0.name != "Intel Reports" }
         }
@@ -172,12 +185,112 @@ struct TextIntelReportView: View {
     
     private func generateIntel() async {
         do {
+            // Generate debrief
             let debrief = try await textIntel.generateTextIntelReport(from: documents)
             debriefText = debrief
+            
+            // Generate graph
+            if let intel = textIntel.intelligenceData {
+                intelligenceData = intel
+                let graph = await graphService.generateGraph(from: convertToGraphData(intel))
+                
+                // Configure chat
+                let privilege = determinePrivilege()
+                chatService.configure(
+                    modelContext: modelContext,
+                    graph: graph,
+                    intelligence: intel,
+                    privilege: privilege
+                )
+            }
         } catch {
             errorMessage = error.localizedDescription
             showError = true
         }
+    }
+    
+    private func debriefTab(colors: UnifiedTheme.Colors) -> some View {
+        ScrollView {
+            VStack(spacing: UnifiedTheme.Spacing.lg) {
+                // Beautiful markdown rendering
+                MarkdownTextView(markdown: debriefText)
+                
+                Divider()
+                
+                // Save section
+                VStack(spacing: UnifiedTheme.Spacing.sm) {
+                    Text("Save to:")
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textSecondary)
+                    
+                    Button {
+                        showVaultPicker = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "folder.fill")
+                            Text(selectedVault?.name ?? "Choose Vault")
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                        }
+                        .padding()
+                        .background(colors.surface)
+                        .cornerRadius(UnifiedTheme.CornerRadius.md)
+                    }
+                    .foregroundColor(colors.textPrimary)
+                    
+                    Button {
+                        Task {
+                            await saveToVault()
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.down.doc.fill")
+                            Text("Save to Vault")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(selectedVault == nil)
+                }
+                .padding()
+            }
+        }
+    }
+    
+    private func convertToGraphData(_ intel: TextIntelligenceService.IntelligenceData) -> IntelligenceData {
+        let docs = intel.timeline.map { event in
+            DocumentData(
+                name: event.document,
+                type: event.type,
+                date: event.date,
+                entities: Array(intel.entities),
+                text: event.summary
+            )
+        }
+        
+        return IntelligenceData(
+            documents: docs,
+            entities: Array(intel.entities),
+            topics: Array(intel.topics),
+            insights: [],
+            timeline: intel.timeline.map { event in
+                TimelineEvent(
+                    date: event.date,
+                    description: event.summary,
+                    documentName: event.document
+                )
+            }
+        )
+    }
+    
+    private func determinePrivilege() -> UserPrivilege {
+        // Determine user privilege based on vault ownership
+        if let vault = selectedVault,
+           vault.owner?.id == authService.currentUser?.id {
+            return .owner
+        }
+        return .viewer
     }
     
     private func saveToVault() async {
@@ -190,24 +303,24 @@ struct TextIntelReportView: View {
         do {
             print("💾 Saving text Intel debrief to vault: \(vault.name)")
             
-            // Convert debrief to data
+            // Convert debrief to data (preserve markdown formatting)
             guard let textData = debriefText.data(using: .utf8) else {
                 throw IntelError.conversionFailed
             }
             
             print("   Text size: \(textData.count) bytes")
             
-            // Create document
+            // Create document with markdown extension
             let document = Document(
-                name: "Intel_Report_\(Date().formatted(date: .abbreviated, time: .shortened)).txt",
-                fileExtension: "txt",
-                mimeType: "text/plain",
+                name: "Intel_Report_\(Date().formatted(date: .abbreviated, time: .shortened)).md",
+                fileExtension: "md",
+                mimeType: "text/markdown",
                 fileSize: Int64(textData.count),
                 documentType: "text"
             )
             document.encryptedFileData = textData
             document.sourceSinkType = "source"
-            document.aiTags = ["Intel Report", "Text Debrief", "AI Analysis", "Formal Logic"]
+            document.aiTags = ["Intel Report", "Text Debrief", "AI Analysis", "Formal Logic", "Graph Theory"]
             document.status = "active"
             document.extractedText = debriefText
             
