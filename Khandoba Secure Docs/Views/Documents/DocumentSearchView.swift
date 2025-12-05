@@ -125,11 +125,11 @@ struct DocumentSearchView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if isSelectionMode {
-                        // Audio Intel Report
+                        // Text Intel Report
                         NavigationLink {
-                            AudioIntelReportView(documents: selectedDocuments)
+                            TextIntelReportView(documents: selectedDocuments)
                         } label: {
-                            Label("Audio Intel", systemImage: "waveform.circle")
+                            Label("Intel Report", systemImage: "doc.text.magnifyingglass")
                         }
                         .disabled(selectedDocumentIDs.count < 2)
                     } else {
