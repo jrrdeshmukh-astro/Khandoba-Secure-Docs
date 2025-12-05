@@ -62,20 +62,15 @@ final class User {
 // MARK: - Role Enum
 enum Role: String, Codable, CaseIterable {
     case client = "client"
-    case admin = "admin"
+    // Admin role removed - everything runs on ML autopilot
+    // Support provided by LLM chat instead
     
     var displayName: String {
-        switch self {
-        case .client: return "Client"
-        case .admin: return "Admin"
-        }
+        return "User"
     }
     
     var description: String {
-        switch self {
-        case .client: return "Standard user access"
-        case .admin: return "Full system access"
-        }
+        return "Full app access with ML-powered automation"
     }
     
     var iconName: String {

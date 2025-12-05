@@ -14,7 +14,7 @@ import UIKit
 
 final class AuthenticationService: ObservableObject {
     @Published var currentUser: User?
-    @Published var currentRole: Role?
+    // currentRole removed - everyone is a user (autopilot mode)
     @Published var isAuthenticated = false
     @Published var isLoading = false
     
@@ -38,11 +38,7 @@ final class AuthenticationService: ObservableObject {
             if let user = users.first {
                 self.currentUser = user
                 self.isAuthenticated = true
-                
-                // Get current role
-                if let activeRole = user.roles?.first(where: { $0.isActive }) {
-                    self.currentRole = activeRole.role
-                }
+                // No role selection - everyone has full access
             }
         } catch {
             print("Error checking auth state: \(error)")
@@ -80,21 +76,7 @@ final class AuthenticationService: ObservableObject {
             // Existing user - sign in
             currentUser = existingUser
             
-            // Auto-assign admin role if email matches admin list
-            if let email = existingUser.email, AppConfig.adminEmails.contains(email) {
-                let hasAdminRole = (existingUser.roles ?? []).contains(where: { $0.role == .admin })
-                if !hasAdminRole {
-                    let adminRole = UserRole(role: .admin)
-                    adminRole.user = existingUser
-                    existingUser.roles?.append(adminRole)
-                    modelContext.insert(adminRole)
-                    try modelContext.save()
-                }
-            }
-            
-            if let activeRole = existingUser.roles?.first(where: { $0.isActive }) {
-                currentRole = activeRole.role
-            }
+            // Admin role removed - autopilot mode
             isAuthenticated = true
         } else {
             // New user - create account with data from Apple
@@ -117,26 +99,16 @@ final class AuthenticationService: ObservableObject {
                 profilePictureData: createDefaultProfileImage(name: fullName.isEmpty ? "User" : fullName)
             )
             
-            // Auto-assign client role
+            // Auto-assign client role (single role system)
             let clientRole = UserRole(role: .client)
             clientRole.user = newUser
-            newUser.roles = (newUser.roles ?? []) + [clientRole]
+            newUser.roles = [clientRole]
             
             modelContext.insert(newUser)
             modelContext.insert(clientRole)
-            
-            // Auto-assign admin role if email matches admin list
-            if let email = email, AppConfig.adminEmails.contains(email) {
-                let adminRole = UserRole(role: .admin)
-                adminRole.user = newUser
-                newUser.roles?.append(adminRole)
-                modelContext.insert(adminRole)
-            }
-            
             try modelContext.save()
             
             currentUser = newUser
-            currentRole = .client
             isAuthenticated = true
             
             // Create Intel Vault for new user
@@ -173,25 +145,14 @@ final class AuthenticationService: ObservableObject {
         
         try modelContext.save()
         
-        // Set current role if not already set
-        if currentRole == nil {
-            if let activeRole = user.roles?.first(where: { $0.isActive }) {
-                currentRole = activeRole.role
-            } else {
-                currentRole = .client
-            }
-        }
-        
+        // Role system simplified - everyone is a user
         isAuthenticated = true
     }
     
-    func switchRole(to role: Role) {
-        currentRole = role
-    }
+    // switchRole removed - single role system
     
     func signOut() {
         currentUser = nil
-        currentRole = nil
         isAuthenticated = false
     }
     
@@ -212,9 +173,6 @@ final class AuthenticationService: ObservableObject {
         if let existingUser = existingUsers.first {
             // Existing dev user
             currentUser = existingUser
-            if let activeRole = existingUser.roles?.first(where: { $0.isActive }) {
-                currentRole = activeRole.role
-            }
             isAuthenticated = true
         } else {
             // Create dev user with profile picture
@@ -225,22 +183,16 @@ final class AuthenticationService: ObservableObject {
                 profilePictureData: createDefaultProfileImage(name: AppConfig.devUserName)
             )
             
-            // Assign both client and admin roles for development testing
+            // Assign client role (single role system)
             let clientRole = UserRole(role: .client)
             clientRole.user = newUser
-            newUser.roles = (newUser.roles ?? []) + [clientRole]
-            
-            let adminRole = UserRole(role: .admin)
-            adminRole.user = newUser
-            newUser.roles = (newUser.roles ?? []) + [adminRole]
+            newUser.roles = [clientRole]
             
             modelContext.insert(newUser)
             modelContext.insert(clientRole)
-            modelContext.insert(adminRole)
             try modelContext.save()
             
             currentUser = newUser
-            currentRole = .client
             isAuthenticated = true
             
             // Create Intel Vault for dev user

@@ -30,15 +30,9 @@ struct ContentView: View {
             } else if needsAccountSetup {
                 // Then profile setup
                 AccountSetupView()
-            } else if authService.currentRole == nil {
-                RoleSelectionView()
             } else {
-                // Main App - Role based navigation
-                if authService.currentRole == .client {
-                    ClientMainView()
-                } else {
-                    AdminMainView()
-                }
+                // Main App - Single role, autopilot mode
+                ClientMainView()
             }
         }
     }

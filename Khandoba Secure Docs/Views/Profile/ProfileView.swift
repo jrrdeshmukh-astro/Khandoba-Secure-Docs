@@ -85,32 +85,7 @@ struct ProfileView: View {
                         .padding(.vertical, UnifiedTheme.Spacing.sm)
                     }
                     
-                    // Role Switching (only if user has multiple roles)
-                    if hasMultipleRoles {
-                        Section("Switch Role") {
-                            ForEach(availableRoles, id: \.self) { role in
-                                Button {
-                                    authService.switchRole(to: role)
-                                } label: {
-                                    HStack {
-                                        Image(systemName: role.iconName)
-                                            .foregroundColor(getRoleColor(for: role, colors: colors))
-                                        Text(role.displayName)
-                                            .foregroundColor(colors.textPrimary)
-                                        
-                                        Spacer()
-                                        
-                                        if authService.currentRole == role {
-                                            Image(systemName: "checkmark")
-                                                .foregroundColor(getRoleColor(for: role, colors: colors))
-                                        }
-                                    }
-                                }
-                                .listRowBackground(colors.surface)
-                            }
-                        }
-                    }
-                    
+                    // Role switching removed - single role system (autopilot mode)
                     
                     // Settings Section
                     Section("Settings") {
@@ -154,12 +129,22 @@ struct ProfileView: View {
                         .listRowBackground(colors.surface)
                         
                         NavigationLink {
-                            HelpSupportView()
+                            SupportChatView()
                         } label: {
                             HStack(spacing: UnifiedTheme.Spacing.md) {
-                                Image(systemName: "questionmark.circle.fill")
+                                Image(systemName: "sparkles.rectangle.stack.fill")
                                     .foregroundColor(colors.primary)
                                     .frame(width: 24)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("AI Support")
+                                        .font(theme.typography.subheadline)
+                                        .foregroundColor(colors.textPrimary)
+                                    
+                                    Text("Chat with AI assistant")
+                                        .font(theme.typography.caption)
+                                        .foregroundColor(colors.textSecondary)
+                                }
                                 Text("Help & Support")
                                     .foregroundColor(colors.textPrimary)
                             }
