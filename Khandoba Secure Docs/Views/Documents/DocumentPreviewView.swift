@@ -38,6 +38,8 @@ struct DocumentPreviewView: View {
                     VideoPlayerPreviewView(document: document)
                 } else if document.documentType == "audio" {
                     AudioPlayerPreviewView(document: document)
+                } else if document.documentType == "text" || document.mimeType == "text/markdown" || document.name.hasSuffix(".md") {
+                    MarkdownPreviewView(document: document)
                 } else {
                     UnsupportedDocPreviewView(document: document)
                 }
