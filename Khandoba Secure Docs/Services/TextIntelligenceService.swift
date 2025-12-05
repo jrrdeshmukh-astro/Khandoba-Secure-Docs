@@ -16,6 +16,46 @@ import UIKit
 import AVFoundation
 import CoreLocation
 
+// MARK: - Data Models (defined first for use throughout class)
+
+struct TextDescription {
+    let documentID: UUID
+    let documentName: String
+    let documentType: String
+    let textContent: String
+    let entities: [String]
+    let actions: [String]
+    let capturedAt: Date
+    let uploadedAt: Date
+    let location: String?
+    let metadata: [String: String]
+}
+
+struct IntelligenceData {
+    var entities: Set<String> = []
+    var actions: Set<String> = []
+    var topics: Set<String> = []
+    var timeline: [TimelineEvent] = []
+    var locations: Set<String> = []
+    var allMetadata: [[String: String]] = []
+}
+
+struct TimelineEvent {
+    let date: Date
+    let uploadDate: Date
+    let document: String
+    let type: String
+    let location: String?
+    let summary: String
+}
+
+struct LogicalInsights {
+    var deductive: [String] = []    // Definite conclusions
+    var inductive: [String] = []    // Pattern-based inferences
+    var abductive: [String] = []    // Best explanations
+    var temporal: [String] = []     // Time-based analysis
+}
+
 @MainActor
 final class TextIntelligenceService: ObservableObject {
     @Published var isProcessing = false
@@ -1043,46 +1083,6 @@ final class TextIntelligenceService: ObservableObject {
     private func calculateTimeSpan(_ timeline: [TimelineEvent]) -> Int {
         guard let first = timeline.first, let last = timeline.last else { return 0 }
         return Calendar.current.dateComponents([.day], from: first.date, to: last.date).day ?? 0
-    }
-    
-    // MARK: - Data Models
-    
-    struct TextDescription {
-        let documentID: UUID
-        let documentName: String
-        let documentType: String
-        let textContent: String
-        let entities: [String]
-        let actions: [String]
-        let capturedAt: Date
-        let uploadedAt: Date
-        let location: String?
-        let metadata: [String: String]
-    }
-    
-    struct IntelligenceData {
-        var entities: Set<String> = []
-        var actions: Set<String> = []
-        var topics: Set<String> = []
-        var timeline: [TimelineEvent] = []
-        var locations: Set<String> = []
-        var allMetadata: [[String: String]] = []
-    }
-    
-    struct TimelineEvent {
-        let date: Date
-        let uploadDate: Date
-        let document: String
-        let type: String
-        let location: String?
-        let summary: String
-    }
-    
-    struct LogicalInsights {
-        var deductive: [String] = []    // Definite conclusions
-        var inductive: [String] = []    // Pattern-based inferences
-        var abductive: [String] = []    // Best explanations
-        var temporal: [String] = []     // Time-based analysis
     }
 }
 
