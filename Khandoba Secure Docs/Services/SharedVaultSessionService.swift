@@ -36,7 +36,7 @@ final class SharedVaultSessionService: ObservableObject {
     
     /// Open vault - creates shared session for ALL users
     func openSharedVault(_ vault: Vault, unlockedBy user: User) async throws {
-        guard let modelContext = modelContext else {
+        guard modelContext != nil else {
             throw SessionError.contextNotAvailable
         }
         
@@ -136,7 +136,9 @@ final class SharedVaultSessionService: ObservableObject {
     /// Check if user has privilege to manually lock vault
     func canLockVault(_ vault: Vault, user: User) -> Bool {
         // Vault owner or admin can lock
-        return vault.owner?.id == user.id || user.hasRole(.admin)
+        let isOwner = vault.owner?.id == user.id
+        let isAdmin = user.roles?.contains(where: { $0.role == .admin }) ?? false
+        return isOwner || isAdmin
     }
     
     // MARK: - Auto-Lock Timer
@@ -147,13 +149,7 @@ final class SharedVaultSessionService: ObservableObject {
     }
     
     private func autoLockVault(_ vault: Vault) async throws {
-        guard let modelContext = modelContext else { return }
-        
-        // Find vault owner to attribute auto-lock
-        let descriptor = FetchDescriptor<User>(
-            predicate: #Predicate { $0.id == vault.owner?.id ?? UUID() }
-        )
-        guard let owner = try? modelContext.fetch(descriptor).first else { return }
+        guard modelContext != nil else { return }
         
         print("⏰ Auto-locking vault (session expired): \(vault.name)")
         
