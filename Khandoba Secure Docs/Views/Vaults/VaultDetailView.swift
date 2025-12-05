@@ -34,6 +34,10 @@ struct VaultDetailView: View {
         vault.name == "Intel Vault"
     }
     
+    private var isOwner: Bool {
+        vault.owner?.id == authService.currentUser?.id
+    }
+    
     private var hasPendingDualKeyRequest: Bool {
         guard vault.keyType == "dual" else { return false }
         let requests = vault.dualKeyRequests ?? []
@@ -137,6 +141,18 @@ struct VaultDetailView: View {
                                     .frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(PrimaryButtonStyle())
+                            } else if isOwner {
+                                // Lock button for owner only
+                                Button {
+                                    lockVault()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "lock.fill")
+                                        Text("Lock Vault")
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(SecondaryButtonStyle())
                             }
                         }
                     }
@@ -398,13 +414,25 @@ struct VaultDetailView: View {
             do {
                 try await vaultService.openVault(vault)
             } catch VaultError.awaitingApproval {
-                errorMessage = "Dual-key approval requested. Awaiting admin approval."
+                errorMessage = "Dual-key approval requested. ML is analyzing..."
                 showError = true
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true
             }
             isLoading = false
+        }
+    }
+    
+    private func lockVault() {
+        Task {
+            do {
+                try await vaultService.closeVault(vault)
+                print("✅ Vault locked by owner")
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
         }
     }
     
