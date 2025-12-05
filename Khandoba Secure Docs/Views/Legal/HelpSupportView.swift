@@ -71,9 +71,9 @@ struct HelpSupportView: View {
                                 .font(theme.typography.headline)
                                 .foregroundColor(colors.textPrimary)
                             
-                            NavigationLink {
-                                AdminSupportChatView()
-                            } label: {
+                        NavigationLink {
+                            SupportChatView()
+                        } label: {
                                 HStack {
                                     Image(systemName: "message.fill")
                                         .foregroundColor(colors.primary)
