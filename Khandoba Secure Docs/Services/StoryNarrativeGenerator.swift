@@ -195,7 +195,7 @@ final class StoryNarrativeGenerator: ObservableObject {
             imageGenerator.appliesPreferredTrackTransform = true
             
             let time = CMTime(seconds: 1.0, preferredTimescale: 600)
-            if let cgImage = try? imageGenerator.copyCGImage(at: time, actualTime: nil) {
+            if let cgImage = try? await imageGenerator.image(at: time).image.cgImage {
                 // Analyze first frame
                 let sceneRequest = VNClassifyImageRequest()
                 try? VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([sceneRequest])
@@ -296,7 +296,8 @@ final class StoryNarrativeGenerator: ObservableObject {
         let asset = AVURLAsset(url: url)
         
         // Check if video has audio track
-        guard asset.tracks(withMediaType: .audio).count > 0 else {
+        let audioTracks = try? await asset.loadTracks(withMediaType: .audio)
+        guard let audioTracks = audioTracks, !audioTracks.isEmpty else {
             return nil
         }
         

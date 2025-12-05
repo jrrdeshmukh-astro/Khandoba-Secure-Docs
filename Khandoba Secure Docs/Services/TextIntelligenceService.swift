@@ -163,20 +163,7 @@ final class TextIntelligenceService: ObservableObject {
             }
         }
         
-        // 2. Object Detection (if available in iOS 18+)
-        if #available(iOS 18.0, *) {
-            let objectRequest = VNDetectObjectsRequest()
-            try? handler.perform([objectRequest])
-            if let objects = objectRequest.results, !objects.isEmpty {
-                let objectNames = objects.prefix(5).map { $0.labels.first?.identifier ?? "object" }
-                if !objectNames.isEmpty {
-                    text += "Objects detected: \(objectNames.joined(separator: ", ")). "
-                    entities.append(contentsOf: objectNames)
-                }
-            }
-        }
-        
-        // 3. Face Detection with Landmarks
+        // 2. Face Detection with Landmarks
         let faceRequest = VNDetectFaceRectanglesRequest()
         let faceLandmarksRequest = VNDetectFaceLandmarksRequest()
         try? handler.perform([faceRequest, faceLandmarksRequest])
@@ -337,7 +324,11 @@ final class TextIntelligenceService: ObservableObject {
         // Request authorization if needed
         let authStatus = SFSpeechRecognizer.authorizationStatus()
         if authStatus != .authorized {
-            await SFSpeechRecognizer.requestAuthorization { _ in }
+            await withCheckedContinuation { continuation in
+                SFSpeechRecognizer.requestAuthorization { status in
+                    continuation.resume()
+                }
+            }
         }
         
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
