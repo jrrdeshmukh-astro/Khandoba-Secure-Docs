@@ -43,6 +43,12 @@ final class Vault {
     @Relationship(deleteRule: .cascade, inverse: \DualKeyRequest.vault)
     var dualKeyRequests: [DualKeyRequest]?
     
+    @Relationship(deleteRule: .cascade, inverse: \Nominee.vault)
+    var nomineeList: [Nominee]?
+    
+    @Relationship(deleteRule: .cascade, inverse: \EmergencyAccessRequest.vault)
+    var emergencyRequests: [EmergencyAccessRequest]?
+    
     init(
         id: UUID = UUID(),
         name: String,
