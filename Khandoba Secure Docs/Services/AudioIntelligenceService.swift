@@ -178,9 +178,9 @@ final class AudioIntelligenceService: ObservableObject {
         do {
             try data.write(to: tempURL)
             
-            // Extract audio track
+            // Extract audio track (modern async API)
             let asset = AVURLAsset(url: tempURL)
-            let audioTracks = asset.tracks(withMediaType: .audio)
+            let audioTracks = try await asset.loadTracks(withMediaType: .audio)
             
             if !audioTracks.isEmpty {
                 description += "Contains audio. "
