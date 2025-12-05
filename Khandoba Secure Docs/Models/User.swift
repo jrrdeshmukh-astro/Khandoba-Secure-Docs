@@ -74,10 +74,7 @@ enum Role: String, Codable, CaseIterable {
     }
     
     var iconName: String {
-        switch self {
-        case .client: return "person.circle.fill"
-        case .admin: return "shield.checkered"
-        }
+        return "person.circle.fill"
     }
 }
 

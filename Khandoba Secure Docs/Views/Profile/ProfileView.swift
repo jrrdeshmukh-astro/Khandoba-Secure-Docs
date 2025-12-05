@@ -16,7 +16,7 @@ struct ProfileView: View {
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
-        let roleColor = getRoleColor(for: authService.currentRole, colors: colors)
+        let roleColor = colors.clientColor
         
         NavigationStack {
             ZStack {
@@ -208,15 +208,7 @@ struct ProfileView: View {
         return "?"
     }
     
-    private var hasMultipleRoles: Bool {
-        guard let user = authService.currentUser else { return false }
-        return (user.roles ?? []).filter { $0.isActive }.count > 1
-    }
-    
-    private var availableRoles: [Role] {
-        guard let user = authService.currentUser else { return [] }
-        return (user.roles ?? []).filter { $0.isActive }.map { $0.role }
-    }
+    // Role functions removed - single role system
     
     private func getInitials() -> String {
         guard let name = authService.currentUser?.fullName, !name.isEmpty else {
@@ -235,11 +227,8 @@ struct ProfileView: View {
     }
     
     private func getRoleColor(for role: Role?, colors: UnifiedTheme.Colors) -> Color {
-        guard let role = role else { return colors.primary }
-        switch role {
-        case .client: return colors.clientColor
-        case .admin: return colors.adminColor
-        }
+        // Single role - everyone uses client color
+        return colors.clientColor
     }
 }
 

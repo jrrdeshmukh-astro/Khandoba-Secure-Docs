@@ -35,10 +35,6 @@ struct AppConfig {
     static let devUserName = "Developer User"
     static let devUserEmail = "dev@khandoba.local"
     
-    // Admin Emails - Users with these emails automatically get admin role
-    static let adminEmails = [
-        "jai.deshmukh@icloud.com",
-        "dev@khandoba.local"
-    ]
+    // Admin role removed - autopilot mode (ML handles everything)
 }
 
