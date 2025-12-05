@@ -571,7 +571,7 @@ final class TextIntelligenceService: ObservableObject {
             debrief += "## Documents\n\n"
             for (index, event) in intel.timeline.enumerated() {
                 debrief += "\(index + 1). **\(event.document)**"
-                debrief += " - \(event.type.capitalized)"
+                debrief += " (\(event.type.capitalized))"
                 if let location = event.location {
                     debrief += " - \(location)"
                 }
