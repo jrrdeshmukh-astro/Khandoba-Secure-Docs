@@ -15,6 +15,14 @@ struct VaultListView: View {
     @State private var showCreateVault = false
     @State private var isLoading = false
     
+    // Filter out system vaults (Intel Reports, etc.)
+    private var userVaults: [Vault] {
+        vaultService.vaults.filter { vault in
+            // Hide "Intel Reports" vault and any system vaults
+            vault.name != "Intel Reports" && !vault.isSystemVault
+        }
+    }
+    
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         
@@ -25,7 +33,7 @@ struct VaultListView: View {
                 
                 if isLoading {
                     LoadingView("Loading vaults...")
-                } else if vaultService.vaults.isEmpty {
+                } else if userVaults.isEmpty {
                     EmptyStateView(
                         icon: "lock.shield",
                         title: "No Vaults Yet",
@@ -36,7 +44,7 @@ struct VaultListView: View {
                     }
                 } else {
                     List {
-                        ForEach(vaultService.vaults) { vault in
+                        ForEach(userVaults) { vault in
                             NavigationLink {
                                 VaultDetailView(vault: vault)
                             } label: {
