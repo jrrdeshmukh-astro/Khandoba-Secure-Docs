@@ -107,7 +107,7 @@ final class IntelChatService: ObservableObject {
                 let topNodes = centrality.sorted { $0.value > $1.value }.prefix(3)
                 relatedNodes = Array(topNodes.map { $0.key })
                 
-                let nodeNames = topNodes.compactMap { nodeID in
+                let nodeNames = relatedNodes.compactMap { nodeID in
                     graph.nodes.first { $0.id == nodeID }?.label
                 }
                 

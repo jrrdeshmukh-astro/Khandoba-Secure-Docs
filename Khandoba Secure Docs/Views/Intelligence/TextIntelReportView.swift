@@ -191,8 +191,8 @@ struct TextIntelReportView: View {
             
             // Generate graph
             if let intel = textIntel.intelligenceData {
-                intelligenceData = intel
-                let graph = await graphService.generateGraph(from: convertToGraphData(intel))
+                let graphData = convertToGraphData(intel)
+                let graph = await graphService.generateGraph(from: graphData)
                 
                 // Configure chat
                 let privilege = determinePrivilege()
