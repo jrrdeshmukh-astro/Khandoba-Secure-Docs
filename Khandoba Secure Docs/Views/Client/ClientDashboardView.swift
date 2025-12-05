@@ -113,6 +113,35 @@ struct ClientDashboardView: View {
                         }
                         .padding(.horizontal)
                         
+                        // Intel Chat - NEW!
+                        NavigationLink {
+                            IntelChatView(vaults: vaultService.vaults)
+                        } label: {
+                            StandardCard {
+                                HStack {
+                                    Image(systemName: "brain.head.profile")
+                                        .font(.title2)
+                                        .foregroundColor(colors.primary)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Intel Assistant")
+                                            .font(theme.typography.headline)
+                                            .foregroundColor(colors.textPrimary)
+                                        
+                                        Text("Ask questions about your documents")
+                                            .font(theme.typography.caption)
+                                            .foregroundColor(colors.textSecondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(colors.textTertiary)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        
                         // Pending Dual-Key Requests
                         NavigationLink {
                             DualKeyRequestStatusView()
