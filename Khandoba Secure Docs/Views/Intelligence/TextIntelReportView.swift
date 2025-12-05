@@ -124,10 +124,10 @@ struct TextIntelReportView: View {
                             .padding(.horizontal)
                         
                         VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                            FeatureItem(icon: "eye.fill", text: "Vision AI analyzes images", colors: colors, theme: theme)
-                            FeatureItem(icon: "waveform", text: "Speech recognition transcribes audio", colors: colors, theme: theme)
-                            FeatureItem(icon: "brain.head.profile", text: "NLP extracts entities and topics", colors: colors, theme: theme)
-                            FeatureItem(icon: "function", text: "Formal logic draws conclusions", colors: colors, theme: theme)
+                            IntelFeatureItem(icon: "eye.fill", text: "Vision AI analyzes images", colors: colors, theme: theme)
+                            IntelFeatureItem(icon: "waveform", text: "Speech recognition transcribes audio", colors: colors, theme: theme)
+                            IntelFeatureItem(icon: "brain.head.profile", text: "NLP extracts entities and topics", colors: colors, theme: theme)
+                            IntelFeatureItem(icon: "function", text: "Formal logic draws conclusions", colors: colors, theme: theme)
                         }
                         .padding()
                         .background(colors.surface)
@@ -296,7 +296,7 @@ struct ProcessStep: View {
     }
 }
 
-struct FeatureItem: View {
+struct IntelFeatureItem: View {
     let icon: String
     let text: String
     let colors: UnifiedTheme.Colors
