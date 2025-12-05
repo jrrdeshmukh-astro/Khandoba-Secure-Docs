@@ -195,13 +195,17 @@ final class StoryNarrativeGenerator: ObservableObject {
             imageGenerator.appliesPreferredTrackTransform = true
             
             let time = CMTime(seconds: 1.0, preferredTimescale: 600)
-            if let cgImage = try? await imageGenerator.image(at: time).image.cgImage {
+            do {
+                let imageResult = try await imageGenerator.image(at: time)
+                let cgImage = imageResult.image
                 // Analyze first frame
                 let sceneRequest = VNClassifyImageRequest()
                 try? VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([sceneRequest])
                 if let results = sceneRequest.results?.prefix(3) {
                     insight.scenes = results.map { $0.identifier }
                 }
+            } catch {
+                print("   ⚠️ Failed to extract video frame: \(error.localizedDescription)")
             }
             
             // Transcribe audio from video
