@@ -151,7 +151,7 @@ final class ReasoningGraphService: ObservableObject {
     }
     
     /// Generate reasoning graph from intelligence data
-    func generateGraph(from intelligence: IntelligenceData) async -> ReasoningGraph {
+    func generateGraph(from intelligence: GraphIntelligenceData) async -> ReasoningGraph {
         isGenerating = true
         defer { isGenerating = false }
         
@@ -295,14 +295,14 @@ final class ReasoningGraphService: ObservableObject {
     }
 }
 
-// MARK: - Intelligence Data Structures
+// MARK: - Intelligence Data Structures (for Graph Generation)
 
-struct IntelligenceData {
+struct GraphIntelligenceData {
     var documents: [DocumentData]
     var entities: [String]
     var topics: [String]
     var insights: [LogicalInsight]
-    var timeline: [TimelineEvent]
+    var timeline: [GraphTimelineEvent]
 }
 
 struct DocumentData {
@@ -326,7 +326,7 @@ struct LogicalInsight {
     }
 }
 
-struct TimelineEvent {
+struct GraphTimelineEvent {
     let date: Date
     let description: String
     let documentName: String

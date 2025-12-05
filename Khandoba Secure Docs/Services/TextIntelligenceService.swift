@@ -672,7 +672,7 @@ final class TextIntelligenceService: ObservableObject {
         
         // First and last events
         if let first = sortedEvents.first, let last = sortedEvents.last {
-            temporal.append("Timeline: \(first.date.formatted(date: .abbreviated, time: .omitted)) to \(last.date.formatted(date: .abbreviated, time: .omitted))")
+            temporal.append("Timeline: \(first.date.formatted(date: Date.FormatStyle.DateStyle.abbreviated, time: Date.FormatStyle.TimeStyle.omitted)) to \(last.date.formatted(date: Date.FormatStyle.DateStyle.abbreviated, time: Date.FormatStyle.TimeStyle.omitted))")
         }
         
         // Detect patterns in document types over time
@@ -707,7 +707,7 @@ final class TextIntelligenceService: ObservableObject {
                 debrief += "\n"
                 
                 // Use full summary text with intelligent summarization
-                let fullSummary = event.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+                let fullSummary = event.summary.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                 if !fullSummary.isEmpty {
                     // Clean up prefixes
                     var cleanSummary = fullSummary
@@ -923,7 +923,7 @@ final class TextIntelligenceService: ObservableObject {
             if summary.contains("person") || summary.contains("detected") {
                 totalDocs += 1
                 // Extract number if present (e.g., "2 persons detected")
-                if let numberMatch = summary.range(of: #"\d+\s*person"#, options: .regularExpression) {
+                if let numberMatch = summary.range(of: #"\d+\s*person"#, options: String.CompareOptions.regularExpression) {
                     let numberStr = String(summary[numberMatch]).components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
                     if let number = Int(numberStr) {
                         personCounts.append(number)
@@ -960,7 +960,7 @@ final class TextIntelligenceService: ObservableObject {
                 if parts.count > 1 {
                     let scenePart = parts[1].components(separatedBy: ".")[0]
                     let scenes = scenePart.components(separatedBy: ",")
-                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .map { $0.trimmingCharacters(in: CharacterSet.whitespaces) }
                         .filter { !$0.isEmpty }
                 
                 for scene in scenes {
