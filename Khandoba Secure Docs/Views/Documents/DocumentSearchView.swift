@@ -122,12 +122,7 @@ struct DocumentSearchView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if isSelectionMode {
-                        Button {
-                            compileIntelReport()
-                        } label: {
-                            Label("Compile Intel Report", systemImage: "brain")
-                        }
-                        .disabled(selectedDocumentIDs.count < 2 || isCompilingReport)
+                        // Intel Report - ARCHIVED
                     } else {
                         Menu {
                             Button {
@@ -276,36 +271,6 @@ struct DocumentSearchView: View {
         }
     }
     
-    private func compileIntelReport() {
-        let selected = searchResults.filter { selectedDocumentIDs.contains($0.id) }
-        
-        guard selected.count >= 2 else { return }
-        
-        isCompilingReport = true
-        
-        Task { @MainActor in
-            do {
-                guard let currentUser = vaultService.currentUser,
-                      let modelContext = documentService.modelContext else {
-                    isCompilingReport = false
-                    print("No current user or context found")
-                    return
-                }
-                
-                let intelService = IntelReportService()
-                intelService.configure(modelContext: modelContext, vaultService: vaultService)
-                
-                // Use NEW clean method - generates pure insights
-                let vaults = vaultService.vaults
-                _ = await intelService.generateIntelReport(for: vaults)
-                
-                isCompilingReport = false
-                showSuccessAlert = true
-            } catch {
-                isCompilingReport = false
-                print("Failed to compile Intel report: \(error)")
-            }
-        }
-    }
+    // Intel Report compilation - ARCHIVED
 }
 

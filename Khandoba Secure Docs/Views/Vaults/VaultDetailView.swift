@@ -183,18 +183,7 @@ struct VaultDetailView: View {
                                     )
                                 }
                                 
-                                Divider()
-                                
-                                NavigationLink {
-                                    IntelReportView()
-                                } label: {
-                                    SecurityActionRow(
-                                        icon: "chart.bar.doc.horizontal.fill",
-                                        title: "Intel Reports",
-                                        subtitle: "AI-powered insights",
-                                        color: colors.primary
-                                    )
-                                }
+                                // Intel Reports - ARCHIVED
                             }
                         }
                         .padding(.horizontal)
