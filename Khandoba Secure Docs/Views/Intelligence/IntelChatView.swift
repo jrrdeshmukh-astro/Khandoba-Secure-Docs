@@ -74,7 +74,7 @@ struct IntelChatView: View {
 }
 
 struct MessageBubble: View {
-    let message: ChatMessage
+    let message: IntelChatMessage
     let colors: UnifiedTheme.Colors
     let theme: UnifiedTheme
     

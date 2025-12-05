@@ -39,7 +39,7 @@ enum UserPrivilege {
     }
 }
 
-struct ChatMessage: Identifiable {
+struct IntelChatMessage: Identifiable {
     let id: UUID
     let text: String
     let isUser: Bool
@@ -49,7 +49,7 @@ struct ChatMessage: Identifiable {
 
 @MainActor
 final class IntelChatService: ObservableObject {
-    @Published var messages: [ChatMessage] = []
+    @Published var messages: [IntelChatMessage] = []
     @Published var isProcessing = false
     
     private var graph: ReasoningGraph?
@@ -67,7 +67,7 @@ final class IntelChatService: ObservableObject {
     }
     
     func sendMessage(_ text: String) async {
-        let userMessage = ChatMessage(
+        let userMessage = IntelChatMessage(
             id: UUID(),
             text: text,
             isUser: true,
@@ -82,7 +82,7 @@ final class IntelChatService: ObservableObject {
         // Process query based on privilege
         let response = await processQuery(text)
         
-        let botMessage = ChatMessage(
+        let botMessage = IntelChatMessage(
             id: UUID(),
             text: response.text,
             isUser: false,
@@ -105,7 +105,7 @@ final class IntelChatService: ObservableObject {
             if lowerQuery.contains("graph") || lowerQuery.contains("connection") || lowerQuery.contains("relationship") {
                 let centrality = graph.calculateCentrality()
                 let topNodes = centrality.sorted { $0.value > $1.value }.prefix(3)
-                relatedNodes = Array(topNodes.map { $0.key })
+                relatedNodes = Array(topNodes.map { $0.0 })
                 
                 let nodeNames = topNodes.compactMap { nodeID in
                     graph.nodes.first { $0.id == nodeID }?.label
