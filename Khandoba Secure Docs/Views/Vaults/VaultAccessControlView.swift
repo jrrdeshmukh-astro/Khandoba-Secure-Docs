@@ -20,6 +20,7 @@ struct VaultAccessControlView: View {
     @State private var showAccessHistory = false
     @State private var showRevokeConfirm = false
     @State private var nomineeToRevoke: Nominee?
+    @State private var shareMode: ShareMode = .nominee
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -196,7 +197,7 @@ struct VaultAccessControlView: View {
         .navigationTitle("Access Control")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAddNominee) {
-            AddNomineeView(vault: vault)
+            UnifiedShareView(vault: vault, mode: .nominee)
         }
         .sheet(isPresented: $showAccessHistory) {
             VaultAccessHistoryView(vault: vault)
@@ -309,7 +310,7 @@ struct AccessUserRow: View {
     
     private var roleIcon: String {
         switch role {
-        case "Owner": return "crown.fill"
+        case "Owner": return "person.circle.fill"
         case "Nominee": return "person.fill"
         case "Emergency": return "bolt.fill"
         default: return "person.fill"
