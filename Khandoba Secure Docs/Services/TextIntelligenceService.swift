@@ -261,24 +261,39 @@ final class TextIntelligenceService: ObservableObject {
     }
     
     private func transcribeAudio(_ url: URL) async -> String? {
+        // Request authorization if needed
+        let authStatus = SFSpeechRecognizer.authorizationStatus()
+        if authStatus != .authorized {
+            await SFSpeechRecognizer.requestAuthorization { _ in }
+        }
+        
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
+            print("   ⚠️ Speech recognition not authorized")
             return nil
         }
         
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
-        guard recognizer?.isAvailable == true else {
+        guard let recognizer = recognizer, recognizer.isAvailable else {
+            print("   ⚠️ Speech recognizer not available")
             return nil
         }
         
         let request = SFSpeechURLRecognitionRequest(url: url)
         request.shouldReportPartialResults = false
+        request.taskHint = .dictation // Better for longer audio
         
         return try? await withCheckedThrowingContinuation { continuation in
-            recognizer?.recognitionTask(with: request) { result, error in
+            var finalTranscript = ""
+            recognizer.recognitionTask(with: request) { result, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let result = result, result.isFinal {
-                    continuation.resume(returning: result.bestTranscription.formattedString)
+                    print("   ⚠️ Transcription error: \(error.localizedDescription)")
+                    continuation.resume(returning: nil)
+                } else if let result = result {
+                    finalTranscript = result.bestTranscription.formattedString
+                    if result.isFinal {
+                        print("   ✅ Transcription complete: \(finalTranscript.count) characters")
+                        continuation.resume(returning: finalTranscript)
+                    }
                 }
             }
         }
