@@ -2,363 +2,477 @@
 //  AudioIntelligenceService.swift
 //  Khandoba Secure Docs
 //
-//  Created by AI Assistant on 12/5/25.
-//
-//  Analyzes audio files and generates intelligence debriefs
+//  Audio-to-Audio Intel Reports System
+//  Converts all media to audio, applies intelligence algorithms
 //
 
 import Foundation
+import SwiftData
+import Combine
+import AVFoundation
+import Vision
 import Speech
 import NaturalLanguage
-import AVFoundation
-import Combine
+import UIKit
 
 @MainActor
 final class AudioIntelligenceService: ObservableObject {
-    @Published var isAnalyzing = false
-    @Published var analysisProgress: Double = 0.0
-    @Published var currentReport: AudioIntelReport?
+    @Published var isProcessing = false
+    @Published var processingProgress: Double = 0.0
+    @Published var currentStep: String = ""
     
+    private var modelContext: ModelContext?
     private let speechSynthesizer = AVSpeechSynthesizer()
     
-    /// Main analysis function - converts audio to intelligence debrief
-    func analyzeAndGenerateDebrief(audioFiles: [(url: URL, document: Document)]) async throws -> URL {
-        isAnalyzing = true
-        defer { isAnalyzing = false }
-        
-        print("🧠 Analyzing \(audioFiles.count) audio files...")
-        
-        // Phase 1: Transcribe all audio
-        analysisProgress = 0.1
-        var transcripts: [Transcript] = []
-        
-        for (index, audioFile) in audioFiles.enumerated() {
-            print("   Transcribing \(index + 1)/\(audioFiles.count): \(audioFile.document.name)")
-            
-            if let transcript = await transcribeAudio(audioFile.url, document: audioFile.document) {
-                transcripts.append(transcript)
-            }
-            
-            analysisProgress = 0.1 + (Double(index + 1) / Double(audioFiles.count)) * 0.4
-        }
-        
-        print("✅ Transcribed \(transcripts.count) audio files")
-        
-        // Phase 2: Extract entities
-        analysisProgress = 0.5
-        let entities = extractEntities(from: transcripts)
-        print("✅ Extracted \(entities.count) entities")
-        
-        // Phase 3: Detect patterns
-        analysisProgress = 0.6
-        let patterns = detectPatterns(in: transcripts, entities: entities)
-        print("✅ Detected \(patterns.count) patterns")
-        
-        // Phase 4: Build timeline
-        analysisProgress = 0.7
-        let timeline = buildTimeline(from: audioFiles.map { $0.document })
-        print("✅ Built timeline with \(timeline.count) events")
-        
-        // Phase 5: Generate insights
-        analysisProgress = 0.8
-        let insights = generateInsights(
-            transcripts: transcripts,
-            entities: entities,
-            patterns: patterns,
-            timeline: timeline
-        )
-        print("✅ Generated \(insights.count) insights")
-        
-        // Phase 6: Create debrief narrative
-        analysisProgress = 0.9
-        let debriefText = createDebriefNarrative(
-            transcripts: transcripts,
-            entities: entities,
-            patterns: patterns,
-            insights: insights,
-            timeline: timeline
-        )
-        
-        print("📝 Debrief: \(debriefText.count) characters")
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print(debriefText)
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        
-        // Phase 7: Convert to audio
-        let debriefURL = try await convertToAudio(text: debriefText)
-        
-        analysisProgress = 1.0
-        
-        // Create report object
-        currentReport = AudioIntelReport(
-            sourceDocuments: audioFiles.map { $0.document },
-            transcripts: transcripts,
-            entities: entities,
-            patterns: patterns,
-            insights: insights,
-            debriefURL: debriefURL,
-            debriefTranscript: debriefText
-        )
-        
-        print("✅ Audio Intel Report complete!")
-        return debriefURL
+    nonisolated init() {}
+    
+    func configure(modelContext: ModelContext) {
+        self.modelContext = modelContext
     }
     
-    // MARK: - Transcription
+    // MARK: - Main Intel Generation Pipeline
     
-    private func transcribeAudio(_ url: URL, document: Document) async -> Transcript? {
+    /// Generate Intel Report from selected documents using Audio-to-Audio processing
+    func generateAudioIntelReport(from documents: [Document]) async throws -> URL {
+        guard documents.count >= 2 else {
+            throw AudioIntelError.insufficientDocuments
+        }
+        
+        isProcessing = true
+        processingProgress = 0.0
+        defer { isProcessing = false }
+        
+        print("🎙️ AUDIO INTEL PIPELINE START")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("📊 Processing \(documents.count) documents")
+        
+        // STEP 1: Convert all documents to audio descriptions
+        currentStep = "Converting media to audio..."
+        processingProgress = 0.1
+        let audioDescriptions = await convertAllDocumentsToAudio(documents)
+        print("✅ Step 1: \(audioDescriptions.count) audio streams created")
+        
+        // STEP 2: Transcribe all audio to text
+        currentStep = "Transcribing audio content..."
+        processingProgress = 0.3
+        let combinedTranscript = await transcribeAllAudio(audioDescriptions)
+        print("✅ Step 2: Combined transcript (\(combinedTranscript.count) chars)")
+        
+        // STEP 3: Analyze transcript for intelligence
+        currentStep = "Analyzing intelligence..."
+        processingProgress = 0.5
+        let intelligence = await analyzeTranscriptForIntel(combinedTranscript, documents: documents)
+        print("✅ Step 3: Intelligence analysis complete")
+        
+        // STEP 4: Generate debrief narrative
+        currentStep = "Generating debrief..."
+        processingProgress = 0.7
+        let debriefText = generateDebriefNarrative(intelligence)
+        print("✅ Step 4: Debrief narrative generated (\(debriefText.count) chars)")
+        
+        // STEP 5: Convert debrief to audio
+        currentStep = "Creating audio debrief..."
+        processingProgress = 0.9
+        let debriefAudioURL = try await convertTextToAudio(debriefText)
+        print("✅ Step 5: Audio debrief created")
+        
+        processingProgress = 1.0
+        currentStep = "Complete"
+        
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("🎉 AUDIO INTEL COMPLETE")
+        
+        return debriefAudioURL
+    }
+    
+    // MARK: - Step 1: Media to Audio Conversion
+    
+    private func convertAllDocumentsToAudio(_ documents: [Document]) async -> [AudioDescription] {
+        var audioDescriptions: [AudioDescription] = []
+        
+        for (index, document) in documents.enumerated() {
+            print("   [\(index + 1)/\(documents.count)] Converting: \(document.name)")
+            
+            if let audioDesc = await convertDocumentToAudio(document) {
+                audioDescriptions.append(audioDesc)
+            }
+        }
+        
+        return audioDescriptions
+    }
+    
+    private func convertDocumentToAudio(_ document: Document) async -> AudioDescription? {
+        guard let data = document.encryptedFileData else { return nil }
+        
+        switch document.documentType {
+        case "image":
+            return await convertImageToAudio(data, document: document)
+        case "video":
+            return await convertVideoToAudio(data, document: document)
+        case "audio":
+            return await extractAudioContent(data, document: document)
+        case "pdf", "text":
+            return await convertTextToAudioDescription(data, document: document)
+        default:
+            return nil
+        }
+    }
+    
+    /// Convert image to audio description using Vision
+    private func convertImageToAudio(_ data: Data, document: Document) async -> AudioDescription? {
+        guard let image = UIImage(data: data), let cgImage = image.cgImage else {
+            return nil
+        }
+        
+        var description = "Image: \(document.name). "
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        
+        // Scene classification
+        let sceneRequest = VNClassifyImageRequest()
+        try? handler.perform([sceneRequest])
+        if let results = sceneRequest.results?.prefix(3) {
+            let scenes = results.map { $0.identifier }.joined(separator: ", ")
+            description += "Scene shows: \(scenes). "
+        }
+        
+        // Face detection
+        let faceRequest = VNDetectFaceRectanglesRequest()
+        try? handler.perform([faceRequest])
+        if let faceCount = faceRequest.results?.count, faceCount > 0 {
+            description += "\(faceCount) person\(faceCount > 1 ? "s" : "") detected. "
+        }
+        
+        // Text recognition (OCR)
+        let textRequest = VNRecognizeTextRequest()
+        textRequest.recognitionLevel = .accurate
+        try? handler.perform([textRequest])
+        if let observations = textRequest.results {
+            let extractedText = observations.compactMap {
+                $0.topCandidates(1).first?.string
+            }.joined(separator: " ")
+            
+            if !extractedText.isEmpty {
+                description += "Text found: \(extractedText.prefix(200)). "
+            }
+        }
+        
+        return AudioDescription(
+            documentID: document.id,
+            documentName: document.name,
+            description: description,
+            timestamp: document.createdAt,
+            audioData: nil // Pure description, will be synthesized later
+        )
+    }
+    
+    /// Convert video to audio (extract audio + describe visuals)
+    private func convertVideoToAudio(_ data: Data, document: Document) async -> AudioDescription? {
+        var description = "Video: \(document.name). "
+        
+        // Save to temp file
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("mov")
+        
+        do {
+            try data.write(to: tempURL)
+            
+            // Extract audio track
+            let asset = AVURLAsset(url: tempURL)
+            let audioTracks = asset.tracks(withMediaType: .audio)
+            
+            if !audioTracks.isEmpty {
+                description += "Contains audio. "
+            } else {
+                description += "Silent video. "
+            }
+            
+            // Cleanup
+            try? FileManager.default.removeItem(at: tempURL)
+            
+        } catch {
+            print("   ❌ Video processing error: \(error)")
+        }
+        
+        return AudioDescription(
+            documentID: document.id,
+            documentName: document.name,
+            description: description,
+            timestamp: document.createdAt,
+            audioData: data // Original video data
+        )
+    }
+    
+    /// Extract audio content directly
+    private func extractAudioContent(_ data: Data, document: Document) async -> AudioDescription? {
+        return AudioDescription(
+            documentID: document.id,
+            documentName: document.name,
+            description: "Audio: \(document.name). ",
+            timestamp: document.createdAt,
+            audioData: data
+        )
+    }
+    
+    /// Convert text/PDF to audio description
+    private func convertTextToAudioDescription(_ data: Data, document: Document) async -> AudioDescription? {
+        var description = "Document: \(document.name). "
+        
+        if let text = String(data: data, encoding: .utf8) {
+            let preview = text.prefix(500)
+            description += "Content: \(preview). "
+        }
+        
+        return AudioDescription(
+            documentID: document.id,
+            documentName: document.name,
+            description: description,
+            timestamp: document.createdAt,
+            audioData: nil
+        )
+    }
+    
+    // MARK: - Step 2: Audio Transcription
+    
+    private func transcribeAllAudio(_ descriptions: [AudioDescription]) async -> String {
+        var combinedText = ""
+        
+        for (index, desc) in descriptions.enumerated() {
+            print("   [\(index + 1)/\(descriptions.count)] Transcribing: \(desc.documentName)")
+            
+            // Add textual description
+            combinedText += desc.description + " "
+            
+            // If has audio data, transcribe it
+            if let audioData = desc.audioData {
+                if let transcription = await transcribeAudio(audioData) {
+                    combinedText += "Audio content: \(transcription). "
+                }
+            }
+        }
+        
+        return combinedText
+    }
+    
+    private func transcribeAudio(_ data: Data) async -> String? {
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
-            print("   ⚠️ Speech recognition not authorized")
             return nil
         }
         
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
         guard recognizer?.isAvailable == true else {
-            print("   ⚠️ Speech recognizer not available")
             return nil
         }
         
-        let request = SFSpeechURLRecognitionRequest(url: url)
-        request.shouldReportPartialResults = false
+        // Save to temp file
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("m4a")
         
-        return await withCheckedContinuation { continuation in
-            recognizer?.recognitionTask(with: request) { result, error in
-                if let error = error {
-                    print("   ❌ Transcription error: \(error.localizedDescription)")
-                    continuation.resume(returning: nil)
-                } else if let result = result {
-                    let transcript = Transcript(
-                        documentID: document.id,
-                        documentName: document.name,
-                        text: result.bestTranscription.formattedString,
-                        duration: 0.0, // Calculate if needed
-                        confidence: 1.0,
-                        timestamp: document.createdAt
-                    )
-                    continuation.resume(returning: transcript)
-                }
-            }
-        }
-    }
-    
-    // MARK: - Entity Extraction
-    
-    private func extractEntities(from transcripts: [Transcript]) -> [Entity] {
-        var entityDict: [String: Entity] = [:]
-        
-        for transcript in transcripts {
-            let tagger = NLTagger(tagSchemes: [.nameType])
-            tagger.string = transcript.text
+        do {
+            try data.write(to: tempURL)
             
-            let options: NLTagger.Options = [.omitPunctuation, .omitWhitespace, .joinNames]
-            let tags: [NLTag] = [.personalName, .placeName, .organizationName]
+            let request = SFSpeechURLRecognitionRequest(url: tempURL)
+            request.shouldReportPartialResults = false
             
-            tagger.enumerateTags(in: transcript.text.startIndex..<transcript.text.endIndex, unit: .word, scheme: .nameType, options: options) { tag, tokenRange in
-                if let tag = tag, tags.contains(tag) {
-                    let entity = String(transcript.text[tokenRange])
-                    let entityType: EntityType = tag == .personalName ? .person :
-                                                tag == .placeName ? .location : .organization
-                    
-                    let key = "\(entityType.rawValue):\(entity)"
-                    
-                    if var existing = entityDict[key] {
-                        existing.frequency += 1
-                        existing.documentIDs.append(transcript.documentID)
-                        entityDict[key] = existing
-                    } else {
-                        entityDict[key] = Entity(
-                            type: entityType,
-                            value: entity,
-                            frequency: 1,
-                            documentIDs: [transcript.documentID]
-                        )
+            let transcription = try await withCheckedThrowingContinuation { continuation in
+                recognizer?.recognitionTask(with: request) { result, error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                    } else if let result = result, result.isFinal {
+                        continuation.resume(returning: result.bestTranscription.formattedString)
                     }
                 }
-                return true
             }
+            
+            // Cleanup
+            try? FileManager.default.removeItem(at: tempURL)
+            
+            return transcription
+            
+        } catch {
+            print("   ⚠️ Transcription error: \(error)")
+            return nil
         }
-        
-        return Array(entityDict.values).sorted { $0.frequency > $1.frequency }
     }
     
-    // MARK: - Pattern Detection
+    // MARK: - Step 3: Intelligence Analysis
     
-    private func detectPatterns(in transcripts: [Transcript], entities: [Entity]) -> [Pattern] {
-        var patterns: [Pattern] = []
+    private func analyzeTranscriptForIntel(_ transcript: String, documents: [Document]) async -> IntelligenceAnalysis {
+        print("   🧠 Analyzing combined transcript...")
         
-        // Pattern 1: Recurring entities across documents
-        let recurringEntities = entities.filter { $0.frequency >= 2 }
-        for entity in recurringEntities {
-            patterns.append(Pattern(
-                type: .recurringEntity,
-                description: "\(entity.value) appears in \(entity.frequency) documents",
-                significance: min(Double(entity.frequency) / Double(transcripts.count), 1.0),
-                documentIDs: entity.documentIDs
-            ))
-        }
+        var analysis = IntelligenceAnalysis()
         
-        // Pattern 2: Common themes
-        let allText = transcripts.map { $0.text }.joined(separator: " ")
-        let themes = extractThemes(from: allText)
-        for theme in themes.prefix(5) {
-            patterns.append(Pattern(
-                type: .commonTheme,
-                description: "Theme: \(theme)",
-                significance: 0.7,
-                documentIDs: transcripts.map { $0.documentID }
-            ))
-        }
+        // Extract entities using NaturalLanguage
+        let tagger = NLTagger(tagSchemes: [.nameType])
+        tagger.string = transcript
         
-        // Pattern 3: Temporal patterns (if documents span time)
-        if let earliest = transcripts.min(by: { $0.timestamp < $1.timestamp }),
-           let latest = transcripts.max(by: { $0.timestamp < $1.timestamp }) {
-            let timeSpan = latest.timestamp.timeIntervalSince(earliest.timestamp)
-            if timeSpan > 86400 { // More than 1 day
-                let days = Int(timeSpan / 86400)
-                patterns.append(Pattern(
-                    type: .temporal,
-                    description: "Documents span \(days) days showing progression",
-                    significance: 0.8,
-                    documentIDs: transcripts.map { $0.documentID }
-                ))
+        let options: NLTagger.Options = [.omitPunctuation, .omitWhitespace, .joinNames]
+        let tags: [NLTag] = [.personalName, .placeName, .organizationName]
+        
+        tagger.enumerateTags(in: transcript.startIndex..<transcript.endIndex, unit: .word, scheme: .nameType, options: options) { tag, tokenRange in
+            if let tag = tag, tags.contains(tag) {
+                let entity = String(transcript[tokenRange])
+                analysis.entities.insert(entity)
             }
+            return true
         }
         
-        return patterns.sorted { $0.significance > $1.significance }
+        // Extract key topics
+        analysis.topics = extractTopics(from: transcript)
+        
+        // Detect patterns
+        analysis.patterns = detectPatterns(in: transcript, documents: documents)
+        
+        // Extract timeline
+        analysis.timeline = extractTimeline(from: documents)
+        
+        // Generate insights
+        analysis.insights = generateInsights(from: transcript, entities: analysis.entities, topics: analysis.topics)
+        
+        return analysis
     }
     
-    private func extractThemes(from text: String) -> [String] {
+    private func extractTopics(from text: String) -> Set<String> {
         let tagger = NLTagger(tagSchemes: [.lexicalClass])
         tagger.string = text
         
-        var nouns: [String: Int] = [:]
+        var topics: [String: Int] = [:]
         
         tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .lexicalClass) { tag, tokenRange in
             if tag == .noun {
                 let word = String(text[tokenRange]).lowercased()
                 if word.count > 4 {
-                    nouns[word, default: 0] += 1
+                    topics[word, default: 0] += 1
                 }
             }
             return true
         }
         
-        return nouns.sorted { $0.value > $1.value }
-            .prefix(5)
-            .map { $0.key.capitalized }
+        // Return top topics
+        return Set(topics.sorted { $0.value > $1.value }
+            .prefix(10)
+            .map { $0.key.capitalized })
     }
     
-    // MARK: - Timeline Building
-    
-    private func buildTimeline(from documents: [Document]) -> [TimelineEvent] {
-        return documents
-            .sorted { $0.createdAt < $1.createdAt }
-            .map { doc in
-                TimelineEvent(
-                    date: doc.createdAt,
-                    documentName: doc.name,
-                    documentType: doc.documentType
-                )
-            }
+    private func detectPatterns(in text: String, documents: [Document]) -> [String] {
+        var patterns: [String] = []
+        
+        let lowercased = text.lowercased()
+        
+        // Legal patterns
+        if lowercased.contains("lawsuit") || lowercased.contains("court") || lowercased.contains("legal") {
+            patterns.append("Legal proceedings detected")
+        }
+        
+        // Medical patterns
+        if lowercased.contains("medical") || lowercased.contains("patient") || lowercased.contains("doctor") {
+            patterns.append("Medical documentation present")
+        }
+        
+        // Temporal patterns
+        let timeline = extractTimeline(from: documents)
+        if timeline.count > 5 {
+            patterns.append("Extended timeline spanning multiple events")
+        }
+        
+        return patterns
     }
     
-    // MARK: - Insight Generation
+    private func extractTimeline(from documents: [Document]) -> [(Date, String)] {
+        return documents.map { ($0.createdAt, $0.name) }
+            .sorted { $0.0 < $1.0 }
+    }
     
-    private func generateInsights(
-        transcripts: [Transcript],
-        entities: [Entity],
-        patterns: [Pattern],
-        timeline: [TimelineEvent]
-    ) -> [String] {
+    private func generateInsights(from text: String, entities: Set<String>, topics: Set<String>) -> [String] {
         var insights: [String] = []
         
-        // Insight from entities
-        if let topEntity = entities.first, topEntity.frequency >= 2 {
-            insights.append("\(topEntity.value) is mentioned in \(topEntity.frequency) documents, indicating significance")
+        if !entities.isEmpty {
+            insights.append("\(entities.count) key entities identified across documents")
         }
         
-        // Insight from patterns
-        for pattern in patterns.prefix(3) where pattern.significance > 0.6 {
-            insights.append(pattern.description)
+        if !topics.isEmpty {
+            insights.append("Primary themes: \(topics.prefix(3).joined(separator: ", "))")
         }
         
-        // Insight from timeline
-        if timeline.count >= 3 {
-            insights.append("Documents show chronological progression over \(timeline.count) events")
-        }
-        
-        // Document type diversity
-        let types = Set(timeline.map { $0.documentType })
-        if types.count >= 3 {
-            insights.append("Multi-modal evidence across \(types.count) media types strengthens analysis")
+        if text.count > 5000 {
+            insights.append("Substantial content volume requiring detailed review")
         }
         
         return insights
     }
     
-    // MARK: - Debrief Narrative
+    // MARK: - Step 4: Debrief Generation
     
-    private func createDebriefNarrative(
-        transcripts: [Transcript],
-        entities: [Entity],
-        patterns: [Pattern],
-        insights: [String],
-        timeline: [TimelineEvent]
-    ) -> String {
-        var narrative = ""
+    private func generateDebriefNarrative(_ intelligence: IntelligenceAnalysis) -> String {
+        var debrief = ""
         
         // Opening
-        narrative += "Intelligence debrief for \(transcripts.count) documents. "
-        
-        // Key entities
-        if !entities.isEmpty {
-            let topEntities = entities.prefix(3).map { $0.value }
-            narrative += "Key references: \(topEntities.joined(separator: ", ")). "
+        if !intelligence.entities.isEmpty {
+            let entities = Array(intelligence.entities.prefix(5))
+            debrief += "Intelligence debrief. Key figures: \(entities.joined(separator: ", ")). "
+        } else {
+            debrief += "Intelligence debrief. "
         }
         
-        // Timeline
-        if let first = timeline.first, let last = timeline.last {
-            let span = last.date.timeIntervalSince(first.date)
-            if span > 0 {
-                let days = Int(span / 86400)
-                if days > 0 {
-                    narrative += "Timeline spans \(days) days from \(first.date.formatted(date: .abbreviated, time: .omitted)) to \(last.date.formatted(date: .abbreviated, time: .omitted)). "
-                }
-            }
+        // Topics
+        if !intelligence.topics.isEmpty {
+            let topics = Array(intelligence.topics.prefix(5))
+            debrief += "Primary subjects: \(topics.joined(separator: ", ")). "
         }
         
         // Patterns
-        for pattern in patterns.prefix(2) where pattern.significance > 0.6 {
-            narrative += "\(pattern.description). "
+        if !intelligence.patterns.isEmpty {
+            debrief += intelligence.patterns.joined(separator: ". ") + ". "
+        }
+        
+        // Timeline
+        if intelligence.timeline.count > 1 {
+            let timespan = calculateTimespan(intelligence.timeline)
+            debrief += "Timeline spans \(timespan). "
+            
+            if let first = intelligence.timeline.first, let last = intelligence.timeline.last {
+                debrief += "From \(first.0.formatted(date: .abbreviated, time: .omitted)) "
+                debrief += "to \(last.0.formatted(date: .abbreviated, time: .omitted)). "
+            }
         }
         
         // Insights
-        for insight in insights.prefix(3) {
-            narrative += "\(insight). "
+        if !intelligence.insights.isEmpty {
+            debrief += intelligence.insights.joined(separator: ". ") + ". "
         }
         
-        // Closing with recommendation
-        narrative += "Recommendation: Review these documents together for complete context."
-        
-        return narrative
+        return debrief
     }
     
-    // MARK: - Audio Generation
+    private func calculateTimespan(_ timeline: [(Date, String)]) -> String {
+        guard let first = timeline.first?.0, let last = timeline.last?.0 else {
+            return "unknown duration"
+        }
+        
+        let components = Calendar.current.dateComponents([.day, .hour], from: first, to: last)
+        
+        if let days = components.day, days > 0 {
+            return "\(days) day\(days == 1 ? "" : "s")"
+        } else if let hours = components.hour, hours > 0 {
+            return "\(hours) hour\(hours == 1 ? "" : "s")"
+        }
+        
+        return "less than an hour"
+    }
     
-    private func convertToAudio(text: String) async throws -> URL {
+    // MARK: - Step 5: Text to Audio Conversion
+    
+    private func convertTextToAudio(_ text: String) async throws -> URL {
         let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("intel_debrief_\(UUID().uuidString)")
-            .appendingPathExtension("m4a")
+            .appendingPathComponent("intel_debrief_\(UUID().uuidString).m4a")
         
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = 0.50
-        utterance.volume = 1.0
-        
+        // Configure audio session
         let audioSession = AVAudioSession.sharedInstance()
         try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothA2DP])
         try audioSession.setActive(true)
         
+        // Create audio recorder
         let audioSettings: [String: Any] = [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVSampleRateKey: 44100,
@@ -370,8 +484,16 @@ final class AudioIntelligenceService: ObservableObject {
         recorder.prepareToRecord()
         recorder.record()
         
+        // Synthesize speech
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        utterance.rate = 0.52
+        utterance.pitchMultiplier = 1.0
+        utterance.volume = 1.0
+        
         speechSynthesizer.speak(utterance)
         
+        // Wait for speech to finish
         while speechSynthesizer.isSpeaking {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
@@ -379,94 +501,46 @@ final class AudioIntelligenceService: ObservableObject {
         recorder.stop()
         try audioSession.setActive(false)
         
-        // Verify file was created
-        let fileSize = try FileManager.default.attributesOfItem(atPath: outputURL.path)[.size] as? UInt64 ?? 0
-        print("📊 Debrief audio: \(fileSize) bytes")
-        
-        if fileSize < 10000 {
-            throw AudioIntelError.debriefGenerationFailed
-        }
-        
         return outputURL
     }
-}
-
-// MARK: - Data Models
-
-struct AudioIntelReport: Identifiable {
-    let id = UUID()
-    let generatedAt = Date()
-    let sourceDocuments: [Document]
-    let transcripts: [Transcript]
-    let entities: [Entity]
-    let patterns: [Pattern]
-    let insights: [String]
-    let debriefURL: URL
-    let debriefTranscript: String
-}
-
-struct Transcript: Identifiable {
-    let id = UUID()
-    let documentID: UUID
-    let documentName: String
-    let text: String
-    let duration: TimeInterval
-    let confidence: Double
-    let timestamp: Date
-}
-
-struct Entity: Identifiable {
-    let id = UUID()
-    var type: EntityType
-    var value: String
-    var frequency: Int
-    var documentIDs: [UUID]
-}
-
-enum EntityType: String {
-    case person = "Person"
-    case location = "Location"
-    case organization = "Organization"
-    case date = "Date"
-}
-
-struct Pattern: Identifiable {
-    let id = UUID()
-    let type: PatternType
-    let description: String
-    let significance: Double // 0.0 to 1.0
-    let documentIDs: [UUID]
-}
-
-enum PatternType {
-    case recurringEntity
-    case commonTheme
-    case temporal
-    case crossReference
-}
-
-struct TimelineEvent: Identifiable {
-    let id = UUID()
-    let date: Date
-    let documentName: String
-    let documentType: String
+    
+    // MARK: - Data Models
+    
+    struct AudioDescription {
+        let documentID: UUID
+        let documentName: String
+        let description: String
+        let timestamp: Date
+        let audioData: Data?
+    }
+    
+    struct IntelligenceAnalysis {
+        var entities: Set<String> = []
+        var topics: Set<String> = []
+        var patterns: [String] = []
+        var timeline: [(Date, String)] = []
+        var insights: [String] = []
+    }
 }
 
 // MARK: - Errors
 
 enum AudioIntelError: LocalizedError {
+    case insufficientDocuments
+    case conversionFailed
     case transcriptionFailed
-    case debriefGenerationFailed
-    case noAudioFiles
+    case analysisFailed
     
     var errorDescription: String? {
         switch self {
+        case .insufficientDocuments:
+            return "At least 2 documents required for Intel Report"
+        case .conversionFailed:
+            return "Failed to convert media to audio"
         case .transcriptionFailed:
-            return "Failed to transcribe audio"
-        case .debriefGenerationFailed:
-            return "Failed to generate audio debrief"
-        case .noAudioFiles:
-            return "No audio files provided for analysis"
+            return "Failed to transcribe audio content"
+        case .analysisFailed:
+            return "Failed to analyze intelligence"
         }
     }
 }

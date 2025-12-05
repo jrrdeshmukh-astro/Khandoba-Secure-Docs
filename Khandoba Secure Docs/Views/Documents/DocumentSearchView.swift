@@ -21,8 +21,11 @@ struct DocumentSearchView: View {
     @State private var showFilters = false
     @State private var filterType: DocumentFilterType = .all
     @State private var selectedTags: Set<String> = []
-    @State private var isCompilingReport = false
-    @State private var showSuccessAlert = false
+    
+    // Computed property for selected documents
+    private var selectedDocuments: [Document] {
+        searchResults.filter { selectedDocumentIDs.contains($0.id) }
+    }
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -122,7 +125,13 @@ struct DocumentSearchView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if isSelectionMode {
-                        // Intel Report - ARCHIVED
+                        // Audio Intel Report
+                        NavigationLink {
+                            AudioIntelReportView(documents: selectedDocuments)
+                        } label: {
+                            Label("Audio Intel", systemImage: "waveform.circle")
+                        }
+                        .disabled(selectedDocumentIDs.count < 2)
                     } else {
                         Menu {
                             Button {

@@ -183,18 +183,7 @@ struct VaultDetailView: View {
                                     )
                                 }
                                 
-                                Divider()
-                                
-                                NavigationLink {
-                                    AudioIntelReportView(vault: vault)
-                                } label: {
-                                    SecurityActionRow(
-                                        icon: "waveform.badge.magnifyingglass",
-                                        title: "Audio Intel Report",
-                                        subtitle: "AI analysis of selected documents",
-                                        color: colors.primary
-                                    )
-                                }
+                                // Intel Reports - ARCHIVED
                             }
                         }
                         .padding(.horizontal)
