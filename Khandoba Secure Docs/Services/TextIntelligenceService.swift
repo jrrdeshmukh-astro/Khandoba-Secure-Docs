@@ -968,6 +968,7 @@ final class TextIntelligenceService: ObservableObject {
                 }
             }
         }
+        }
         
         // Find most common scenes
         let topScenes = sceneKeywords.sorted { $0.value > $1.value }.prefix(3)
