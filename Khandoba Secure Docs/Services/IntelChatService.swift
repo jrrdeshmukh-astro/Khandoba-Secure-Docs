@@ -53,13 +53,13 @@ final class IntelChatService: ObservableObject {
     @Published var isProcessing = false
     
     private var graph: ReasoningGraph?
-    private var intelligence: IntelligenceData?
+    private var intelligence: TextIntelligenceService.IntelligenceData?
     private var privilege: UserPrivilege = .viewer
     private var modelContext: ModelContext?
     
     nonisolated init() {}
     
-    func configure(modelContext: ModelContext, graph: ReasoningGraph, intelligence: IntelligenceData, privilege: UserPrivilege) {
+    func configure(modelContext: ModelContext, graph: ReasoningGraph, intelligence: TextIntelligenceService.IntelligenceData, privilege: UserPrivilege) {
         self.modelContext = modelContext
         self.graph = graph
         self.intelligence = intelligence
