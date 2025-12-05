@@ -67,19 +67,17 @@ struct ProfileView: View {
                                         .foregroundColor(colors.textSecondary)
                                 }
                                 
-                                // Role Badge
-                                if let role = authService.currentRole {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: role.iconName)
-                                        Text(role.displayName)
-                                    }
-                                    .font(.caption)
-                                    .foregroundColor(roleColor)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(roleColor.opacity(0.2))
-                                    .cornerRadius(UnifiedTheme.CornerRadius.sm)
+                                // User badge (single role system)
+                                HStack(spacing: 4) {
+                                    Image(systemName: "person.circle.fill")
+                                    Text("User")
                                 }
+                                .font(.caption)
+                                .foregroundColor(roleColor)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(roleColor.opacity(0.2))
+                                .cornerRadius(UnifiedTheme.CornerRadius.sm)
                             }
                         }
                         .padding(.vertical, UnifiedTheme.Spacing.sm)
