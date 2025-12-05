@@ -377,11 +377,18 @@ final class TextIntelligenceService: ObservableObject {
     }
     
     private func extractFirstFrame(from asset: AVURLAsset) async -> Data? {
+        return await extractFrame(from: asset, at: 0.0)
+    }
+    
+    private func extractFrame(from asset: AVURLAsset, at time: Double) async -> Data? {
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceAfter = .zero
+        generator.requestedTimeToleranceBefore = .zero
+        
+        let time = CMTime(seconds: time, preferredTimescale: 600)
         
         do {
-            let time = CMTime(seconds: 0.5, preferredTimescale: 600)
             let cgImage = try await generator.image(at: time).image
             let uiImage = UIImage(cgImage: cgImage)
             return uiImage.jpegData(compressionQuality: 0.8)
