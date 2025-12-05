@@ -202,19 +202,21 @@ final class TextIntelligenceService: ObservableObject {
         do {
             try data.write(to: tempURL)
             
-            // Extract audio and transcribe
+            // Extract audio and transcribe (primary content)
             if let transcript = await transcribeVideo(tempURL) {
-                text += "Audio transcript: \(transcript). "
+                text += transcript
                 entities.append(contentsOf: extractEntities(from: transcript))
                 actions.append(contentsOf: extractActions(from: transcript))
             }
             
-            // Analyze first frame
+            // Analyze first frame (secondary visual context)
             let asset = AVURLAsset(url: tempURL)
             if let firstFrame = await extractFirstFrame(from: asset) {
                 let (frameText, frameEntities, _) = await analyzeImage(firstFrame)
-                text += "Visual: \(frameText). "
-                entities.append(contentsOf: frameEntities)
+                if !frameText.isEmpty {
+                    text += " Visual context: \(frameText)"
+                    entities.append(contentsOf: frameEntities)
+                }
             }
             
             // Cleanup
@@ -244,7 +246,8 @@ final class TextIntelligenceService: ObservableObject {
                 // Cleanup
                 try? FileManager.default.removeItem(at: tempURL)
                 
-                return ("Audio content: \(transcript)", entities, actions)
+                // Return full transcript without prefix
+                return (transcript, entities, actions)
             }
             
             // Cleanup
@@ -562,11 +565,11 @@ final class TextIntelligenceService: ObservableObject {
     private func generateLaymanDebrief(_ intel: IntelligenceData, insights: LogicalInsights) -> String {
         var debrief = "# Document Summary\n\n"
         
-        // Simple summary of selected documents
+        // Simple overview
         debrief += "## Overview\n\n"
         debrief += "This summary covers \(intel.timeline.count) document\(intel.timeline.count == 1 ? "" : "s").\n\n"
         
-        // Document list
+        // Document list with proper summaries
         if !intel.timeline.isEmpty {
             debrief += "## Documents\n\n"
             for (index, event) in intel.timeline.enumerated() {
@@ -576,8 +579,19 @@ final class TextIntelligenceService: ObservableObject {
                     debrief += " - \(location)"
                 }
                 debrief += "\n"
-                if !event.summary.isEmpty {
-                    debrief += "   \(event.summary)\n"
+                
+                // Use full summary text, not truncated
+                let fullSummary = event.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !fullSummary.isEmpty {
+                    // Clean up the summary - remove "Visual:" or "Audio content:" prefixes if present
+                    var cleanSummary = fullSummary
+                    if cleanSummary.hasPrefix("Visual: ") {
+                        cleanSummary = String(cleanSummary.dropFirst(8))
+                    } else if cleanSummary.hasPrefix("Audio content: ") {
+                        cleanSummary = String(cleanSummary.dropFirst(15))
+                    }
+                    
+                    debrief += "   \(cleanSummary)\n"
                 }
                 debrief += "\n"
             }

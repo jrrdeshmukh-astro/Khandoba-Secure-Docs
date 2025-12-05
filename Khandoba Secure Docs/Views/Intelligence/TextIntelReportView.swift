@@ -20,22 +20,12 @@ struct TextIntelReportView: View {
     @EnvironmentObject var authService: AuthenticationService
     
     @StateObject private var textIntel = TextIntelligenceService()
-    @StateObject private var graphService = ReasoningGraphService()
-    @StateObject private var chatService = IntelChatService()
     
     @State private var debriefText: String = ""
     @State private var selectedVault: Vault?
     @State private var showVaultPicker = false
     @State private var showError = false
     @State private var errorMessage = ""
-    @State private var selectedTab: IntelTab = .debrief
-    @State private var intelligenceData: IntelligenceData?
-    
-    enum IntelTab: String, CaseIterable {
-        case debrief = "Debrief"
-        case graph = "Graph"
-        case chat = "Chat"
-    }
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -70,57 +60,8 @@ struct TextIntelReportView: View {
                         .frame(maxHeight: .infinity)
                     
                 } else if !debriefText.isEmpty {
-                    // Tabbed interface
-                    VStack(spacing: 0) {
-                        // Tab selector
-                        HStack(spacing: 0) {
-                            ForEach(IntelTab.allCases, id: \.self) { tab in
-                                Button {
-                                    selectedTab = tab
-                                } label: {
-                                    VStack(spacing: 4) {
-                                        Text(tab.rawValue)
-                                            .font(theme.typography.subheadline)
-                                            .foregroundColor(selectedTab == tab ? colors.primary : colors.textSecondary)
-                                        
-                                        Rectangle()
-                                            .fill(selectedTab == tab ? colors.primary : Color.clear)
-                                            .frame(height: 2)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                        .background(colors.surface)
-                        
-                        Divider()
-                        
-                        // Tab content
-                        TabView(selection: $selectedTab) {
-                            // Debrief Tab
-                            debriefTab(colors: colors)
-                                .tag(IntelTab.debrief)
-                            
-                            // Graph Tab
-                            if let graph = graphService.graph {
-                                ReasoningGraphView(graph: graph)
-                                    .tag(IntelTab.graph)
-                            } else {
-                                EmptyStateView(
-                                    icon: "network",
-                                    title: "No Graph Available",
-                                    message: "Graph will be generated with the report"
-                                )
-                                .tag(IntelTab.graph)
-                            }
-                            
-                            // Chat Tab
-                            IntelChatView(chatService: chatService)
-                                .tag(IntelTab.chat)
-                        }
-                        .tabViewStyle(.page(indexDisplayMode: .never))
-                    }
+                    // Simple debrief display
+                    debriefTab(colors: colors)
                     
                 } else {
                     // Start button
@@ -177,7 +118,6 @@ struct TextIntelReportView: View {
         }
         .onAppear {
             textIntel.configure(modelContext: modelContext)
-            graphService.configure(modelContext: modelContext)
             // Pre-select first non-system vault
             selectedVault = vaultService.vaults.first { !$0.isSystemVault && $0.name != "Intel Reports" }
         }
@@ -185,24 +125,8 @@ struct TextIntelReportView: View {
     
     private func generateIntel() async {
         do {
-            // Generate debrief
             let debrief = try await textIntel.generateTextIntelReport(from: documents)
             debriefText = debrief
-            
-            // Generate graph
-            if let intel = textIntel.intelligenceData {
-                let graphData = convertToGraphData(intel)
-                let graph = await graphService.generateGraph(from: graphData)
-                
-                // Configure chat
-                let privilege = determinePrivilege()
-                chatService.configure(
-                    modelContext: modelContext,
-                    graph: graph,
-                    intelligence: intel,
-                    privilege: privilege
-                )
-            }
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -258,71 +182,6 @@ struct TextIntelReportView: View {
         }
     }
     
-    private func convertToGraphData(_ intel: TextIntelligenceService.IntelligenceData) -> IntelligenceData {
-        let docs = intel.timeline.map { event in
-            DocumentData(
-                name: event.document,
-                type: event.type,
-                date: event.date,
-                entities: Array(intel.entities),
-                text: event.summary
-            )
-        }
-        
-        // Convert logical insights
-        var insights: [LogicalInsight] = []
-        for deductive in textIntel.logicalInsights?.deductive ?? [] {
-            insights.append(LogicalInsight(
-                type: .deductive,
-                description: deductive,
-                confidence: 0.9
-            ))
-        }
-        for inductive in textIntel.logicalInsights?.inductive ?? [] {
-            insights.append(LogicalInsight(
-                type: .inductive,
-                description: inductive,
-                confidence: 0.7
-            ))
-        }
-        for abductive in textIntel.logicalInsights?.abductive ?? [] {
-            insights.append(LogicalInsight(
-                type: .abductive,
-                description: abductive,
-                confidence: 0.8
-            ))
-        }
-        for temporal in textIntel.logicalInsights?.temporal ?? [] {
-            insights.append(LogicalInsight(
-                type: .temporal,
-                description: temporal,
-                confidence: 0.85
-            ))
-        }
-        
-        return IntelligenceData(
-            documents: docs,
-            entities: Array(intel.entities),
-            topics: Array(intel.topics),
-            insights: insights,
-            timeline: intel.timeline.map { event in
-                TimelineEvent(
-                    date: event.date,
-                    description: event.summary,
-                    documentName: event.document
-                )
-            }
-        )
-    }
-    
-    private func determinePrivilege() -> UserPrivilege {
-        // Determine user privilege based on vault ownership
-        if let vault = selectedVault,
-           vault.owner?.id == authService.currentUser?.id {
-            return .owner
-        }
-        return .viewer
-    }
     
     private func saveToVault() async {
         guard let vault = selectedVault else {
