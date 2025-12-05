@@ -336,23 +336,10 @@ struct VaultDetailView: View {
                     
                     // Documents Section
                     VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                        HStack {
-                            Text("Documents")
-                                .font(theme.typography.headline)
-                                .foregroundColor(colors.textPrimary)
-                            
-                            Spacer()
-                            
-                            if hasActiveSession {
-                                Button {
-                                    showUploadSheet = true
-                                } label: {
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(colors.primary)
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
+                        Text("Documents")
+                            .font(theme.typography.headline)
+                            .foregroundColor(colors.textPrimary)
+                            .padding(.horizontal)
                         
                         if !hasActiveSession {
                             StandardCard {
