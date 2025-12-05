@@ -414,7 +414,7 @@ final class TextIntelligenceService: ObservableObject {
         // Extract topics using NLP
         intel.topics = extractTopics(from: combinedText)
         
-        // Build timeline from documents
+        // Build timeline from documents with full text content
         intel.timeline = descriptions.map {
             TimelineEvent(
                 date: $0.capturedAt,
@@ -422,7 +422,7 @@ final class TextIntelligenceService: ObservableObject {
                 document: $0.documentName,
                 type: $0.documentType,
                 location: $0.location,
-                summary: String($0.textContent.prefix(100))
+                summary: $0.textContent.trimmingCharacters(in: .whitespacesAndNewlines)
             )
         }.sorted { $0.date < $1.date }
         
