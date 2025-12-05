@@ -29,9 +29,16 @@ struct MarkdownTextView: View {
     private func renderElement(_ element: MarkdownElement, colors: UnifiedTheme.Colors) -> some View {
         switch element {
         case .heading(let level, let text):
+            let fontSize: Font = {
+                switch level {
+                case 1: return theme.typography.title
+                case 2: return theme.typography.headline
+                default: return theme.typography.subheadline
+                }
+            }()
             return AnyView(
-                Text(text)
-                    .font(level == 1 ? theme.typography.title : theme.typography.headline)
+                parseBoldText(text, colors: colors)
+                    .font(fontSize)
                     .foregroundColor(colors.textPrimary)
                     .fontWeight(.bold)
                     .padding(.top, level == 1 ? 0 : UnifiedTheme.Spacing.md)
@@ -39,7 +46,7 @@ struct MarkdownTextView: View {
             
         case .paragraph(let text):
             return AnyView(
-                Text(text)
+                parseBoldText(text, colors: colors)
                     .font(theme.typography.body)
                     .foregroundColor(colors.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -54,7 +61,7 @@ struct MarkdownTextView: View {
                                 .font(theme.typography.body)
                                 .foregroundColor(colors.primary)
                             
-                            Text(item)
+                            parseBoldText(item, colors: colors)
                                 .font(theme.typography.body)
                                 .foregroundColor(colors.textPrimary)
                         }
@@ -118,40 +125,57 @@ struct MarkdownTextView: View {
                 continue
             }
             
-            // List item
-            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+            if trimmed.hasPrefix("### ") {
                 if !currentParagraph.isEmpty {
                     elements.append(.paragraph(currentParagraph))
                     currentParagraph = ""
                 }
-                // Simple list parsing
-                let item = String(trimmed.dropFirst(2))
-                if case .list(let items, let ordered) = elements.last {
+                elements.append(.heading(3, String(trimmed.dropFirst(4))))
+                continue
+            }
+            
+            // Numbered list item (e.g., "1. ", "2. ")
+            if let numberMatch = trimmed.range(of: #"^\d+\.\s"#, options: .regularExpression) {
+                if !currentParagraph.isEmpty {
+                    elements.append(.paragraph(currentParagraph))
+                    currentParagraph = ""
+                }
+                let item = String(trimmed[numberMatch.upperBound...])
+                if case .list(let items, let ordered) = elements.last, ordered {
                     var newItems = items
                     newItems.append(item)
                     elements.removeLast()
-                    elements.append(.list(newItems, ordered))
+                    elements.append(.list(newItems, true))
+                } else {
+                    elements.append(.list([item], true))
+                }
+                continue
+            }
+            
+            // Bullet list item
+            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("• ") {
+                if !currentParagraph.isEmpty {
+                    elements.append(.paragraph(currentParagraph))
+                    currentParagraph = ""
+                }
+                let item = String(trimmed.dropFirst(2))
+                if case .list(let items, let ordered) = elements.last, !ordered {
+                    var newItems = items
+                    newItems.append(item)
+                    elements.removeLast()
+                    elements.append(.list(newItems, false))
                 } else {
                     elements.append(.list([item], false))
                 }
                 continue
             }
             
-            // Bold
+            // Regular paragraph (with bold support)
             if trimmed.contains("**") {
-                let parts = trimmed.components(separatedBy: "**")
-                for (index, part) in parts.enumerated() {
-                    if index % 2 == 1 {
-                        currentParagraph += part
-                    } else {
-                        currentParagraph += part
-                    }
-                }
-                continue
+                currentParagraph += (currentParagraph.isEmpty ? "" : " ") + trimmed
+            } else {
+                currentParagraph += (currentParagraph.isEmpty ? "" : " ") + trimmed
             }
-            
-            // Regular paragraph
-            currentParagraph += (currentParagraph.isEmpty ? "" : " ") + trimmed
         }
         
         if !currentParagraph.isEmpty {
@@ -159,6 +183,26 @@ struct MarkdownTextView: View {
         }
         
         return elements
+    }
+    
+    // Helper to parse bold text (**text**)
+    @ViewBuilder
+    private func parseBoldText(_ text: String, colors: UnifiedTheme.Colors) -> some View {
+        let parts = text.components(separatedBy: "**")
+        if parts.count == 1 {
+            Text(text)
+        } else {
+            HStack(spacing: 0) {
+                ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
+                    if index % 2 == 1 {
+                        Text(part)
+                            .fontWeight(.bold)
+                    } else {
+                        Text(part)
+                    }
+                }
+            }
+        }
     }
 }
 
