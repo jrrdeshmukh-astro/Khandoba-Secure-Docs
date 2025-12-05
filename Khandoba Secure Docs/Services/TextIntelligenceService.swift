@@ -700,21 +700,274 @@ final class TextIntelligenceService: ObservableObject {
             debrief += "**Main topics:** \(topicList)\n\n"
         }
         
-        // Add logical insights if available
-        if let insights = logicalInsights {
-            var insightText = ""
-            if !insights.deductive.isEmpty {
-                insightText += "Deductive insights: \(insights.deductive.prefix(2).joined(separator: "; ")). "
-            }
-            if !insights.inductive.isEmpty {
-                insightText += "Patterns identified: \(insights.inductive.prefix(2).joined(separator: "; ")). "
-            }
-            if !insightText.isEmpty {
-                debrief += "**Analysis insights:** \(insightText.trimmingCharacters(in: .whitespaces))\n"
+        // PATTERNS & INSIGHTS SECTION - Results of Analysis
+        debrief += "## Patterns & Insights\n\n"
+        
+        // Extract striking patterns from documents
+        let patterns = extractStrikingPatterns(intel)
+        if !patterns.isEmpty {
+            debrief += "### Key Patterns Discovered\n\n"
+            for (index, pattern) in patterns.enumerated() {
+                debrief += "\(index + 1). \(pattern)\n\n"
             }
         }
         
+        // Cross-document findings
+        let crossDocFindings = extractCrossDocumentFindings(intel)
+        if !crossDocFindings.isEmpty {
+            debrief += "### Cross-Document Findings\n\n"
+            for finding in crossDocFindings {
+                debrief += "• \(finding)\n"
+            }
+            debrief += "\n"
+        }
+        
+        // Formal Logic Results
+        if let insights = logicalInsights {
+            debrief += "### Formal Logic Analysis Results\n\n"
+            
+            if !insights.deductive.isEmpty {
+                debrief += "**Definite Conclusions:**\n"
+                for conclusion in insights.deductive {
+                    debrief += "• \(conclusion)\n"
+                }
+                debrief += "\n"
+            }
+            
+            if !insights.inductive.isEmpty {
+                debrief += "**Pattern-Based Inferences:**\n"
+                for pattern in insights.inductive {
+                    debrief += "• \(pattern)\n"
+                }
+                debrief += "\n"
+            }
+            
+            if !insights.abductive.isEmpty {
+                debrief += "**Best Explanations:**\n"
+                for explanation in insights.abductive {
+                    debrief += "• \(explanation)\n"
+                }
+                debrief += "\n"
+            }
+            
+            if !insights.temporal.isEmpty {
+                debrief += "**Temporal Analysis:**\n"
+                for temporal in insights.temporal {
+                    debrief += "• \(temporal)\n"
+                }
+                debrief += "\n"
+            }
+        }
+        
+        // Visual/Audio patterns
+        let mediaPatterns = extractMediaPatterns(intel)
+        if !mediaPatterns.isEmpty {
+            debrief += "### Media Analysis Results\n\n"
+            for pattern in mediaPatterns {
+                debrief += "• \(pattern)\n"
+            }
+            debrief += "\n"
+        }
+        
         return debrief
+    }
+    
+    // MARK: - Pattern Extraction
+    
+    /// Extract striking patterns from document analysis
+    private func extractStrikingPatterns(_ intel: IntelligenceData) -> [String] {
+        var patterns: [String] = []
+        
+        // Person detection patterns
+        let personCounts = countPersonDetections(intel)
+        if personCounts.total > 0 {
+            if personCounts.consistent {
+                patterns.append("Consistent person detection: \(personCounts.count) person\(personCounts.count == 1 ? "" : "s") detected across \(personCounts.documents) document\(personCounts.documents == 1 ? "" : "s")")
+            } else {
+                patterns.append("Variable person detection: \(personCounts.min)-\(personCounts.max) person\(personCounts.max == 1 ? "" : "s") detected across documents")
+            }
+        }
+        
+        // Scene classification patterns
+        let scenePatterns = analyzeScenePatterns(intel)
+        if !scenePatterns.isEmpty {
+            patterns.append(contentsOf: scenePatterns)
+        }
+        
+        // Document type patterns
+        let typePatterns = analyzeDocumentTypePatterns(intel)
+        if !typePatterns.isEmpty {
+            patterns.append(contentsOf: typePatterns)
+        }
+        
+        // Entity frequency patterns
+        let entityPatterns = analyzeEntityFrequency(intel)
+        if !entityPatterns.isEmpty {
+            patterns.append(contentsOf: entityPatterns)
+        }
+        
+        return patterns
+    }
+    
+    /// Extract cross-document findings
+    private func extractCrossDocumentFindings(_ intel: IntelligenceData) -> [String] {
+        var findings: [String] = []
+        
+        // Common entities across documents
+        if intel.entities.count >= 3 {
+            let topEntities = Array(intel.entities.prefix(3))
+            findings.append("Common entities across documents: \(topEntities.joined(separator: ", "))")
+        }
+        
+        // Location consistency
+        if intel.locations.count == 1, let location = intel.locations.first {
+            findings.append("All documents from same location: \(location)")
+        } else if intel.locations.count > 1 {
+            findings.append("Documents span \(intel.locations.count) different locations")
+        }
+        
+        // Time clustering
+        if intel.timeline.count >= 3 {
+            let timeSpan = calculateTimeSpan(intel.timeline)
+            if timeSpan < 1 {
+                findings.append("Documents captured within same day - suggests focused documentation session")
+            } else if timeSpan < 7 {
+                findings.append("Documents span \(timeSpan) days - short-term documentation")
+            }
+        }
+        
+        return findings
+    }
+    
+    /// Extract media-specific patterns
+    private func extractMediaPatterns(_ intel: IntelligenceData) -> [String] {
+        var patterns: [String] = []
+        
+        let imageDocs = intel.timeline.filter { $0.type == "image" }
+        let videoDocs = intel.timeline.filter { $0.type == "video" }
+        let audioDocs = intel.timeline.filter { $0.type == "audio" }
+        
+        if imageDocs.count >= 3 {
+            patterns.append("\(imageDocs.count) images analyzed with scene classification and object detection")
+        }
+        
+        if videoDocs.count > 0 {
+            patterns.append("\(videoDocs.count) video\(videoDocs.count == 1 ? "" : "s") analyzed with multi-frame temporal analysis")
+        }
+        
+        if audioDocs.count > 0 {
+            patterns.append("\(audioDocs.count) audio recording\(audioDocs.count == 1 ? "" : "s") transcribed and analyzed")
+        }
+        
+        // Visual consistency
+        if imageDocs.count >= 2 {
+            let allHavePeople = imageDocs.allSatisfy { event in
+                event.summary.lowercased().contains("person") || event.summary.lowercased().contains("detected")
+            }
+            if allHavePeople {
+                patterns.append("All images contain person detection - consistent subject matter")
+            }
+        }
+        
+        return patterns
+    }
+    
+    // MARK: - Helper Analysis Functions
+    
+    private func countPersonDetections(_ intel: IntelligenceData) -> (total: Int, count: Int, min: Int, max: Int, documents: Int, consistent: Bool) {
+        var personCounts: [Int] = []
+        var totalDocs = 0
+        
+        for event in intel.timeline {
+            let summary = event.summary.lowercased()
+            if summary.contains("person") || summary.contains("detected") {
+                totalDocs += 1
+                // Extract number if present (e.g., "2 persons detected")
+                if let numberMatch = summary.range(of: #"\d+\s*person"#, options: .regularExpression) {
+                    let numberStr = String(summary[numberMatch]).components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+                    if let number = Int(numberStr) {
+                        personCounts.append(number)
+                    } else {
+                        personCounts.append(1) // Default to 1 if pattern found but no number
+                    }
+                } else if summary.contains("person") {
+                    personCounts.append(1) // At least 1 person
+                }
+            }
+        }
+        
+        guard !personCounts.isEmpty else {
+            return (0, 0, 0, 0, 0, false)
+        }
+        
+        let min = personCounts.min() ?? 0
+        let max = personCounts.max() ?? 0
+        let avg = personCounts.reduce(0, +) / personCounts.count
+        let consistent = min == max
+        
+        return (personCounts.reduce(0, +), avg, min, max, totalDocs, consistent)
+    }
+    
+    private func analyzeScenePatterns(_ intel: IntelligenceData) -> [String] {
+        var patterns: [String] = []
+        var sceneKeywords: [String: Int] = [:]
+        
+        for event in intel.timeline {
+            let summary = event.summary.lowercased()
+            // Extract scene classifications
+            if summary.contains("scene classification:") {
+                let parts = summary.components(separatedBy: "scene classification:")
+                if parts.count > 1 {
+                    let scenePart = parts[1].components(separatedBy: ".")[0]
+                    let scenes = scenePart.components(separatedBy: ",")
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                
+                for scene in scenes {
+                    sceneKeywords[scene, default: 0] += 1
+                }
+            }
+        }
+        
+        // Find most common scenes
+        let topScenes = sceneKeywords.sorted { $0.value > $1.value }.prefix(3)
+        if !topScenes.isEmpty {
+            let sceneList = topScenes.map { "\($0.key) (\($0.value))" }.joined(separator: ", ")
+            patterns.append("Most common scene classifications: \(sceneList)")
+        }
+        
+        return patterns
+    }
+    
+    private func analyzeDocumentTypePatterns(_ intel: IntelligenceData) -> [String] {
+        var patterns: [String] = []
+        
+        let typeCounts = Dictionary(grouping: intel.timeline, by: { $0.type })
+            .mapValues { $0.count }
+        
+        if typeCounts.count == 1, let (type, count) = typeCounts.first {
+            patterns.append("All \(count) documents are \(type)s - uniform media type")
+        } else if typeCounts.count > 1 {
+            let typeList = typeCounts.map { "\($0.value) \($0.key)\($0.value == 1 ? "" : "s")" }.joined(separator: ", ")
+            patterns.append("Mixed media types: \(typeList)")
+        }
+        
+        return patterns
+    }
+    
+    private func analyzeEntityFrequency(_ intel: IntelligenceData) -> [String] {
+        var patterns: [String] = []
+        
+        if intel.entities.count >= 5 {
+            patterns.append("High entity density: \(intel.entities.count) unique entities identified across documents")
+        }
+        
+        let entityTypes = categorizeEntities(intel.entities)
+        if let personCount = entityTypes["Person"]?.count, personCount >= 2 {
+            patterns.append("Multiple people identified: \(personCount) distinct person\(personCount == 1 ? "" : "s")")
+        }
+        
+        return patterns
     }
     
     // MARK: - Text Summarization Helper
