@@ -414,6 +414,40 @@ enum MyError: LocalizedError {
 - Save the Cat blog posts
 - Pixar's 22 Rules of Storytelling
 
+### **Additional iOS Frameworks:**
+
+**UI & Graphics:**
+- **PaperKit:** Add drawings, shapes, and markup experiences
+- **SwiftUI Text:** Building rich text experiences with attributed strings
+- **Metal 4:** Drawing 2D/3D graphics with GPU rendering
+
+**System Integration:**
+- **Live Activities:** Custom views, deep links, Lock Screen controls
+- **App Clips:** Invocation URLs, default links, advanced experiences
+- **Spotlight:** Semantic search, CSUserQuery, entity indexing
+- **Genmoji:** NSAdaptiveImageGlyph for handling in text content
+
+**Media & Content:**
+- **Image Aesthetics:** VNGenerateImageAestheticsScoresRequest for photo scoring
+- **Video Thumbnails:** Generating high-quality thumbnails from videos
+- **Apple Immersive Video:** Preparing and packaging immersive content
+- **Spatial Audio Editing:** Audio Mix API in Cinematic framework
+
+**Networking & Services:**
+- **Wi-Fi Aware:** Building peer-to-peer apps with nearby devices
+- **URL Filtering:** Fast and robust URL filtering configurations
+- **Background Delivery:** Extensions for up-to-date data
+- **WeatherKit:** Weather information app service
+
+**Energy & Performance:**
+- **EnergyKit:** Grid forecast for electricity usage optimization
+- **Long-running Tasks:** Continuous background tasks on iOS/iPadOS
+- **Swift Concurrency:** Modern async/await patterns and best practices
+
+**Security:**
+- **Quantum-secure Cryptography:** Protect apps from quantum attacks
+- **Writing Tools Privacy:** Appropriately handle sensitive inputs
+
 ---
 
 ## 🚀 CURRENT FOCUS
