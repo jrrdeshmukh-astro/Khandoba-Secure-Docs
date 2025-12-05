@@ -214,6 +214,22 @@ struct VaultDetailView: View {
                         
                         StandardCard {
                             VStack(spacing: 0) {
+                                // Access Control (Owner only)
+                                if isOwner {
+                                    NavigationLink {
+                                        VaultAccessControlView(vault: vault)
+                                    } label: {
+                                        SecurityActionRow(
+                                            icon: "person.3.fill",
+                                            title: "Access Control",
+                                            subtitle: "Manage user permissions & history",
+                                            color: colors.primary
+                                        )
+                                    }
+                                    
+                                    Divider()
+                                }
+                                
                                 Button {
                                     shareMode = .nominee
                                     showShareView = true
