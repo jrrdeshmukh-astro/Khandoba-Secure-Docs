@@ -567,88 +567,35 @@ final class TextIntelligenceService: ObservableObject {
         debrief += "This summary covers \(intel.timeline.count) document\(intel.timeline.count == 1 ? "" : "s").\n\n"
         
         // Document list
-        debrief += "## Documents\n\n"
-        for (index, event) in intel.timeline.enumerated() {
-            debrief += "\(index + 1). **\(event.document)**"
+        if !intel.timeline.isEmpty {
+            debrief += "## Documents\n\n"
+            for (index, event) in intel.timeline.enumerated() {
+                debrief += "\(index + 1). **\(event.document)**"
+                debrief += " - \(event.type.capitalized)"
                 if let location = event.location {
-                    debrief += " (\(location))"
+                    debrief += " - \(location)"
                 }
-                debrief += " - \(event.document) (\(event.type))\n"
+                debrief += "\n"
                 if !event.summary.isEmpty {
-                    debrief += "   \(event.summary)...\n"
+                    debrief += "   \(event.summary)\n"
                 }
                 debrief += "\n"
             }
         }
         
-        // LOGICAL INSIGHTS
-        debrief += "## Key Insights\n\n"
-        
-        if !insights.deductive.isEmpty {
-            debrief += "**What we can conclude:**\n"
-            for conclusion in insights.deductive {
-                debrief += "• \(conclusion)\n"
-            }
-            debrief += "\n"
-        }
-        
-        if !insights.inductive.isEmpty {
-            debrief += "**Patterns observed:**\n"
-            for pattern in insights.inductive {
-                debrief += "• \(pattern)\n"
-            }
-            debrief += "\n"
-        }
-        
-        if !insights.abductive.isEmpty {
-            debrief += "**Likely explanations:**\n"
-            for explanation in insights.abductive {
-                debrief += "• \(explanation)\n"
-            }
-            debrief += "\n"
-        }
-        
-        if !insights.temporal.isEmpty {
-            debrief += "**Timeline analysis:**\n"
-            for temporal in insights.temporal {
-                debrief += "• \(temporal)\n"
-            }
-            debrief += "\n"
-        }
-        
-        // SUMMARY
+        // Simple summary
         debrief += "## Summary\n\n"
-        debrief += generateExecutiveSummary(intel, insights: insights)
-        
-        return debrief
-    }
-    
-    private func generateExecutiveSummary(_ intel: IntelligenceData, insights: LogicalInsights) -> String {
-        var summary = ""
-        
-        // One-paragraph layman summary
-        summary += "This collection contains \(intel.timeline.count) documents "
+        if !intel.entities.isEmpty {
+            let entityList = Array(intel.entities.prefix(5)).joined(separator: ", ")
+            debrief += "Key entities: \(entityList).\n\n"
+        }
         
         if !intel.topics.isEmpty {
-            summary += "primarily related to \(intel.topics.prefix(3).joined(separator: ", ")). "
+            let topicList = Array(intel.topics.prefix(5)).joined(separator: ", ")
+            debrief += "Main topics: \(topicList).\n"
         }
         
-        if !intel.entities.isEmpty {
-            let entityCount = intel.entities.count
-            summary += "Key figures include \(entityCount) identified entit\(entityCount == 1 ? "y" : "ies"). "
-        }
-        
-        if let timespan = insights.temporal.first {
-            summary += "\(timespan). "
-        }
-        
-        if let bestExplanation = insights.abductive.first {
-            summary += "\(bestExplanation). "
-        }
-        
-        summary += "Review the timeline and key insights above for detailed analysis."
-        
-        return summary
+        return debrief
     }
     
     // MARK: - Helper Functions
