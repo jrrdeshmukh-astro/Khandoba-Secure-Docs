@@ -269,11 +269,42 @@ struct TextIntelReportView: View {
             )
         }
         
+        // Convert logical insights
+        var insights: [LogicalInsight] = []
+        for deductive in textIntel.logicalInsights?.deductive ?? [] {
+            insights.append(LogicalInsight(
+                type: .deductive,
+                description: deductive,
+                confidence: 0.9
+            ))
+        }
+        for inductive in textIntel.logicalInsights?.inductive ?? [] {
+            insights.append(LogicalInsight(
+                type: .inductive,
+                description: inductive,
+                confidence: 0.7
+            ))
+        }
+        for abductive in textIntel.logicalInsights?.abductive ?? [] {
+            insights.append(LogicalInsight(
+                type: .abductive,
+                description: abductive,
+                confidence: 0.8
+            ))
+        }
+        for temporal in textIntel.logicalInsights?.temporal ?? [] {
+            insights.append(LogicalInsight(
+                type: .temporal,
+                description: temporal,
+                confidence: 0.85
+            ))
+        }
+        
         return IntelligenceData(
             documents: docs,
             entities: Array(intel.entities),
             topics: Array(intel.topics),
-            insights: [],
+            insights: insights,
             timeline: intel.timeline.map { event in
                 TimelineEvent(
                     date: event.date,

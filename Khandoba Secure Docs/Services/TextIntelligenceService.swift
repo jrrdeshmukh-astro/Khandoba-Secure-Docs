@@ -23,6 +23,7 @@ final class TextIntelligenceService: ObservableObject {
     @Published var currentStep: String = ""
     @Published var debriefText: String = ""
     @Published var intelligenceData: IntelligenceData?
+    @Published var logicalInsights: LogicalInsights?
     
     private var modelContext: ModelContext?
     
@@ -65,6 +66,7 @@ final class TextIntelligenceService: ObservableObject {
         currentStep = "Applying logical reasoning..."
         processingProgress = 0.6
         let logicalInsights = await applyFormalLogic(intelligence)
+        self.logicalInsights = logicalInsights
         print("✅ Step 3: Logical reasoning complete")
         
         // STEP 4: Generate layman-friendly debrief
