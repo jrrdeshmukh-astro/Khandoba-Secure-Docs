@@ -23,6 +23,8 @@ struct AudioIntelReportView: View {
     @State private var debriefAudioURL: URL?
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var selectedVault: Vault?
+    @State private var showVaultPicker = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -77,6 +79,29 @@ struct AudioIntelReportView: View {
                         
                         AudioPlayerView(audioURL: audioURL, colors: colors, theme: theme)
                         
+                        // Vault selection
+                        VStack(spacing: UnifiedTheme.Spacing.sm) {
+                            Text("Save to:")
+                                .font(theme.typography.caption)
+                                .foregroundColor(colors.textSecondary)
+                            
+                            Button {
+                                showVaultPicker = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "folder.fill")
+                                    Text(selectedVault?.name ?? "Choose Vault")
+                                    Spacer()
+                                    Image(systemName: "chevron.down")
+                                }
+                                .padding()
+                                .background(colors.surface)
+                                .cornerRadius(UnifiedTheme.CornerRadius.md)
+                            }
+                            .foregroundColor(colors.textPrimary)
+                        }
+                        .padding(.horizontal)
+                        
                         Button {
                             Task {
                                 await saveToVault(audioURL)
@@ -90,6 +115,7 @@ struct AudioIntelReportView: View {
                             .frame(height: 50)
                         }
                         .buttonStyle(PrimaryButtonStyle())
+                        .disabled(selectedVault == nil)
                         .padding(.horizontal)
                     }
                     
@@ -130,8 +156,13 @@ struct AudioIntelReportView: View {
         } message: {
             Text(errorMessage)
         }
+        .sheet(isPresented: $showVaultPicker) {
+            VaultPickerSheet(selectedVault: $selectedVault, vaultService: vaultService, colors: colors, theme: theme)
+        }
         .onAppear {
             audioIntel.configure(modelContext: modelContext)
+            // Pre-select first non-system vault
+            selectedVault = vaultService.vaults.first { !$0.isSystemVault && $0.name != "Intel Reports" }
         }
     }
     
@@ -146,8 +177,12 @@ struct AudioIntelReportView: View {
     }
     
     private func saveToVault(_ audioURL: URL) async {
-        // Save to first available vault or create Intel vault
-        guard let vault = vaultService.vaults.first else { return }
+        // Save to selected vault
+        guard let vault = selectedVault else {
+            errorMessage = "Please select a vault first"
+            showError = true
+            return
+        }
         
         do {
             let audioData = try Data(contentsOf: audioURL)
@@ -224,6 +259,72 @@ struct AudioPlayerView: View {
             player.play()
         }
         isPlaying.toggle()
+    }
+}
+
+// MARK: - Vault Picker Sheet
+
+struct VaultPickerSheet: View {
+    @Binding var selectedVault: Vault?
+    let vaultService: VaultService
+    let colors: UnifiedTheme.Colors
+    let theme: UnifiedTheme
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(userVaults) { vault in
+                    Button {
+                        selectedVault = vault
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Image(systemName: vault.keyType == "dual" ? "lock.rectangle.stack.fill" : "lock.fill")
+                                .foregroundColor(colors.primary)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(vault.name)
+                                    .font(theme.typography.subheadline)
+                                    .foregroundColor(colors.textPrimary)
+                                
+                                if let desc = vault.vaultDescription {
+                                    Text(desc)
+                                        .font(theme.typography.caption)
+                                        .foregroundColor(colors.textSecondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            if selectedVault?.id == vault.id {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(colors.success)
+                            }
+                        }
+                    }
+                    .listRowBackground(colors.surface)
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(colors.background)
+            .navigationTitle("Choose Vault")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private var userVaults: [Vault] {
+        vaultService.vaults.filter { !$0.isSystemVault && $0.name != "Intel Reports" }
     }
 }
 
