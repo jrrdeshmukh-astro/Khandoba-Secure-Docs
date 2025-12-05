@@ -340,6 +340,46 @@ struct AudioPlayerPreviewView: View {
     }
 }
 
+// MARK: - Markdown/Text Preview
+struct MarkdownPreviewView: View {
+    let document: Document
+    
+    @State private var markdownText: String = ""
+    @State private var isLoading = true
+    
+    var body: some View {
+        Group {
+            if isLoading {
+                ProgressView("Loading markdown...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear {
+                        loadMarkdown()
+                    }
+            } else {
+                MarkdownTextView(markdown: markdownText)
+            }
+        }
+    }
+    
+    private func loadMarkdown() {
+        guard let data = document.encryptedFileData else {
+            isLoading = false
+            return
+        }
+        
+        // Try to decode as UTF-8 string
+        if let text = String(data: data, encoding: .utf8) {
+            markdownText = text
+        } else if let text = String(data: data, encoding: .utf16) {
+            markdownText = text
+        } else {
+            markdownText = "Unable to decode text content"
+        }
+        
+        isLoading = false
+    }
+}
+
 // MARK: - Unsupported Preview
 struct UnsupportedDocPreviewView: View {
     let document: Document
