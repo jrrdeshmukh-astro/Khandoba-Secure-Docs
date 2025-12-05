@@ -557,50 +557,19 @@ final class TextIntelligenceService: ObservableObject {
         return temporal
     }
     
-    // MARK: - Step 4: Layman-Friendly Debrief Generation
+    // MARK: - Step 4: Simple Document Summary
     
     private func generateLaymanDebrief(_ intel: IntelligenceData, insights: LogicalInsights) -> String {
-        var debrief = "# Intelligence Debrief\n\n"
+        var debrief = "# Document Summary\n\n"
         
-        // OVERVIEW
+        // Simple summary of selected documents
         debrief += "## Overview\n\n"
-        debrief += "This analysis covers \(intel.timeline.count) documents"
-        if intel.timeline.count >= 2, let first = intel.timeline.first, let last = intel.timeline.last {
-            let days = Calendar.current.dateComponents([.day], from: first.date, to: last.date).day ?? 0
-            debrief += " spanning \(days) day\(days == 1 ? "" : "s")"
-        }
-        debrief += ".\n\n"
+        debrief += "This summary covers \(intel.timeline.count) document\(intel.timeline.count == 1 ? "" : "s").\n\n"
         
-        // KEY PEOPLE & PLACES
-        if !intel.entities.isEmpty {
-            debrief += "## Key People & Places\n\n"
-            let categorized = categorizeEntities(intel.entities)
-            
-            if let people = categorized["Person"], !people.isEmpty {
-                debrief += "**People mentioned:** \(people.prefix(5).joined(separator: ", "))\n\n"
-            }
-            
-            if let places = categorized["Location"], !places.isEmpty {
-                debrief += "**Locations:** \(places.prefix(5).joined(separator: ", "))\n\n"
-            }
-            
-            if let orgs = categorized["Organization"], !orgs.isEmpty {
-                debrief += "**Organizations:** \(orgs.prefix(5).joined(separator: ", "))\n\n"
-            }
-        }
-        
-        // MAIN TOPICS
-        if !intel.topics.isEmpty {
-            debrief += "## Main Topics\n\n"
-            debrief += intel.topics.prefix(7).joined(separator: ", ")
-            debrief += "\n\n"
-        }
-        
-        // TIMELINE
-        if !intel.timeline.isEmpty {
-            debrief += "## Timeline\n\n"
-            for (index, event) in intel.timeline.enumerated() {
-                debrief += "\(index + 1). **\(event.date.formatted(date: .abbreviated, time: .omitted))**"
+        // Document list
+        debrief += "## Documents\n\n"
+        for (index, event) in intel.timeline.enumerated() {
+            debrief += "\(index + 1). **\(event.document)**"
                 if let location = event.location {
                     debrief += " (\(location))"
                 }
