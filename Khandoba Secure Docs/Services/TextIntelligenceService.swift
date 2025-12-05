@@ -548,7 +548,7 @@ final class TextIntelligenceService: ObservableObject {
                 document: $0.documentName,
                 type: $0.documentType,
                 location: $0.location,
-                summary: $0.textContent.trimmingCharacters(in: .whitespacesAndNewlines)
+                summary: $0.textContent.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
             )
         }.sorted { $0.date < $1.date }
         
