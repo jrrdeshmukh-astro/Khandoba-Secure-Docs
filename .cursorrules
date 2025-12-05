@@ -447,6 +447,37 @@ enum MyError: LocalizedError {
 **Security:**
 - **Quantum-secure Cryptography:** Protect apps from quantum attacks
 - **Writing Tools Privacy:** Appropriately handle sensitive inputs
+- **Bank Vault Metaphor:** Physical security principles applied digitally
+  - Dual-key = Two-person control (like bank safety deposit boxes)
+  - Session timeout = Time-delay mechanism (vault auto-locks)
+  - Access logs = Security camera audit trail (complete tracking)
+  - Vault tiers = Safety deposit box classifications (single vs dual-key)
+  - Encryption = Physical vault walls (AES-256 protection)
+
+**Development Tools & Methods:**
+- **A/B Testing:** 
+  - ABTestingService.swift implements variant testing
+  - Firebase A/B Testing: firebase.google.com/docs/ab-testing
+  - Statistical significance and conversion tracking
+  - Experimental design patterns
+  - User segmentation and feature flags
+- **Browser Access:** Safari Web Inspector, debugging web views
+- **Bash Automation:** Build scripts, deployment automation
+  - Scripts: prepare_for_transporter.sh, validate_for_transporter.sh
+  - PUSH_TO_GITHUB.sh for git automation
+  - Xcode build automation: developer.apple.com/documentation/xcode/running-custom-scripts-during-a-build
+
+**Formal Logic & Reasoning:**
+- **Rule of Inference:** FormalLogicEngine.swift implements 7 systems
+  - **Deductive Logic:** Modus Ponens, Modus Tollens, Hypothetical Syllogism
+  - **Inductive Logic:** Pattern recognition, generalization from examples
+  - **Abductive Logic:** Best explanation, diagnostic reasoning, hypothesis formation
+  - **Analogical Logic:** Similarity-based inference, case-based reasoning
+  - **Statistical Logic:** Probabilistic reasoning, Bayesian inference
+  - **Temporal Logic:** Time-based reasoning, sequence analysis
+  - **Modal Logic:** Possibility, necessity, counterfactual reasoning
+  - **Reference:** plato.stanford.edu/entries/logic-ai/
+  - **Application:** Used for document analysis, threat detection, pattern recognition
 
 ---
 
