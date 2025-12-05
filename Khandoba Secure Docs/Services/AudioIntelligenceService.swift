@@ -14,6 +14,7 @@ import Vision
 import Speech
 import NaturalLanguage
 import UIKit
+import CoreMedia
 
 @MainActor
 final class AudioIntelligenceService: ObservableObject {
@@ -275,7 +276,7 @@ final class AudioIntelligenceService: ObservableObject {
             let request = SFSpeechURLRecognitionRequest(url: tempURL)
             request.shouldReportPartialResults = false
             
-            let transcription = try await withCheckedThrowingContinuation { continuation in
+            let transcription: String = try await withCheckedThrowingContinuation { continuation in
                 recognizer?.recognitionTask(with: request) { result, error in
                     if let error = error {
                         continuation.resume(throwing: error)

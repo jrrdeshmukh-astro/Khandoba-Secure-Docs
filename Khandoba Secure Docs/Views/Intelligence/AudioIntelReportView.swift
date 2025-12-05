@@ -6,7 +6,9 @@
 //
 
 import SwiftUI
+import SwiftData
 import Combine
+import AVFoundation
 
 struct AudioIntelReportView: View {
     let documents: [Document]
@@ -209,12 +211,8 @@ struct AudioPlayerView: View {
     }
     
     private func setupPlayer() {
-        do {
-            audioPlayer = try AVAudioPlayer(contentsOf: audioURL)
-            audioPlayer?.prepareToPlay()
-        } catch {
-            print("Failed to setup audio player: \(error)")
-        }
+        audioPlayer = try? AVAudioPlayer(contentsOf: audioURL)
+        audioPlayer?.prepareToPlay()
     }
     
     private func togglePlayback() {
