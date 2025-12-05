@@ -135,10 +135,8 @@ final class SharedVaultSessionService: ObservableObject {
     
     /// Check if user has privilege to manually lock vault
     func canLockVault(_ vault: Vault, user: User) -> Bool {
-        // Vault owner or admin can lock
-        let isOwner = vault.owner?.id == user.id
-        let isAdmin = user.roles?.contains(where: { $0.role == .admin }) ?? false
-        return isOwner || isAdmin
+        // Only vault owner can lock (no admin role in autopilot mode)
+        return vault.owner?.id == user.id
     }
     
     // MARK: - Auto-Lock Timer
