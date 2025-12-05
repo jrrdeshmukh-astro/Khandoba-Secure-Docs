@@ -44,11 +44,13 @@ struct ReasoningGraphView: View {
                     
                     // Draw nodes
                     ForEach(graph.nodes) { node in
-                        NodeView(node: node, isSelected: selectedNode?.id == node.id, colors: colors, theme: theme)
-                            .position(nodePosition(node.id, in: geometry.size))
-                            .onTapGesture {
-                                selectedNode = node
-                            }
+                        if let pos = nodePosition(node.id, in: geometry.size) {
+                            NodeView(node: node, isSelected: selectedNode?.id == node.id, colors: colors, theme: theme)
+                                .position(pos)
+                                .onTapGesture {
+                                    selectedNode = node
+                                }
+                        }
                     }
                 }
             }
@@ -99,12 +101,13 @@ struct ReasoningGraphView: View {
         
         // Simple circular layout
         let nodeCount = graph.nodes.count
-        let angle = 2 * .pi * Double(graph.nodes.firstIndex(where: { $0.id == nodeID }) ?? 0) / Double(nodeCount)
+        guard let index = graph.nodes.firstIndex(where: { $0.id == nodeID }) else { return nil }
+        let angle = 2 * Double.pi * Double(index) / Double(nodeCount)
         let radius = min(size.width, size.height) * 0.35
         
         return CGPoint(
-            x: size.width / 2 + radius * cos(angle),
-            y: size.height / 2 + radius * sin(angle)
+            x: size.width / 2 + radius * Foundation.cos(angle),
+            y: size.height / 2 + radius * Foundation.sin(angle)
         )
     }
     

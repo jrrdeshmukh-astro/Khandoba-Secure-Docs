@@ -29,7 +29,7 @@ struct IntelChatView: View {
                     }
                     .padding()
                 }
-                .onChange(of: chatService.messages.count) { _ in
+                .onChange(of: chatService.messages.count) { oldValue, newValue in
                     if let last = chatService.messages.last {
                         withAnimation {
                             proxy.scrollTo(last.id, anchor: .bottom)

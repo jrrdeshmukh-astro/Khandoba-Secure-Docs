@@ -126,7 +126,7 @@ struct MarkdownTextView: View {
                 }
                 // Simple list parsing
                 let item = String(trimmed.dropFirst(2))
-                if case .list(var items, let ordered) = elements.last {
+                if case .list(let items, let ordered) = elements.last {
                     var newItems = items
                     newItems.append(item)
                     elements.removeLast()
