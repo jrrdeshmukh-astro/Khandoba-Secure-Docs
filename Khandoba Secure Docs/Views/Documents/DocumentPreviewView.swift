@@ -362,8 +362,25 @@ struct UnsupportedDocPreviewView: View {
                 .foregroundColor(colors.textSecondary)
             
             VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                MetadataRow(label: "Type", value: document.mimeType ?? "Unknown")
-                MetadataRow(label: "Size", value: ByteCountFormatter.string(fromByteCount: document.fileSize, countStyle: .file))
+                HStack {
+                    Text("Type:")
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textSecondary)
+                    Spacer()
+                    Text(document.mimeType ?? "Unknown")
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textPrimary)
+                }
+                
+                HStack {
+                    Text("Size:")
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textSecondary)
+                    Spacer()
+                    Text(ByteCountFormatter.string(fromByteCount: document.fileSize, countStyle: .file))
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textPrimary)
+                }
             }
             .padding()
             .background(colors.surface)
