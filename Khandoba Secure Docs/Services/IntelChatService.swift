@@ -105,7 +105,7 @@ final class IntelChatService: ObservableObject {
             if lowerQuery.contains("graph") || lowerQuery.contains("connection") || lowerQuery.contains("relationship") {
                 let centrality = graph.calculateCentrality()
                 let topNodes = centrality.sorted { $0.value > $1.value }.prefix(3)
-                relatedNodes = Array(topNodes.map { $0.0 })
+                relatedNodes = Array(topNodes.map { $0.key })
                 
                 let nodeNames = topNodes.compactMap { nodeID in
                     graph.nodes.first { $0.id == nodeID }?.label
