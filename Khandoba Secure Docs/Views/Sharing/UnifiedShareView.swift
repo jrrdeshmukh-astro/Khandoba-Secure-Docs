@@ -25,6 +25,7 @@ struct UnifiedShareView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     
+    @StateObject private var nomineeService = NomineeService()
     @State private var selectedContacts: [CNContact] = []
     @State private var showContactPicker = false
     @State private var showMessageComposer = false
@@ -32,6 +33,7 @@ struct UnifiedShareView: View {
     @State private var isProcessing = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var createdNominees: [Nominee] = []
     
     // Computed properties to avoid type-checking timeout
     private var selectedPhoneNumbers: [String] {
@@ -42,10 +44,11 @@ struct UnifiedShareView: View {
     
     private var invitationMessage: String {
         if mode == .nominee {
-            if let tokens = UserDefaults.standard.array(forKey: "pending_nominee_tokens") as? [String],
-               let firstToken = tokens.first {
-                let deepLink = "khandoba://invite?token=\(firstToken)"
-                return "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it.\n\nTap to accept: \(deepLink)\n\nOr download the app from the App Store!"
+            if !createdNominees.isEmpty {
+                // Generate message with all tokens
+                let tokens = createdNominees.compactMap { $0.inviteToken }
+                let deepLinks = tokens.map { "khandoba://invite?token=\($0)" }.joined(separator: "\n")
+                return "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it.\n\nTap to accept:\n\(deepLinks)\n\nOr download the app from the App Store!"
             } else {
                 return "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it. Download the app from the App Store!"
             }
@@ -250,15 +253,19 @@ struct UnifiedShareView: View {
                     }
                 )
             }
+            .onAppear {
+                // Configure nominee service
+                nomineeService.configure(modelContext: modelContext)
+            }
             .sheet(isPresented: $showMessageComposer) {
-                if !selectedContacts.isEmpty {
+                if !selectedContacts.isEmpty && !selectedPhoneNumbers.isEmpty {
                     MessageComposeView(
                         recipients: selectedPhoneNumbers,
                         message: invitationMessage,
                         onDismiss: {
                             showMessageComposer = false
                             selectedContacts = []
-                            UserDefaults.standard.removeObject(forKey: "pending_nominee_tokens")
+                            createdNominees = []
                             dismiss()
                         }
                     )
@@ -322,39 +329,42 @@ struct UnifiedShareView: View {
                     throw AppError.authenticationFailed("User not authenticated")
                 }
                 
-                // 1. Create nominees for each contact
-                var nomineeTokens: [String] = []
+                // 1. Create nominees for each contact using NomineeService
+                var created: [Nominee] = []
                 for contact in selectedContacts {
                     let fullName = "\(contact.givenName) \(contact.familyName)"
                     let phoneNumber = contact.phoneNumbers.first?.value.stringValue
                     let email = contact.emailAddresses.first?.value as String?
                     
-                    let nominee = Nominee(
+                    let nominee = try await nomineeService.inviteNominee(
                         name: fullName,
                         phoneNumber: phoneNumber,
                         email: email,
-                        status: "pending"
+                        to: vault,
+                        invitedByUserID: currentUser.id
                     )
-                    nominee.vault = vault
-                    nominee.invitedByUserID = currentUser.id
-                    
-                    modelContext.insert(nominee)
-                    nomineeTokens.append(nominee.inviteToken)
+                    created.append(nominee)
                 }
                 
-                try modelContext.save()
+                // Store created nominees for message generation
+                await MainActor.run {
+                    createdNominees = created
+                }
                 
-                // Store tokens for message generation
-                // The MessageComposeView will use these to generate deep links
-                UserDefaults.standard.set(nomineeTokens, forKey: "pending_nominee_tokens")
+                // Small delay to ensure CloudKit sync starts
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                 
                 // 2. Send iMessage invitations
-                showMessageComposer = true
-                isProcessing = false
+                await MainActor.run {
+                    showMessageComposer = true
+                    isProcessing = false
+                }
             } catch {
-                errorMessage = error.localizedDescription
-                showError = true
-                isProcessing = false
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                    isProcessing = false
+                }
             }
         }
     }

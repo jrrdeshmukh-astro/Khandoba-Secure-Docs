@@ -191,6 +191,7 @@ struct AddNomineeView: View {
     @State private var errorMessage = ""
     @State private var showMessageComposer = false
     @State private var createdNominee: Nominee?
+    @State private var hasConfiguredService = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -289,8 +290,15 @@ struct AddNomineeView: View {
             } message: {
                 Text(errorMessage)
             }
+            .onAppear {
+                // Configure service if not already configured
+                if !hasConfiguredService {
+                    nomineeService.configure(modelContext: modelContext)
+                    hasConfiguredService = true
+                }
+            }
             .sheet(isPresented: $showMessageComposer) {
-                if let nominee = createdNominee, !phoneNumber.isEmpty {
+                if let nominee = createdNominee, let nomineePhoneNumber = nominee.phoneNumber, !nomineePhoneNumber.isEmpty {
                     let deepLink = "khandoba://invite?token=\(nominee.inviteToken)"
                     let invitationMessage = """
                     You've been invited to co-manage a vault in Khandoba Secure Docs!
@@ -305,7 +313,7 @@ struct AddNomineeView: View {
                     """
                     
                     MessageComposeView(
-                        recipients: [phoneNumber],
+                        recipients: [nomineePhoneNumber],
                         message: invitationMessage,
                         onDismiss: {
                             showMessageComposer = false
@@ -313,6 +321,23 @@ struct AddNomineeView: View {
                             dismiss()
                         }
                     )
+                } else {
+                    // Fallback if phone number is missing
+                    let colors = theme.colors(for: colorScheme)
+                    VStack {
+                        Text("Cannot send message")
+                            .font(theme.typography.headline)
+                        Text("Phone number is required to send the invitation.")
+                            .font(theme.typography.body)
+                            .foregroundColor(colors.textSecondary)
+                        Button("OK") {
+                            showMessageComposer = false
+                            createdNominee = nil
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .padding()
+                    }
+                    .padding()
                 }
             }
         }
