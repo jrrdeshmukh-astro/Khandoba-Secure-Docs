@@ -335,15 +335,15 @@ final class VaultService: ObservableObject {
         startSessionTimeout(for: vault)
         
         // 🔗 INTEGRATION: Open shared vault session for nominees
-        if let currentUser = currentUser {
+        if let currentUser = currentUser, let currentUserID = currentUserID {
             let sharedSessionService = SharedVaultSessionService()
-            sharedSessionService.configure(modelContext: modelContext, userID: currentUserID!)
+            sharedSessionService.configure(modelContext: modelContext, userID: currentUserID)
             try await sharedSessionService.openSharedVault(vault, unlockedBy: currentUser)
             print("✅ Shared vault session opened - nominees can now access")
+            
+            // ✅ NOMINEE ACCESS: Check if current user is a nominee
+            await checkAndGrantNomineeAccess(for: vault, userID: currentUserID)
         }
-        
-        // ✅ NOMINEE ACCESS: Check if current user is a nominee
-        await checkAndGrantNomineeAccess(for: vault, userID: currentUserID!)
         
         try await loadVaults()
     }
@@ -355,15 +355,21 @@ final class VaultService: ObservableObject {
         guard let modelContext = modelContext else { return }
         
         // Check if user is a nominee for this vault
+        // Use simpler predicate to avoid SwiftData macro issues
+        let vaultID = vault.id
         let nomineeDescriptor = FetchDescriptor<Nominee>(
-            predicate: #Predicate {
-                $0.vault?.id == vault.id &&
-                ($0.status == "accepted" || $0.status == "active")
+            predicate: #Predicate<Nominee> { nominee in
+                nominee.status == "accepted" || nominee.status == "active"
             }
         )
         
         do {
-            let nominees = try modelContext.fetch(nomineeDescriptor)
+            let allNominees = try modelContext.fetch(nomineeDescriptor)
+            
+            // Filter in Swift to match vault (simpler than complex predicate)
+            let nominees = allNominees.filter { nominee in
+                nominee.vault?.id == vaultID
+            }
             
             // Check if current user matches any nominee (by email or phone)
             // Note: In production, you'd match by authenticated user email/phone
