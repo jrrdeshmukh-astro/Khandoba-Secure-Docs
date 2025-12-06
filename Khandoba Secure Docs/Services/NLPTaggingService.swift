@@ -776,6 +776,65 @@ class NLPTaggingService {
         return Array(Set(keywords)).prefix(10).map { String($0) }
     }
     
+    /// Summarize text using NaturalLanguage framework (Apple native)
+    /// Extracts key sentences based on keyword frequency and sentence position
+    static func summarizeText(_ text: String, maxSentences: Int = 3) -> String {
+        guard !text.isEmpty else { return "" }
+        
+        // Split into sentences
+        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?")).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        
+        guard !sentences.isEmpty else { return text }
+        
+        // If text is short, return as-is
+        if sentences.count <= maxSentences {
+            return sentences.joined(separator: ". ").trimmingCharacters(in: .whitespaces) + "."
+        }
+        
+        // Extract keywords for scoring
+        let keywords = extractKeywords(from: text.lowercased())
+        let keywordSet = Set(keywords.map { $0.lowercased() })
+        
+        // Score sentences based on keyword frequency and position
+        var scoredSentences: [(sentence: String, score: Double)] = []
+        
+        for (index, sentence) in sentences.enumerated() {
+            let lowerSentence = sentence.lowercased()
+            var score = 0.0
+            
+            // Position bonus (first and last sentences are often important)
+            if index == 0 || index == sentences.count - 1 {
+                score += 2.0
+            }
+            
+            // Keyword frequency bonus
+            let words = lowerSentence.components(separatedBy: .whitespaces)
+            for word in words {
+                let cleanedWord = word.trimmingCharacters(in: .punctuationCharacters)
+                if keywordSet.contains(cleanedWord) {
+                    score += 1.0
+                }
+            }
+            
+            // Length bonus (prefer medium-length sentences)
+            let length = sentence.count
+            if length > 20 && length < 150 {
+                score += 0.5
+            }
+            
+            scoredSentences.append((sentence: sentence.trimmingCharacters(in: .whitespaces), score: score))
+        }
+        
+        // Sort by score and take top sentences
+        let topSentences = scoredSentences
+            .sorted { $0.score > $1.score }
+            .prefix(maxSentences)
+            .sorted { sentences.firstIndex(of: $0.sentence) ?? 0 < sentences.firstIndex(of: $1.sentence) ?? 0 } // Maintain original order
+            .map { $0.sentence }
+        
+        return topSentences.joined(separator: ". ").trimmingCharacters(in: .whitespaces) + "."
+    }
+    
     private static func analyzeSentiment(_ text: String) -> String? {
         let tagger = NLTagger(tagSchemes: [.sentimentScore])
         tagger.string = text

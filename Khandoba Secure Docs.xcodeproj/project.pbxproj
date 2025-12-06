@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		24D2EBBC2EE304A9004257B4 /* Reductio in Frameworks */ = {isa = PBXBuildFile; productRef = 24D2EBBB2EE304A9004257B4 /* Reductio */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,7 +68,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				24D2EBBC2EE304A9004257B4 /* Reductio in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,7 +128,6 @@
 			);
 			name = "Khandoba Secure Docs";
 			packageProductDependencies = (
-				24D2EBBB2EE304A9004257B4 /* Reductio */,
 			);
 			productName = "Khandoba Secure Docs";
 			productReference = 24FB38722EDF354B00BA1227 /* Khandoba Secure Docs.app */;
@@ -215,7 +212,6 @@
 			mainGroup = 24FB38692EDF354B00BA1227;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				24D2EBBA2EE304A9004257B4 /* XCRemoteSwiftPackageReference "Reductio" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 24FB38732EDF354B00BA1227 /* Products */;
@@ -301,7 +297,7 @@
 				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Khandoba Secure Docs/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Khandoba;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
@@ -346,7 +342,7 @@
 				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Khandoba Secure Docs/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Khandoba;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
@@ -628,22 +624,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		24D2EBBA2EE304A9004257B4 /* XCRemoteSwiftPackageReference "Reductio" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/fdzsergio/Reductio.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.7.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		24D2EBBB2EE304A9004257B4 /* Reductio */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 24D2EBBA2EE304A9004257B4 /* XCRemoteSwiftPackageReference "Reductio" */;
-			productName = Reductio;
-		};
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 24FB386A2EDF354B00BA1227 /* Project object */;
