@@ -27,6 +27,41 @@ struct DocumentUploadView: View {
     @State private var errorMessage = ""
     @State private var capturedImage: UIImage?
     
+    // Computed property to avoid type-checking timeout
+    private var allowedFileTypes: [UTType] {
+        var types: [UTType] = []
+        
+        // Images
+        types.append(contentsOf: [.png, .jpeg, .heic, .gif, .bmp, .tiff])
+        
+        // Documents
+        types.append(.pdf)
+        
+        // Office Documents
+        if let docx = UTType(filenameExtension: "docx") { types.append(docx) }
+        if let doc = UTType(filenameExtension: "doc") { types.append(doc) }
+        if let xlsx = UTType(filenameExtension: "xlsx") { types.append(xlsx) }
+        if let xls = UTType(filenameExtension: "xls") { types.append(xls) }
+        if let pptx = UTType(filenameExtension: "pptx") { types.append(pptx) }
+        if let ppt = UTType(filenameExtension: "ppt") { types.append(ppt) }
+        
+        // Text
+        types.append(contentsOf: [.text, .plainText, .rtf])
+        
+        // Archives
+        if let zip = UTType(filenameExtension: "zip") { types.append(zip) }
+        if let rar = UTType(filenameExtension: "rar") { types.append(rar) }
+        
+        // Media
+        types.append(contentsOf: [.video, .movie, .mpeg4Movie, .quickTimeMovie])
+        types.append(contentsOf: [.audio, .mp3, .mpeg4Audio])
+        
+        // Fallback - allows any file type
+        types.append(.data)
+        
+        return types
+    }
+    
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         
@@ -135,29 +170,7 @@ struct DocumentUploadView: View {
             }
             .fileImporter(
                 isPresented: $isShowingDocumentPicker,
-                allowedContentTypes: [
-                    // Images
-                    .png, .jpeg, .heic, .gif, .bmp, .tiff,
-                    // Documents
-                    .pdf,
-                    // Office Documents
-                    UTType(filenameExtension: "docx") ?? .data,
-                    UTType(filenameExtension: "doc") ?? .data,
-                    UTType(filenameExtension: "xlsx") ?? .data,
-                    UTType(filenameExtension: "xls") ?? .data,
-                    UTType(filenameExtension: "pptx") ?? .data,
-                    UTType(filenameExtension: "ppt") ?? .data,
-                    // Text
-                    .text, .plainText, .rtf,
-                    // Archives
-                    UTType(filenameExtension: "zip") ?? .data,
-                    UTType(filenameExtension: "rar") ?? .data,
-                    // Media
-                    .video, .movie, .mpeg4Movie, .quickTimeMovie,
-                    .audio, .mp3, .mpeg4Audio,
-                    // Fallback - allows any file type
-                    .data
-                ],
+                allowedContentTypes: allowedFileTypes,
                 allowsMultipleSelection: false
             ) { result in
                 Task {
@@ -185,7 +198,7 @@ struct DocumentUploadView: View {
                     let fileExtension = url.pathExtension.lowercased()
                     
                     // Determine MIME type from file extension
-                    let mimeType = mimeTypeForExtension(fileExtension)
+                    let mimeType = mimeTypeForExtension(fileExtension) ?? "application/octet-stream"
                     
                     await uploadDocument(
                         data: data,
