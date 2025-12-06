@@ -131,6 +131,8 @@ struct TriageView: View {
                             await analyzeAllThreats()
                         }
                     }
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
                 }
             }
             .sheet(isPresented: $showGuidedRemediation) {
@@ -999,6 +1001,9 @@ struct RemediationSuggestionsCard: View {
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @StateObject private var aiService = ThreatRemediationAIService()
+    @State private var remediations: [Remediation] = []
+    @State private var isLoading = true
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -1012,97 +1017,114 @@ struct RemediationSuggestionsCard: View {
                     Text("Remediation Suggestions")
                         .font(theme.typography.headline)
                         .foregroundColor(colors.textPrimary)
+                    
+                    if isLoading {
+                        Spacer()
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
                 }
                 
                 Divider()
                 
-                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                    ForEach(generateRemediations(), id: \.id) { remediation in
-                        RemediationRow(remediation: remediation)
+                if isLoading && remediations.isEmpty {
+                    // Show placeholder while loading
+                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(colors.surface)
+                            .frame(height: 80)
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(colors.surface)
+                            .frame(height: 80)
+                    }
+                    .padding(.vertical, 8)
+                } else {
+                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                        ForEach(remediations) { remediation in
+                            RemediationRow(remediation: remediation)
+                        }
                     }
                 }
             }
         }
+        .task {
+            await generateAIRemediations()
+        }
     }
     
-    private func generateRemediations() -> [Remediation] {
-        var remediations: [Remediation] = []
+    private func generateAIRemediations() async {
+        var aiRemediations: [Remediation] = []
         
-        // Check for rapid access
-        if threats.contains(where: { 
-            if case .threat(.rapidAccess) = $0.type { return true }
-            return false
-        }) {
-            remediations.append(Remediation(
+        // Generate AI-powered remediation for each threat
+        for threat in threats {
+            let context = ThreatContext(
+                timeWindow: extractTimeWindow(from: threat.description),
+                accessCount: extractAccessCount(from: threat.description),
+                location: extractLocation(from: threat.description),
+                distance: nil,
+                deletedCount: threat.description.contains("deletion") ? 1 : nil,
+                documentCount: nil,
+                locationCount: nil,
+                burstCount: nil
+            )
+            
+            let steps = await aiService.generateRemediationSteps(
+                for: threat,
+                vaultName: threat.vaultName,
+                threatDetails: context
+            )
+            
+            // Determine priority from threat severity
+            let priority: RemediationPriority = threat.severity == .critical ? .immediate :
+                                                threat.severity == .high ? .high :
+                                                threat.severity == .medium ? .medium : .low
+            
+            aiRemediations.append(Remediation(
                 id: UUID(),
-                priority: .high,
-                title: "Secure Account Access",
-                description: "Rapid access patterns detected. Change your vault password and enable two-factor authentication.",
-                steps: [
-                    "Change vault password immediately",
-                    "Review recent access logs",
-                    "Enable dual-key protection for sensitive vaults",
-                    "Contact support if you didn't make these accesses"
-                ]
+                priority: priority,
+                title: generateRemediationTitle(for: threat),
+                description: generateRemediationDescription(for: threat),
+                steps: steps
             ))
         }
         
-        // Check for geographic anomalies
-        if threats.contains(where: {
-            if case .geographicAnomaly = $0.type { return true }
-            return false
-        }) {
-            remediations.append(Remediation(
+        // Generate AI-powered remediation for each leak
+        for leak in leaks {
+            // Convert leak to threat item for AI service
+            let threatItem = ThreatItem.fromLeak(leak)
+            let context = ThreatContext(
+                timeWindow: nil,
+                accessCount: nil,
+                location: nil,
+                distance: nil,
+                deletedCount: leak.type == .massDeletion ? leak.affectedDocuments : nil,
+                documentCount: leak.affectedDocuments,
+                locationCount: nil,
+                burstCount: nil
+            )
+            
+            let steps = await aiService.generateRemediationSteps(
+                for: threatItem,
+                vaultName: leak.vaultName,
+                threatDetails: context
+            )
+            
+            let priority: RemediationPriority = leak.severity == .critical ? .immediate :
+                                                leak.severity == .high ? .high :
+                                                leak.severity == .medium ? .medium : .low
+            
+            aiRemediations.append(Remediation(
                 id: UUID(),
-                priority: .high,
-                title: "Review Account Sharing",
-                description: "Vault accessed from multiple locations. Verify all access is authorized.",
-                steps: [
-                    "Review all access locations",
-                    "Revoke access for unknown devices",
-                    "Enable location-based alerts",
-                    "Consider enabling dual-key protection"
-                ]
+                priority: priority,
+                title: generateRemediationTitle(for: leak),
+                description: generateRemediationDescription(for: leak),
+                steps: steps
             ))
         }
         
-        // Check for data leaks
-        if !leaks.isEmpty {
-            remediations.append(Remediation(
-                id: UUID(),
-                priority: .immediate,
-                title: "Address Data Leaks",
-                description: "Potential data leaks detected. Take immediate action to secure your data.",
-                steps: [
-                    "Review affected vaults and documents",
-                    "Archive or delete sensitive documents if compromised",
-                    "Change all vault passwords",
-                    "Enable enhanced security monitoring",
-                    "Report incident if data breach confirmed"
-                ]
-            ))
-        }
-        
-        // Check for mass deletions
-        if leaks.contains(where: { $0.type == .massDeletion }) {
-            remediations.append(Remediation(
-                id: UUID(),
-                priority: .immediate,
-                title: "Stop Mass Deletions",
-                description: "High deletion rate detected. This may indicate unauthorized access or data destruction.",
-                steps: [
-                    "Immediately lock affected vaults",
-                    "Review deletion logs",
-                    "Restore deleted documents from version history if available",
-                    "Change vault passwords",
-                    "Enable dual-key protection"
-                ]
-            ))
-        }
-        
-        // Default: General security
-        if remediations.isEmpty {
-            remediations.append(Remediation(
+        // Default if no threats/leaks
+        if aiRemediations.isEmpty {
+            aiRemediations.append(Remediation(
                 id: UUID(),
                 priority: .medium,
                 title: "Maintain Security Best Practices",
@@ -1116,7 +1138,76 @@ struct RemediationSuggestionsCard: View {
             ))
         }
         
-        return remediations.sorted { $0.priority.rawValue > $1.priority.rawValue }
+        await MainActor.run {
+            remediations = aiRemediations.sorted { $0.priority.rawValue > $1.priority.rawValue }
+            isLoading = false
+        }
+    }
+    
+    private func generateRemediationTitle(for threat: ThreatItem) -> String {
+        switch threat.type {
+        case .threat(let type):
+            switch type {
+            case .rapidAccess: return "Secure Account from Rapid Access"
+            case .unusualLocation: return "Verify Unusual Location Access"
+            case .suspiciousDeletion: return "Address Suspicious Deletions"
+            case .bruteForce: return "Stop Brute Force Attack"
+            case .unauthorizedAccess: return "Lock Down Unauthorized Access"
+            }
+        case .geographicAnomaly: return "Review Geographic Anomalies"
+        case .accessBurst: return "Investigate Access Burst Pattern"
+        case .dataExfiltration: return "Contain Data Exfiltration"
+        case .dataLeak(let leakType):
+            switch leakType {
+            case .massUpload: return "Review Mass Upload Activity"
+            case .accountSharing: return "Secure Account Sharing"
+            case .suspiciousContent: return "Review Suspicious Content"
+            case .massDeletion: return "Stop Mass Deletion"
+            case .unauthorizedAccess: return "Lock Down Unauthorized Access"
+            }
+        }
+    }
+    
+    private func generateRemediationDescription(for threat: ThreatItem) -> String {
+        return "\(threat.description) Take immediate action to secure your vault."
+    }
+    
+    private func generateRemediationTitle(for leak: DataLeak) -> String {
+        switch leak.type {
+        case .massUpload: return "Review Mass Upload Activity"
+        case .accountSharing: return "Secure Account Sharing"
+        case .suspiciousContent: return "Review Suspicious Content"
+        case .massDeletion: return "Stop Mass Deletion"
+        case .unauthorizedAccess: return "Lock Down Unauthorized Access"
+        }
+    }
+    
+    private func generateRemediationDescription(for leak: DataLeak) -> String {
+        return "\(leak.description) Immediate remediation required."
+    }
+    
+    private func extractTimeWindow(from description: String) -> String? {
+        if let range = description.range(of: #"\d+\s*(second|minute|hour)"#, options: .regularExpression) {
+            return String(description[range])
+        }
+        return nil
+    }
+    
+    private func extractAccessCount(from description: String) -> Int? {
+        if let range = description.range(of: #"\d+\s*access"#, options: .regularExpression) {
+            let match = String(description[range])
+            if let number = Int(match.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) {
+                return number
+            }
+        }
+        return nil
+    }
+    
+    private func extractLocation(from description: String) -> String? {
+        if description.contains("location") {
+            return "Multiple locations detected"
+        }
+        return nil
     }
 }
 
@@ -1293,7 +1384,7 @@ struct ThreatRemediationView: View {
                     }
                     .padding(.horizontal)
                     
-                    // Remediation Steps
+                    // Remediation Steps (AI-powered, loads asynchronously)
                     RemediationStepsCard(threat: threat)
                         .padding(.horizontal)
                     
@@ -1339,10 +1430,12 @@ struct RemediationStepsCard: View {
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @StateObject private var aiService = ThreatRemediationAIService()
+    @State private var steps: [String] = []
+    @State private var isLoading = true
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
-        let steps = getRemediationSteps(for: threat)
         
         StandardCard {
             VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
@@ -1353,33 +1446,128 @@ struct RemediationStepsCard: View {
                     Text("Remediation Steps")
                         .font(theme.typography.headline)
                         .foregroundColor(colors.textPrimary)
+                    
+                    if isLoading {
+                        Spacer()
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
                 }
                 
                 Divider()
                 
-                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-                    HStack(alignment: .top, spacing: UnifiedTheme.Spacing.sm) {
-                        ZStack {
+                if isLoading && steps.isEmpty {
+                    // Show placeholder while loading
+                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                        HStack {
                             Circle()
-                                .fill(colors.primary.opacity(0.2))
+                                .fill(colors.surface)
                                 .frame(width: 24, height: 24)
-                            
-                            Text("\(index + 1)")
-                                .font(theme.typography.caption)
-                                .foregroundColor(colors.primary)
-                                .fontWeight(.bold)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(colors.surface)
+                                .frame(height: 16)
                         }
-                        
-                        Text(step)
-                            .font(theme.typography.body)
-                            .foregroundColor(colors.textPrimary)
+                        HStack {
+                            Circle()
+                                .fill(colors.surface)
+                                .frame(width: 24, height: 24)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(colors.surface)
+                                .frame(height: 16)
+                        }
+                        HStack {
+                            Circle()
+                                .fill(colors.surface)
+                                .frame(width: 24, height: 24)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(colors.surface)
+                                .frame(height: 16)
+                        }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 8)
+                } else {
+                    ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                        HStack(alignment: .top, spacing: UnifiedTheme.Spacing.sm) {
+                            ZStack {
+                                Circle()
+                                    .fill(colors.primary.opacity(0.2))
+                                    .frame(width: 24, height: 24)
+                                
+                                Text("\(index + 1)")
+                                    .font(theme.typography.caption)
+                                    .foregroundColor(colors.primary)
+                                    .fontWeight(.bold)
+                            }
+                            
+                            Text(step)
+                                .font(theme.typography.body)
+                                .foregroundColor(colors.textPrimary)
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
             }
         }
+        .task {
+            // Generate AI-powered remediation steps asynchronously
+            await loadRemediationSteps()
+        }
     }
     
+    private func loadRemediationSteps() async {
+        // Build threat context
+        let context = ThreatContext(
+            timeWindow: extractTimeWindow(from: threat.description),
+            accessCount: extractAccessCount(from: threat.description),
+            location: extractLocation(from: threat.description),
+            distance: nil,
+            deletedCount: threat.description.contains("deletion") ? 1 : nil,
+            documentCount: nil,
+            locationCount: nil,
+            burstCount: nil
+        )
+        
+        // Generate AI-powered steps
+        let aiSteps = await aiService.generateRemediationSteps(
+            for: threat,
+            vaultName: threat.vaultName,
+            threatDetails: context
+        )
+        
+        await MainActor.run {
+            steps = aiSteps
+            isLoading = false
+        }
+    }
+    
+    private func extractTimeWindow(from description: String) -> String? {
+        // Extract time information from description
+        if let range = description.range(of: #"\d+\s*(second|minute|hour)"#, options: .regularExpression) {
+            return String(description[range])
+        }
+        return nil
+    }
+    
+    private func extractAccessCount(from description: String) -> Int? {
+        // Extract access count from description
+        if let range = description.range(of: #"\d+\s*access"#, options: .regularExpression) {
+            let match = String(description[range])
+            if let number = Int(match.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) {
+                return number
+            }
+        }
+        return nil
+    }
+    
+    private func extractLocation(from description: String) -> String? {
+        // Extract location if mentioned
+        if description.contains("location") {
+            return "Multiple locations detected"
+        }
+        return nil
+    }
+    
+    // Legacy method kept for fallback (not used)
     private func getRemediationSteps(for threat: ThreatItem) -> [String] {
         switch threat.type {
         case .threat(let type):
