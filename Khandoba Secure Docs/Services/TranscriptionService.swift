@@ -140,64 +140,13 @@ final class TranscriptionService: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Smart Summarization
+    // MARK: - Transcription Processing (No Summarization)
     
-    /// Generate AI summary of transcription
-    func generateSummary(from transcription: Transcription) async -> String {
-        let text = transcription.text
-        
-        // Use NLTokenizer to extract key sentences
-        let tokenizer = NLTokenizer(unit: .sentence)
-        tokenizer.string = text
-        
-        var sentences: [String] = []
-        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
-            sentences.append(String(text[range]))
-            return true
-        }
-        
-        // Score sentences by importance
-        var scoredSentences: [(sentence: String, score: Double)] = []
-        
-        for sentence in sentences {
-            var score = 0.0
-            
-            // Contains important keywords
-            let importantWords = ["urgent", "important", "critical", "required", "must", "should", "confidential"]
-            for word in importantWords {
-                if sentence.lowercased().contains(word) {
-                    score += 2.0
-                }
-            }
-            
-            // Contains entities
-            let tagger = NLTagger(tagSchemes: [.nameType])
-            tagger.string = sentence
-            
-            tagger.enumerateTags(in: sentence.startIndex..<sentence.endIndex, unit: .word, scheme: .nameType) { tag, _ in
-                if tag != nil {
-                    score += 1.0
-                }
-                return true
-            }
-            
-            // Length penalty (very short or very long = less important)
-            let wordCount = sentence.split(separator: " ").count
-            if wordCount > 5 && wordCount < 30 {
-                score += 1.0
-            }
-            
-            scoredSentences.append((sentence, score))
-        }
-        
-        // Return top 3 sentences as summary
-        let topSentences = scoredSentences
-            .sorted { $0.score > $1.score }
-            .prefix(3)
-            .map { $0.sentence }
-            .joined(separator: " ")
-        
-        return topSentences.isEmpty ? "No summary available." : topSentences
+    /// Get full transcription text (no summarization - use Llama for unified description)
+    func getFullTranscription(from transcription: Transcription) -> String {
+        // Return full transcription - no second layer of summarization
+        // Llama will handle unified media description
+        return transcription.text
     }
     
     // MARK: - Authorization

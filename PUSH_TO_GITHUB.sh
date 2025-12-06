@@ -33,6 +33,39 @@ echo "✅ Remote configured:"
 git remote -v
 echo ""
 
+# Check git status
+echo "📊 Checking git status..."
+git status --short
+echo ""
+
+# Check if there are changes to commit
+if [ -n "$(git status --porcelain)" ]; then
+    echo "📦 Staging all changes..."
+    git add -A
+    
+    echo "💾 Committing changes..."
+    COMMIT_MESSAGE="feat: HIPAA compliance improvements, redaction fix, and Llama unified media description
+
+- Add comprehensive HIPAA compliance assessment
+- Fix redaction to actually remove PHI from PDFs and images
+- Remove second layer of summarization from intelligence services
+- Add LlamaMediaDescriptionService for unified media descriptions
+- Update RedactionView to use new RedactionService"
+    
+    git commit -m "$COMMIT_MESSAGE"
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ Changes committed successfully!"
+        echo ""
+    else
+        echo "❌ Commit failed. Aborting push."
+        exit 1
+    fi
+else
+    echo "ℹ️  No changes to commit."
+    echo ""
+fi
+
 # Push
 echo "🚀 Pushing to GitHub..."
 git push -u origin main

@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import PDFKit
 import Combine
+import UIKit
 
 struct RedactionView: View {
     let document: Document
@@ -20,7 +21,7 @@ struct RedactionView: View {
     
     @State private var redactionAreas: [CGRect] = []
     @State private var showSaveConfirm = false
-    @State private var autoDetectedPHI: [PHIMatch] = []
+    @State private var autoDetectedPHI: [RedactionService.PHIMatch] = []
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -83,7 +84,8 @@ struct RedactionView: View {
                     HStack(spacing: UnifiedTheme.Spacing.sm) {
                         ForEach(autoDetectedPHI) { phi in
                             PHIChip(phi: phi) {
-                                // Add to redaction areas
+                                // Add to redaction areas when tapped
+                                // TODO: Implement area selection from PHI match
                             }
                         }
                     }
@@ -142,7 +144,7 @@ struct RedactionView: View {
             let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
             for match in matches {
                 if let range = Range(match.range, in: text) {
-                    detected.append(PHIMatch(type: "SSN", value: String(text[range])))
+                    detected.append(RedactionService.PHIMatch(type: "SSN", value: String(text[range]), range: match.range))
                 }
             }
         }
@@ -153,7 +155,7 @@ struct RedactionView: View {
             let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
             for match in matches {
                 if let range = Range(match.range, in: text) {
-                    detected.append(PHIMatch(type: "DOB", value: String(text[range])))
+                    detected.append(RedactionService.PHIMatch(type: "DOB", value: String(text[range]), range: match.range))
                 }
             }
         }
@@ -164,7 +166,7 @@ struct RedactionView: View {
             let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
             for match in matches {
                 if let range = Range(match.range, in: text) {
-                    detected.append(PHIMatch(type: "MRN", value: String(text[range])))
+                    detected.append(RedactionService.PHIMatch(type: "MRN", value: String(text[range]), range: match.range))
                 }
             }
         }
@@ -173,41 +175,99 @@ struct RedactionView: View {
     }
     
     private func applyRedactions() {
-        document.isRedacted = true
-        document.lastModifiedAt = Date()
-        
-        // Create version before redaction
-        let version = DocumentVersion(
-            versionNumber: (document.versions ?? []).count + 1,
-            fileSize: document.fileSize,
-            changes: "Pre-redaction version"
-        )
-        version.encryptedFileData = document.encryptedFileData
-        version.document = document
-        
-        modelContext.insert(version)
-        
-        // Mark document as redacted
-        document.name = document.name.contains("(Redacted)") ? 
-            document.name : 
-            document.name + " (Redacted)"
-        
-        // Log redaction event
-        print("✅ Redactions saved: \(redactionAreas.count) areas marked")
-        
-        try? modelContext.save()
-        dismiss()
+        Task {
+            do {
+                guard let originalData = document.encryptedFileData else {
+                    print("❌ No document data to redact")
+                    return
+                }
+                
+                // Create version before redaction
+                let version = DocumentVersion(
+                    versionNumber: (document.versions ?? []).count + 1,
+                    fileSize: document.fileSize,
+                    changes: "Pre-redaction version"
+                )
+                version.encryptedFileData = originalData
+                version.document = document
+                
+                modelContext.insert(version)
+                
+                // Actually redact the content
+                let redactedData: Data
+                
+                if document.documentType == "pdf" {
+                    redactedData = try RedactionService.redactPDF(
+                        data: originalData,
+                        redactionAreas: redactionAreas,
+                        phiMatches: autoDetectedPHI
+                    )
+                } else if document.documentType == "image" {
+                    guard let image = UIImage(data: originalData) else {
+                        print("❌ Invalid image data")
+                        return
+                    }
+                    
+                    let redactedImage = RedactionService.redactImage(
+                        image: image,
+                        redactionAreas: redactionAreas,
+                        phiMatches: autoDetectedPHI
+                    )
+                    
+                    guard let imageData = redactedImage.pngData() else {
+                        print("❌ Failed to convert redacted image to data")
+                        return
+                    }
+                    
+                    redactedData = imageData
+                } else {
+                    print("⚠️ Redaction not supported for document type: \(document.documentType)")
+                    return
+                }
+                
+                // Verify redaction
+                let verified = await RedactionService.verifyRedaction(
+                    data: redactedData,
+                    documentType: document.documentType
+                )
+                
+                if !verified {
+                    print("⚠️ Redaction verification failed - PHI may still be present")
+                }
+                
+                // Update document with redacted data
+                document.encryptedFileData = redactedData
+                document.fileSize = Int64(redactedData.count)
+                document.isRedacted = true
+                document.lastModifiedAt = Date()
+                
+                // Mark document as redacted
+                document.name = document.name.contains("(Redacted)") ? 
+                    document.name : 
+                    document.name + " (Redacted)"
+                
+                // Clear extracted text (may contain PHI)
+                document.extractedText = nil
+                
+                try modelContext.save()
+                
+                print("✅ Redactions applied: \(redactionAreas.count) areas, \(autoDetectedPHI.count) PHI matches")
+                
+                await MainActor.run {
+                    dismiss()
+                }
+                
+            } catch {
+                print("❌ Redaction failed: \(error.localizedDescription)")
+            }
+        }
     }
 }
 
-struct PHIMatch: Identifiable {
-    let id = UUID()
-    let type: String
-    let value: String
-}
+// PHIMatch moved to RedactionService.swift
 
 struct PHIChip: View {
-    let phi: PHIMatch
+    let phi: RedactionService.PHIMatch
     let onSelect: () -> Void
     
     @Environment(\.unifiedTheme) var theme

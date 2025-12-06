@@ -706,7 +706,7 @@ final class TextIntelligenceService: ObservableObject {
                 }
                 debrief += "\n"
                 
-                // Use full summary text with intelligent summarization
+                // Use full summary text directly (no second layer of summarization)
                 let fullSummary = event.summary.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                 if !fullSummary.isEmpty {
                     // Clean up prefixes
@@ -719,9 +719,8 @@ final class TextIntelligenceService: ObservableObject {
                         cleanSummary = String(cleanSummary.dropFirst(18))
                     }
                     
-                    // Summarize long content (if > 200 chars, summarize to key points)
-                    let summarized = summarizeText(cleanSummary, maxLength: 300)
-                    debrief += "   \(summarized)\n"
+                    // Use full content directly - no summarization
+                    debrief += "   \(cleanSummary)\n"
                 }
                 debrief += "\n"
             }
@@ -1011,57 +1010,12 @@ final class TextIntelligenceService: ObservableObject {
         return patterns
     }
     
-    // MARK: - Text Summarization Helper
+    // MARK: - Text Processing Helper (No Summarization)
     
-    /// Summarize text intelligently, preserving key information
-    private func summarizeText(_ text: String, maxLength: Int) -> String {
-        // If text is already short, return as-is
-        if text.count <= maxLength {
-            return text
-        }
-        
-        // Split into sentences
-        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?")).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        
-        // If we have sentences, take the most important ones
-        if sentences.count > 1 {
-            // Take first sentence (usually most important)
-            var summary = sentences[0].trimmingCharacters(in: .whitespaces)
-            
-            // Add middle sentence if available
-            if sentences.count > 2 {
-                let middleIndex = sentences.count / 2
-                let middleSentence = sentences[middleIndex].trimmingCharacters(in: .whitespaces)
-                if !middleSentence.isEmpty {
-                    summary += ". \(middleSentence)"
-                }
-            }
-            
-            // Add last sentence if it adds value
-            if sentences.count > 1 && summary.count < maxLength {
-                let lastSentence = sentences.last!.trimmingCharacters(in: .whitespaces)
-                if !lastSentence.isEmpty && lastSentence != summary {
-                    let remaining = maxLength - summary.count
-                    if lastSentence.count <= remaining {
-                        summary += ". \(lastSentence)"
-                    }
-                }
-            }
-            
-            // Ensure we don't exceed max length
-            if summary.count > maxLength {
-                summary = String(summary.prefix(maxLength)) + "..."
-            }
-            
-            return summary
-        }
-        
-        // Fallback: truncate intelligently
-        let truncated = String(text.prefix(maxLength))
-        if text.count > maxLength {
-            return truncated + "..."
-        }
-        return truncated
+    /// Process text for display (no summarization - use full content)
+    private func processTextForDisplay(_ text: String) -> String {
+        // Return full text - no summarization layer
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     // MARK: - Helper Functions
