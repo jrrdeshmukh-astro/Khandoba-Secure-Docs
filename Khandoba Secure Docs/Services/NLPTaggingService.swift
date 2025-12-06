@@ -591,7 +591,7 @@ class NLPTaggingService {
         // Duration tags for media
         if let durationRange = description.range(of: "duration: ") {
             let durationText = String(description[durationRange.upperBound...])
-            if let seconds = Int(durationText.components(separator: " ").first ?? "") {
+            if let seconds = Int(durationText.components(separatedBy: " ").first ?? "") {
                 if seconds < 10 {
                     tags.append("Short Clip")
                 } else if seconds < 60 {
