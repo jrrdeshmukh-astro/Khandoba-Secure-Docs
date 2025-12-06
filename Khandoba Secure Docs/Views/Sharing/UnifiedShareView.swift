@@ -33,6 +33,27 @@ struct UnifiedShareView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     
+    // Computed properties to avoid type-checking timeout
+    private var selectedPhoneNumbers: [String] {
+        selectedContacts.flatMap { contact in
+            contact.phoneNumbers.compactMap { $0.value.stringValue }
+        }
+    }
+    
+    private var invitationMessage: String {
+        if mode == .nominee {
+            if let tokens = UserDefaults.standard.array(forKey: "pending_nominee_tokens") as? [String],
+               let firstToken = tokens.first {
+                let deepLink = "khandoba://invite?token=\(firstToken)"
+                return "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it.\n\nTap to accept: \(deepLink)\n\nOr download the app from the App Store!"
+            } else {
+                return "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it. Download the app from the App Store!"
+            }
+        } else {
+            return "You've been offered ownership of vault '\(vault.name)' in Khandoba Secure Docs. Accept to become the new owner. Download the app!"
+        }
+    }
+    
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         
@@ -231,35 +252,9 @@ struct UnifiedShareView: View {
             }
             .sheet(isPresented: $showMessageComposer) {
                 if !selectedContacts.isEmpty {
-                    let phoneNumbers = selectedContacts.flatMap { contact in
-                        contact.phoneNumbers.compactMap { $0.value.stringValue }
-                    }
-                    // Generate deep links for nominees
-                    let nomineeTokens = selectedContacts.compactMap { contact -> String? in
-                        // Find nominee by contact info
-                        // In production, you'd match by phone/email
-                        return nil // Placeholder - would get token from nominee record
-                    }
-                    
-                    // Generate invitation message with deep links
-                    let message: String
-                    if mode == .nominee {
-                        // Get nominee tokens from UserDefaults
-                        if let tokens = UserDefaults.standard.array(forKey: "pending_nominee_tokens") as? [String],
-                           let firstToken = tokens.first {
-                            // For multiple nominees, use first token (in production, match by contact)
-                            let deepLink = "khandoba://invite?token=\(firstToken)"
-                            message = "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it.\n\nTap to accept: \(deepLink)\n\nOr download the app from the App Store!"
-                        } else {
-                            message = "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it. Download the app from the App Store!"
-                        }
-                    } else {
-                        message = "You've been offered ownership of vault '\(vault.name)' in Khandoba Secure Docs. Accept to become the new owner. Download the app!"
-                    }
-                    
                     MessageComposeView(
-                        recipients: phoneNumbers,
-                        message: message,
+                        recipients: selectedPhoneNumbers,
+                        message: invitationMessage,
                         onDismiss: {
                             showMessageComposer = false
                             selectedContacts = []

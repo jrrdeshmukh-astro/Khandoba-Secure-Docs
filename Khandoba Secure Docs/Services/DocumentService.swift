@@ -18,11 +18,24 @@ final class DocumentService: ObservableObject {
     @Published var uploadProgress: Double = 0
     
     var modelContext: ModelContext? // Made public for Intel report access
+    private var currentUserID: UUID?
+    private var currentUser: User?
     
     init() {}
     
-    func configure(modelContext: ModelContext) {
+    func configure(modelContext: ModelContext, userID: UUID? = nil) {
         self.modelContext = modelContext
+        self.currentUserID = userID
+        
+        // Load current user if userID provided
+        if let userID = userID {
+            Task {
+                let userDescriptor = FetchDescriptor<User>(
+                    predicate: #Predicate { $0.id == userID }
+                )
+                currentUser = try? modelContext.fetch(userDescriptor).first
+            }
+        }
     }
     
     func loadDocuments(for vault: Vault) async throws {
@@ -111,10 +124,18 @@ final class DocumentService: ObservableObject {
             await locationService.requestLocationPermission()
         }
         
+        // Get current user if not already loaded
+        if currentUser == nil, let userID = currentUserID {
+            let userDescriptor = FetchDescriptor<User>(
+                predicate: #Predicate { $0.id == userID }
+            )
+            currentUser = try? modelContext.fetch(userDescriptor).first
+        }
+        
         let accessLog = VaultAccessLog(
             accessType: "upload",
-            userID: nil, // Will be set from session
-            userName: nil
+            userID: currentUserID,
+            userName: currentUser?.fullName
         )
         accessLog.vault = vault
         

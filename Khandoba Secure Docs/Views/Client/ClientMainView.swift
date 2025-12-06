@@ -79,7 +79,7 @@ struct ClientMainView: View {
         guard let userID = authService.currentUser?.id else { return }
         
         vaultService.configure(modelContext: modelContext, userID: userID)
-        documentService.configure(modelContext: modelContext)
+        documentService.configure(modelContext: modelContext, userID: userID)
         chatService.configure(modelContext: modelContext, userID: userID)
     }
 }
