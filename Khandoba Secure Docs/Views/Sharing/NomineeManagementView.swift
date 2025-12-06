@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import Messages
 
 struct NomineeManagementView: View {
     let vault: Vault
@@ -313,10 +314,25 @@ struct AddNomineeView: View {
                 print("   Nominee Token: \(nominee.inviteToken)")
                 print("   Vault: \(vault.name)")
                 
-                // Small delay to ensure CloudKit sync starts
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                
+                // Use Messages framework to send invitation
                 await MainActor.run {
+                    if MessageInvitationService.shared.canSendMessages() {
+                        // Open Messages app with invitation
+                        MessageInvitationService.shared.openMessagesWithInvitation(
+                            inviteToken: nominee.inviteToken,
+                            vaultName: vault.name,
+                            nomineeName: nominee.name,
+                            phoneNumber: nominee.phoneNumber
+                        )
+                        print("✅ Opened Messages app with invitation")
+                    } else {
+                        // Fallback: Copy invitation link to clipboard
+                        let invitationURL = "khandoba://nominee/invite?token=\(nominee.inviteToken)"
+                        UIPasteboard.general.string = invitationURL
+                        print("✅ Invitation created and link copied to clipboard")
+                        print("   📋 Link: \(invitationURL)")
+                    }
+                    
                     dismiss()
                 }
             } catch {
