@@ -650,26 +650,3 @@ struct FilePreviewSheet: View {
     }
 }
 
-// MARK: - PDFKit View for Preview
-
-struct PDFKitView: UIViewRepresentable {
-    let data: Data
-    
-    func makeUIView(context: Context) -> PDFView {
-        let pdfView = PDFView()
-        pdfView.autoScales = true
-        pdfView.displayMode = .singlePageContinuous
-        pdfView.displayDirection = .vertical
-        
-        if let pdfDocument = PDFDocument(data: data) {
-            pdfView.document = pdfDocument
-        }
-        
-        return pdfView
-    }
-    
-    func updateUIView(_ uiView: PDFView, context: Context) {
-        // Updates handled by PDFView
-    }
-}
-
