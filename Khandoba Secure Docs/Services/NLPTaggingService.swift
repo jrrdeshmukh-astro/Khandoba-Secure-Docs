@@ -14,13 +14,31 @@ import Speech
 
 class NLPTaggingService {
     
-    /// Generate intelligent document name based on content
+    /// Generate intelligent document name based on content using LLAMA-style understanding
     static func generateDocumentName(
         for data: Data,
         mimeType: String?,
         fallbackName: String
     ) async -> String {
-        // Extract text from document
+        print("🦙 LLAMA: Generating intelligent name for \(mimeType ?? "unknown") file...")
+        
+        // Use LLAMA-style analysis for better naming
+        let llamaDescription = await generateLlamaStyleDescription(
+            for: data,
+            mimeType: mimeType
+        )
+        
+        // Extract meaningful name from LLAMA description
+        if let intelligentName = extractNameFromLlamaDescription(
+            llamaDescription,
+            mimeType: mimeType,
+            fallbackName: fallbackName
+        ) {
+            print("   ✅ LLAMA name: \(intelligentName)")
+            return intelligentName
+        }
+        
+        // Fallback to text-based extraction
         if let text = await extractText(from: data, mimeType: mimeType), !text.isEmpty {
             // Get first meaningful phrase or keywords
             let keywords = extractKeywords(from: text)
@@ -61,6 +79,347 @@ class NLPTaggingService {
         return fallbackName
     }
     
+    /// Generate LLAMA-style description for intelligent naming and tagging
+    private static func generateLlamaStyleDescription(
+        for data: Data,
+        mimeType: String?
+    ) async -> String {
+        guard let mimeType = mimeType else { return "" }
+        
+        var description = ""
+        
+        // Image analysis (CLIP-style scene understanding)
+        if mimeType.hasPrefix("image/") {
+            description = await analyzeImageForLlama(data)
+        }
+        // Video analysis (Video-LLaMA style)
+        else if mimeType.hasPrefix("video/") {
+            description = await analyzeVideoForLlama(data)
+        }
+        // Audio analysis (transcription + context)
+        else if mimeType.hasPrefix("audio/") {
+            description = await analyzeAudioForLlama(data)
+        }
+        // Text/PDF analysis
+        else if mimeType == "application/pdf" || mimeType.hasPrefix("text/") {
+            description = await analyzeTextForLlama(data, mimeType: mimeType)
+        }
+        
+        return description
+    }
+    
+    /// Analyze image using LLAMA-style understanding
+    private static func analyzeImageForLlama(_ data: Data) async -> String {
+        guard let image = UIImage(data: data),
+              let cgImage = image.cgImage else {
+            return ""
+        }
+        
+        var description = ""
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        
+        // Scene classification (CLIP-style)
+        let sceneRequest = VNClassifyImageRequest()
+        try? handler.perform([sceneRequest])
+        if let results = sceneRequest.results?.prefix(3) {
+            let topScenes = results
+                .filter { $0.confidence > 0.3 }
+                .map { $0.identifier }
+            if !topScenes.isEmpty {
+                description += "Scene: \(topScenes.joined(separator: ", ")). "
+            }
+        }
+        
+        // Face detection
+        let faceRequest = VNDetectFaceRectanglesRequest()
+        try? handler.perform([faceRequest])
+        if let faceCount = faceRequest.results?.count, faceCount > 0 {
+            description += "\(faceCount) person\(faceCount > 1 ? "s" : "") present. "
+        }
+        
+        // OCR for document understanding
+        let textRequest = VNRecognizeTextRequest()
+        textRequest.recognitionLevel = .accurate
+        try? handler.perform([textRequest])
+        if let observations = textRequest.results, !observations.isEmpty {
+            let ocrText = observations.compactMap {
+                $0.topCandidates(1).first?.string
+            }.joined(separator: " ")
+            
+            if !ocrText.isEmpty {
+                // Extract document type from text
+                let lowerText = ocrText.lowercased()
+                if lowerText.contains("invoice") || lowerText.contains("bill") {
+                    description += "Invoice or bill document. "
+                } else if lowerText.contains("receipt") {
+                    description += "Receipt document. "
+                } else if lowerText.contains("medical") || lowerText.contains("patient") {
+                    description += "Medical document. "
+                } else if lowerText.contains("contract") || lowerText.contains("agreement") {
+                    description += "Legal contract. "
+                } else {
+                    description += "Document with text: \(ocrText.prefix(50)). "
+                }
+            }
+        }
+        
+        // Image characteristics
+        let aspectRatio = image.size.width / image.size.height
+        if aspectRatio > 1.5 {
+            description += "Landscape orientation. "
+        } else if aspectRatio < 0.7 {
+            description += "Portrait orientation. "
+        }
+        
+        return description
+    }
+    
+    /// Analyze video using Video-LLaMA style understanding
+    private static func analyzeVideoForLlama(_ data: Data) async -> String {
+        var description = ""
+        
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("mov")
+        
+        do {
+            try data.write(to: tempURL)
+            let asset = AVURLAsset(url: tempURL)
+            
+            // Duration
+            let duration = try await asset.load(.duration)
+            let durationSeconds = CMTimeGetSeconds(duration)
+            description += "Video duration: \(Int(durationSeconds)) seconds. "
+            
+            // Audio transcription
+            if let transcript = await transcribeAudio(url: tempURL) {
+                description += "Audio content: \(transcript.prefix(100)). "
+                
+                // Infer video purpose from transcript
+                let lowerTranscript = transcript.lowercased()
+                if lowerTranscript.contains("meeting") {
+                    description += "Meeting recording. "
+                } else if lowerTranscript.contains("presentation") {
+                    description += "Presentation recording. "
+                } else if lowerTranscript.contains("note") {
+                    description += "Voice note or memo. "
+                }
+            }
+            
+            // Frame analysis (start, middle, end)
+            if let startFrame = await extractFrame(from: asset, at: 0.0) {
+                let frameDesc = await describeImageFrame(data: startFrame)
+                if !frameDesc.isEmpty {
+                    description += "Opening scene: \(frameDesc). "
+                }
+            }
+            
+            try? FileManager.default.removeItem(at: tempURL)
+            
+        } catch {
+            description += "Video file. "
+        }
+        
+        return description
+    }
+    
+    /// Analyze audio using transcription + context
+    private static func analyzeAudioForLlama(_ data: Data) async -> String {
+        var description = ""
+        
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("m4a")
+        
+        do {
+            try data.write(to: tempURL)
+            let asset = AVURLAsset(url: tempURL)
+            
+            // Duration
+            let duration = try await asset.load(.duration)
+            let durationSeconds = CMTimeGetSeconds(duration)
+            description += "Audio duration: \(Int(durationSeconds)) seconds. "
+            
+            // Transcription
+            if let transcript = await transcribeAudio(url: tempURL) {
+                description += "Content: \(transcript.prefix(150)). "
+                
+                // Infer purpose from content
+                let lowerTranscript = transcript.lowercased()
+                if lowerTranscript.contains("meeting") {
+                    description += "Meeting recording. "
+                } else if lowerTranscript.contains("note to self") || lowerTranscript.contains("reminder") {
+                    description += "Personal voice note. "
+                } else if lowerTranscript.contains("intel") || lowerTranscript.contains("report") {
+                    description += "Intelligence briefing. "
+                }
+            } else {
+                description += "Audio recording. "
+            }
+            
+            try? FileManager.default.removeItem(at: tempURL)
+            
+        } catch {
+            description += "Audio file. "
+        }
+        
+        return description
+    }
+    
+    /// Analyze text/PDF for LLAMA-style understanding
+    private static func analyzeTextForLlama(_ data: Data, mimeType: String?) async -> String {
+        var description = ""
+        
+        var text = ""
+        if mimeType == "application/pdf" {
+            text = PDFTextExtractor.extractFromPDF(data: data)
+        } else if let stringText = String(data: data, encoding: .utf8) {
+            text = stringText
+        }
+        
+        if !text.isEmpty {
+            let preview = text.prefix(200)
+            description += "Content preview: \(preview). "
+            
+            // Extract document type from content
+            let lowerText = text.lowercased()
+            if lowerText.contains("invoice") || lowerText.contains("bill") {
+                description += "Invoice document. "
+            } else if lowerText.contains("receipt") {
+                description += "Receipt. "
+            } else if lowerText.contains("contract") || lowerText.contains("agreement") {
+                description += "Legal contract. "
+            } else if lowerText.contains("report") {
+                description += "Report document. "
+            } else if lowerText.contains("medical") || lowerText.contains("patient") {
+                description += "Medical document. "
+            }
+            
+            // Extract key entities
+            let entities = extractNamedEntities(from: text)
+            if !entities.isEmpty {
+                description += "Contains: \(entities.prefix(3).joined(separator: ", ")). "
+            }
+        }
+        
+        return description
+    }
+    
+    /// Extract meaningful name from LLAMA description
+    private static func extractNameFromLlamaDescription(
+        _ description: String,
+        mimeType: String?,
+        fallbackName: String
+    ) -> String? {
+        guard !description.isEmpty else { return nil }
+        
+        // Extract key phrases from description
+        var nameComponents: [String] = []
+        
+        // Extract document type
+        if description.lowercased().contains("invoice") {
+            nameComponents.append("Invoice")
+        } else if description.lowercased().contains("receipt") {
+            nameComponents.append("Receipt")
+        } else if description.lowercased().contains("contract") {
+            nameComponents.append("Contract")
+        } else if description.lowercased().contains("medical") {
+            nameComponents.append("Medical")
+        } else if description.lowercased().contains("meeting") {
+            nameComponents.append("Meeting")
+        } else if description.lowercased().contains("voice note") || description.lowercased().contains("memo") {
+            nameComponents.append("VoiceMemo")
+        } else if description.lowercased().contains("scene:") {
+            // Extract scene name
+            if let sceneRange = description.range(of: "Scene: ") {
+                let sceneText = String(description[sceneRange.upperBound...])
+                if let firstComma = sceneText.firstIndex(of: ",") {
+                    let sceneName = String(sceneText[..<firstComma]).trimmingCharacters(in: .whitespaces)
+                    nameComponents.append(sceneName.capitalized)
+                } else if let firstPeriod = sceneText.firstIndex(of: ".") {
+                    let sceneName = String(sceneText[..<firstPeriod]).trimmingCharacters(in: .whitespaces)
+                    nameComponents.append(sceneName.capitalized)
+                }
+            }
+        }
+        
+        // Extract person count for photos
+        if description.contains("person") {
+            if let personRange = description.range(of: "person") {
+                let beforePerson = String(description[..<personRange.lowerBound])
+                if let numberRange = beforePerson.range(of: #"\d+"#, options: .regularExpression) {
+                    let number = String(description[numberRange])
+                    if number == "1" {
+                        nameComponents.append("Portrait")
+                    } else {
+                        nameComponents.append("GroupPhoto")
+                    }
+                }
+            }
+        }
+        
+        // If we have components, create name
+        if !nameComponents.isEmpty {
+            var name = nameComponents.joined(separator: "_")
+            
+            // Add timestamp for uniqueness
+            let timestamp = Int(Date().timeIntervalSince1970)
+            name += "_\(timestamp)"
+            
+            // Add file extension
+            if let ext = fileExtension(from: mimeType) {
+                name += ".\(ext)"
+            }
+            
+            return name
+        }
+        
+        return nil
+    }
+    
+    /// Extract frame from video for analysis
+    private static func extractFrame(from asset: AVURLAsset, at time: Double) async -> Data? {
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceAfter = .zero
+        generator.requestedTimeToleranceBefore = .zero
+        
+        let cmTime = CMTime(seconds: time, preferredTimescale: 600)
+        
+        do {
+            let cgImage = try await generator.image(at: cmTime).image
+            let uiImage = UIImage(cgImage: cgImage)
+            return uiImage.jpegData(compressionQuality: 0.8)
+        } catch {
+            return nil
+        }
+    }
+    
+    /// Describe image frame for video analysis
+    private static func describeImageFrame(data: Data) async -> String {
+        guard let image = UIImage(data: data),
+              let cgImage = image.cgImage else {
+            return ""
+        }
+        
+        var description = ""
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        
+        let sceneRequest = VNClassifyImageRequest()
+        try? handler.perform([sceneRequest])
+        if let results = sceneRequest.results?.prefix(2) {
+            let scenes = results
+                .filter { $0.confidence > 0.3 }
+                .map { $0.identifier }
+                .joined(separator: ", ")
+            if !scenes.isEmpty {
+                description = scenes
+            }
+        }
+        
+        return description
+    }
+    
     private static func extractTitle(from text: String) -> String? {
         // Get first line or first sentence
         let lines = text.components(separatedBy: .newlines)
@@ -93,7 +452,7 @@ class NLPTaggingService {
         }
     }
     
-    /// Generate comprehensive AI tags for a document
+    /// Generate comprehensive AI tags for a document using LLAMA-style understanding
     static func generateTags(
         for data: Data,
         mimeType: String?,
@@ -101,7 +460,7 @@ class NLPTaggingService {
     ) async -> [String] {
         var tags: [String] = []
         
-        print("AI Analysis: Processing \(mimeType ?? "unknown") file...")
+        print("🦙 LLAMA: Generating intelligent tags for \(mimeType ?? "unknown") file...")
         
         // OPTIMIZATION: Skip heavy AI for files > 10MB to prevent hanging
         let maxSizeForDeepAnalysis = 10 * 1024 * 1024 // 10MB
@@ -112,26 +471,39 @@ class NLPTaggingService {
             tags.append(contentsOf: tagsForMimeType(mimeType))
         }
         
+        // Use LLAMA-style description for intelligent tagging
+        if shouldDoDeepAnalysis {
+            let llamaDescription = await generateLlamaStyleDescription(
+                for: data,
+                mimeType: mimeType
+            )
+            
+            // Extract tags from LLAMA description
+            let llamaTags = extractTagsFromLlamaDescription(llamaDescription)
+            tags.append(contentsOf: llamaTags)
+            print("   🦙 LLAMA tags: \(llamaTags.count) intelligent tags")
+        } else {
+            print("   ⚠️ Skipping LLAMA analysis (file too large: \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)))")
+        }
+        
         // OPTIMIZED: Only do deep analysis on smaller files
         if shouldDoDeepAnalysis, let mimeType = mimeType {
             if mimeType.hasPrefix("image/") {
-                // Lightweight image analysis
+                // Lightweight image analysis (supplement LLAMA)
                 let imageTags = await analyzeImageContentOptimized(data)
                 tags.append(contentsOf: imageTags)
-                print("   Image AI: \(imageTags.count) tags (optimized)")
+                print("   Image AI: \(imageTags.count) additional tags")
                 
             } else if mimeType.hasPrefix("video/") {
-                // Skip heavy video analysis - just use metadata
+                // Basic video tags
                 tags.append("Video Recording")
-                print("   Video: Basic tags only (performance)")
+                print("   Video: Basic tags added")
                 
             } else if mimeType.hasPrefix("audio/") {
-                // Skip transcription for now - just categorize
+                // Basic audio tags
                 tags.append("Voice Memo")
-                print("   Audio: Basic tags only (performance)")
+                print("   Audio: Basic tags added")
             }
-        } else {
-            print("   Skipping deep AI (file too large: \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)))")
         }
         
         // Quick text extraction (optimized)
@@ -144,8 +516,95 @@ class NLPTaggingService {
         
         // Remove duplicates and return
         let uniqueTags = Array(Set(tags))
-        print("   Total tags: \(uniqueTags.count)")
+        print("   ✅ Total LLAMA tags: \(uniqueTags.count)")
         return uniqueTags
+    }
+    
+    /// Extract intelligent tags from LLAMA-style description
+    private static func extractTagsFromLlamaDescription(_ description: String) -> [String] {
+        var tags: [String] = []
+        let lowerDesc = description.lowercased()
+        
+        // Document type tags
+        if lowerDesc.contains("invoice") || lowerDesc.contains("bill") {
+            tags.append("Invoice")
+            tags.append("Financial")
+        }
+        if lowerDesc.contains("receipt") {
+            tags.append("Receipt")
+            tags.append("Financial")
+        }
+        if lowerDesc.contains("contract") || lowerDesc.contains("agreement") {
+            tags.append("Contract")
+            tags.append("Legal")
+        }
+        if lowerDesc.contains("medical") || lowerDesc.contains("patient") {
+            tags.append("Medical")
+            tags.append("Healthcare")
+        }
+        if lowerDesc.contains("meeting") {
+            tags.append("Meeting")
+            tags.append("Recording")
+        }
+        if lowerDesc.contains("voice note") || lowerDesc.contains("memo") {
+            tags.append("Voice Memo")
+            tags.append("Personal Note")
+        }
+        if lowerDesc.contains("presentation") {
+            tags.append("Presentation")
+            tags.append("Recording")
+        }
+        
+        // Scene tags
+        if lowerDesc.contains("scene:") {
+            if let sceneRange = description.range(of: "Scene: ") {
+                let sceneText = String(description[sceneRange.upperBound...])
+                if let firstPeriod = sceneText.firstIndex(of: ".") {
+                    let sceneName = String(sceneText[..<firstPeriod])
+                        .trimmingCharacters(in: .whitespaces)
+                        .split(separator: ",")
+                        .map { $0.trimmingCharacters(in: .whitespaces).capitalized }
+                    tags.append(contentsOf: sceneName)
+                }
+            }
+        }
+        
+        // Person/portrait tags
+        if lowerDesc.contains("person") {
+            if lowerDesc.contains("1 person") {
+                tags.append("Portrait")
+                tags.append("Single Person")
+            } else {
+                tags.append("Group Photo")
+                tags.append("Multiple People")
+            }
+        }
+        
+        // Orientation tags
+        if lowerDesc.contains("landscape") {
+            tags.append("Landscape")
+        }
+        if lowerDesc.contains("portrait") {
+            tags.append("Portrait")
+        }
+        
+        // Duration tags for media
+        if let durationRange = description.range(of: "duration: ") {
+            let durationText = String(description[durationRange.upperBound...])
+            if let seconds = Int(durationText.components(separator: " ").first ?? "") {
+                if seconds < 10 {
+                    tags.append("Short Clip")
+                } else if seconds < 60 {
+                    tags.append("Brief Recording")
+                } else if seconds < 300 {
+                    tags.append("Medium Length")
+                } else {
+                    tags.append("Long Recording")
+                }
+            }
+        }
+        
+        return tags
     }
     
     // OPTIMIZED: Lightweight image analysis

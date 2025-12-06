@@ -67,6 +67,22 @@ struct NomineeManagementView: View {
         }
         .task {
             nomineeService.configure(modelContext: modelContext)
+            do {
+                try await nomineeService.loadNominees(for: vault)
+            } catch {
+                print("❌ Failed to load nominees: \(error.localizedDescription)")
+            }
+        }
+        .onChange(of: showAddNominee) { oldValue, newValue in
+            // Reload nominees when the add sheet is dismissed
+            if oldValue == true && newValue == false {
+                Task {
+                    try? await nomineeService.loadNominees(for: vault)
+                }
+            }
+        }
+        .refreshable {
+            // Pull to refresh
             try? await nomineeService.loadNominees(for: vault)
         }
     }
@@ -258,24 +274,43 @@ struct AddNomineeView: View {
     }
     
     private func sendInvite() {
-        guard let userID = authService.currentUser?.id else { return }
+        guard let userID = authService.currentUser?.id else {
+            errorMessage = "User not authenticated"
+            showError = true
+            return
+        }
         
         isLoading = true
         Task {
             do {
-                _ = try await nomineeService.inviteNominee(
+                print("📤 Sending invitation to: \(name)")
+                let nominee = try await nomineeService.inviteNominee(
                     name: name,
                     phoneNumber: phoneNumber.isEmpty ? nil : phoneNumber,
                     email: email.isEmpty ? nil : email,
                     to: vault,
                     invitedByUserID: userID
                 )
-                dismiss()
+                
+                print("✅ Invitation sent successfully")
+                print("   Nominee ID: \(nominee.id)")
+                print("   Nominee Token: \(nominee.inviteToken)")
+                print("   Vault: \(vault.name)")
+                
+                // Small delay to ensure CloudKit sync starts
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                
+                await MainActor.run {
+                    dismiss()
+                }
             } catch {
-                errorMessage = error.localizedDescription
-                showError = true
+                print("❌ Failed to send invitation: \(error.localizedDescription)")
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                    isLoading = false
+                }
             }
-            isLoading = false
         }
     }
 }

@@ -30,12 +30,32 @@ final class NomineeService: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
-        guard let modelContext = modelContext else { return }
+        guard let modelContext = modelContext else {
+            print("❌ NomineeService: ModelContext not available")
+            return
+        }
         
-        // Get nominees for this vault
-        // In a full implementation, we'd filter by vault
-        let descriptor = FetchDescriptor<Nominee>()
-        nominees = try modelContext.fetch(descriptor)
+        print("🔍 Loading nominees for vault: \(vault.name) (ID: \(vault.id))")
+        
+        // Filter nominees by vault
+        let vaultID = vault.id
+        let descriptor = FetchDescriptor<Nominee>(
+            predicate: #Predicate { nominee in
+                nominee.vault?.id == vaultID
+            },
+            sortBy: [SortDescriptor(\.invitedAt, order: .reverse)]
+        )
+        
+        let fetchedNominees = try modelContext.fetch(descriptor)
+        
+        print("✅ Found \(fetchedNominees.count) nominee(s) for vault '\(vault.name)'")
+        for nominee in fetchedNominees {
+            print("   - \(nominee.name) (Status: \(nominee.status), Token: \(nominee.inviteToken))")
+        }
+        
+        await MainActor.run {
+            nominees = fetchedNominees
+        }
     }
     
     func inviteNominee(
@@ -63,9 +83,17 @@ final class NomineeService: ObservableObject {
         
         print("✅ Nominee created: \(nominee.name)")
         print("   Token: \(nominee.inviteToken)")
-        print("   Vault: \(vault.name)")
+        print("   Vault: \(vault.name) (ID: \(vault.id))")
         print("   Status: \(nominee.status)")
+        print("   Vault relationship: \(nominee.vault?.name ?? "nil")")
         print("   📤 CloudKit sync: Nominee record will sync automatically")
+        
+        // Verify the relationship was set correctly
+        if nominee.vault?.id == vault.id {
+            print("   ✅ Vault relationship verified")
+        } else {
+            print("   ⚠️ WARNING: Vault relationship may not be set correctly")
+        }
         
         // Send push notification to nominee (if they have the app installed)
         // Note: In production, this would be sent via your backend server
@@ -79,7 +107,14 @@ final class NomineeService: ObservableObject {
         // Send invitation (placeholder - would use MessageUI in production)
         await sendInvitation(to: nominee)
         
+        // Reload nominees to refresh the list
+        print("🔄 Reloading nominees list...")
         try await loadNominees(for: vault)
+        
+        // Force a refresh on the main thread
+        await MainActor.run {
+            print("✅ Nominees list updated: \(nominees.count) nominee(s)")
+        }
         
         return nominee
     }
