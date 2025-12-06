@@ -306,18 +306,27 @@ struct RedactionView: View {
             try? handler.perform([textRequest])
         } else if document.documentType == "pdf",
                   let pdf = PDFDocument(data: data) {
-            // For PDF, find text on each page
+            // For PDF, find text on each page using PDFSelection
             for pageIndex in 0..<pdf.pageCount {
                 guard let page = pdf.page(at: pageIndex),
                       let pageText = page.string,
                       pageText.contains(phi.value) else { continue }
                 
-                // Find text selection that matches PHI
-                if let selection = page.selectionForRange(NSRange(location: 0, length: pageText.count)) {
-                    let bounds = selection.bounds(for: page, characterRange: NSRange(location: 0, length: pageText.count))
-                    Task { @MainActor in
-                        redactionAreas.append(bounds)
+                // Find all occurrences of the PHI value in the page text
+                var searchRange = pageText.startIndex..<pageText.endIndex
+                while let range = pageText.range(of: phi.value, range: searchRange) {
+                    // Create a selection for this text range
+                    let nsRange = NSRange(range, in: pageText)
+                    if let selection = page.selection(for: nsRange) {
+                        // Get bounds of the selection on the page
+                        let bounds = selection.bounds(for: page)
+                        Task { @MainActor in
+                            redactionAreas.append(bounds)
+                        }
                     }
+                    
+                    // Move search range forward
+                    searchRange = range.upperBound..<pageText.endIndex
                 }
             }
         }
