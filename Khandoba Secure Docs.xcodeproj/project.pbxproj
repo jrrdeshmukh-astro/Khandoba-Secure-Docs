@@ -36,7 +36,6 @@
 		24FB38952EDF354C00BA1227 /* Exceptions for "Khandoba Secure Docs" folder in "Khandoba Secure Docs" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Info.plist,
 			);
 			target = 24FB38712EDF354B00BA1227 /* Khandoba Secure Docs */;
 		};
