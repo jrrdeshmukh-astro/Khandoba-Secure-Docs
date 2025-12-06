@@ -1195,7 +1195,7 @@ struct RemediationRow: View {
         }
     }
     
-    private func priorityColor(for priority: RemediationPriority, colors: UnifiedTheme.ColorSet) -> Color {
+    private func priorityColor(for priority: RemediationPriority, colors: UnifiedTheme.Colors) -> Color {
         switch priority {
         case .low: return colors.success
         case .medium: return colors.warning

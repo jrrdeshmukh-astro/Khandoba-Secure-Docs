@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import CoreLocation
 import PDFKit
 import Combine
 import UIKit
