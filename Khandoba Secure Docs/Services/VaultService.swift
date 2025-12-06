@@ -335,7 +335,7 @@ final class VaultService: ObservableObject {
         startSessionTimeout(for: vault)
         
         // 🔗 INTEGRATION: Open shared vault session for nominees
-        if let currentUser = currentUser, let currentUserID = currentUserID {
+        if let currentUser = currentUser {
             let sharedSessionService = SharedVaultSessionService()
             sharedSessionService.configure(modelContext: modelContext, userID: currentUserID)
             try await sharedSessionService.openSharedVault(vault, unlockedBy: currentUser)
