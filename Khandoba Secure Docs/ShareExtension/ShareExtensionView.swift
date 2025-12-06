@@ -392,10 +392,7 @@ enum SharedItemType {
     }
 }
 
-struct VaultInfo: Codable {
-    let id: UUID
-    let name: String
-}
+// VaultInfo is defined in ShareExtensionService.swift
 
 struct SharedItemRow: View {
     let item: SharedItem

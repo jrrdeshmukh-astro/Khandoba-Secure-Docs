@@ -34,7 +34,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				ShareExtension,
 			);
 			target = 24FB38712EDF354B00BA1227 /* Khandoba Secure Docs */;
 		};
