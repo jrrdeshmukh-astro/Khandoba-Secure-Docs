@@ -20,18 +20,21 @@
 		<string>com.apple.share-services</string>
 		<key>NSExtensionPrincipalClass</key>
 		<string>$(PRODUCT_MODULE_NAME).ShareExtensionViewController</string>
-		<key>NSExtensionActivationRule</key>
+		<key>NSExtensionAttributes</key>
 		<dict>
-			<key>NSExtensionActivationSupportsImage</key>
-			<true/>
-			<key>NSExtensionActivationSupportsMovie</key>
-			<true/>
-			<key>NSExtensionActivationSupportsFileWithMaxCount</key>
-			<integer>100</integer>
-			<key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
-			<integer>1</integer>
-			<key>NSExtensionActivationSupportsWebPageWithMaxCount</key>
-			<integer>1</integer>
+			<key>NSExtensionActivationRule</key>
+			<dict>
+				<key>NSExtensionActivationSupportsImage</key>
+				<true/>
+				<key>NSExtensionActivationSupportsMovie</key>
+				<true/>
+				<key>NSExtensionActivationSupportsFileWithMaxCount</key>
+				<integer>100</integer>
+				<key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
+				<integer>1</integer>
+				<key>NSExtensionActivationSupportsWebPageWithMaxCount</key>
+				<integer>1</integer>
+			</dict>
 		</dict>
 	</dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
