@@ -562,7 +562,7 @@ final class AutomaticTriageService: ObservableObject {
 
 // MARK: - Models
 
-struct TriageResult: Identifiable {
+struct TriageResult: Identifiable, Equatable {
     let id: UUID
     let type: TriageResultType
     let severity: ThreatLevel
@@ -576,9 +576,13 @@ struct TriageResult: Identifiable {
     let questions: [String]
     var recommendedActions: [RemediationAction]
     var autoActions: [RemediationAction] = [] // Actions to take automatically
+    
+    static func == (lhs: TriageResult, rhs: TriageResult) -> Bool {
+        lhs.id == rhs.id
+    }
 }
 
-enum TriageResultType {
+enum TriageResultType: Equatable {
     case screenMonitoring
     case compromisedNominee
     case sensitiveDocuments
@@ -631,11 +635,15 @@ enum RemediationAction: Identifiable, Equatable {
     }
 }
 
-struct RemediationFlow: Identifiable {
+struct RemediationFlow: Identifiable, Equatable {
     let id: UUID
     let triageResult: TriageResult
     var currentStep: Int
     var answers: [String: String]
     var recommendedActions: [RemediationAction]
     var completedActions: [RemediationAction]
+    
+    static func == (lhs: RemediationFlow, rhs: RemediationFlow) -> Bool {
+        lhs.id == rhs.id
+    }
 }

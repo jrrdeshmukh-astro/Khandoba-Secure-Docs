@@ -495,10 +495,10 @@ struct ThreatTimelineCard: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @StateObject private var threatService = ThreatMonitoringService()
+    @State private var metrics: [ThreatMetric] = []
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
-        let metrics = threatService.generateThreatMetrics(for: vault)
         
         StandardCard {
             VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
@@ -512,10 +512,56 @@ struct ThreatTimelineCard: View {
                 }
                 
                 if metrics.isEmpty {
-                    Text("No data available")
-                        .font(theme.typography.body)
-                        .foregroundColor(colors.textSecondary)
-                        .padding(.vertical)
+                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                        Image(systemName: "chart.line.downtrend.xyaxis")
+                            .font(.title2)
+                            .foregroundColor(colors.textTertiary)
+                        
+                        Text("No timeline data available")
+                            .font(theme.typography.body)
+                            .foregroundColor(colors.textSecondary)
+                        
+                        Text("Threat timeline will appear as vault access patterns are recorded")
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textTertiary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, UnifiedTheme.Spacing.xl)
+                } else if metrics.count == 1 {
+                    // Single data point - show as a bar or point
+                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                        HStack {
+                            Text("Threat Score")
+                                .font(theme.typography.caption)
+                                .foregroundColor(colors.textSecondary)
+                            
+                            Spacer()
+                            
+                            Text(String(format: "%.1f", metrics.first?.threatScore ?? 0))
+                                .font(theme.typography.title2)
+                                .foregroundColor(colors.primary)
+                                .fontWeight(.bold)
+                        }
+                        
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(colors.surface.opacity(0.5))
+                                    .frame(height: 20)
+                                
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(colors.primary)
+                                    .frame(width: geometry.size.width * min((metrics.first?.threatScore ?? 0) / 100.0, 1.0), height: 20)
+                            }
+                        }
+                        .frame(height: 20)
+                        
+                        Text("Single data point - more data will appear over time")
+                            .font(theme.typography.caption2)
+                            .foregroundColor(colors.textTertiary)
+                    }
+                    .padding(.vertical)
                 } else {
                     Chart {
                         ForEach(metrics) { metric in
@@ -558,6 +604,10 @@ struct ThreatTimelineCard: View {
                 }
             }
         }
+        .task {
+            // Load metrics on appear
+            metrics = threatService.generateThreatMetrics(for: vault)
+        }
     }
 }
 
@@ -570,6 +620,91 @@ struct MLInsightsCard: View {
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    
+    private var insights: [(icon: String, text: String, confidence: Double)] {
+        var result: [(icon: String, text: String, confidence: Double)] = []
+        
+        // Geo insights
+        if let geo = geoMetrics {
+            if geo.riskScore > 0.5 {
+                result.append((
+                    icon: "map",
+                    text: "ML detected unusual geographic patterns suggesting potential account sharing",
+                    confidence: geo.riskScore
+                ))
+            } else if geo.uniqueLocations > 1 {
+                result.append((
+                    icon: "map",
+                    text: "Access from \(geo.uniqueLocations) location(s) - normal geographic distribution",
+                    confidence: 1.0 - geo.riskScore
+                ))
+            } else if geo.accessLocations > 0 {
+                result.append((
+                    icon: "map",
+                    text: "All access from single location - secure usage pattern",
+                    confidence: 0.95
+                ))
+            }
+        }
+        
+        // Access pattern insights
+        if let access = accessMetrics {
+            if access.burstsDetected > 0 {
+                result.append((
+                    icon: "bolt",
+                    text: "Access burst pattern detected - may indicate automated activity",
+                    confidence: access.riskScore
+                ))
+            } else if access.totalAccesses > 0 {
+                result.append((
+                    icon: "chart.line.uptrend.xyaxis",
+                    text: "Access frequency: \(String(format: "%.1f", access.frequency)) per day - normal pattern",
+                    confidence: 1.0 - access.riskScore
+                ))
+            }
+        }
+        
+        // Tag insights
+        if let tag = tagMetrics {
+            if !tag.suspiciousTags.isEmpty {
+                result.append((
+                    icon: "tag",
+                    text: "Suspicious content patterns identified in document metadata",
+                    confidence: tag.riskScore
+                ))
+            } else if tag.totalTags > 0 {
+                result.append((
+                    icon: "tag",
+                    text: "\(tag.totalTags) tags analyzed across documents - no suspicious patterns detected",
+                    confidence: 1.0 - tag.riskScore
+                ))
+            }
+        }
+        
+        // Default: All clear or summary if no insights
+        if result.isEmpty {
+            let geoRisk = geoMetrics?.riskScore ?? 0
+            let accessRisk = accessMetrics?.riskScore ?? 0
+            let tagRisk = tagMetrics?.riskScore ?? 0
+            let avgRisk = (geoRisk + accessRisk + tagRisk) / 3.0
+            
+            if avgRisk < 0.3 {
+                result.append((
+                    icon: "checkmark.seal.fill",
+                    text: "ML analysis shows normal usage patterns across all metrics. No threats detected.",
+                    confidence: 0.9
+                ))
+            } else {
+                result.append((
+                    icon: "info.circle.fill",
+                    text: "ML analysis is monitoring vault activity. Continue using the vault normally.",
+                    confidence: 0.8
+                ))
+            }
+        }
+        
+        return result
+    }
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -588,41 +723,12 @@ struct MLInsightsCard: View {
                 Divider()
                 
                 VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                    // Geo insights
-                    if let geo = geoMetrics, geo.riskScore > 0.5 {
+                    // Display insights
+                    ForEach(Array(insights.enumerated()), id: \.offset) { _, insight in
                         InsightRow(
-                            icon: "map",
-                            text: "ML detected unusual geographic patterns suggesting potential account sharing",
-                            confidence: geo.riskScore
-                        )
-                    }
-                    
-                    // Access pattern insights
-                    if let access = accessMetrics, access.burstsDetected > 0 {
-                        InsightRow(
-                            icon: "bolt",
-                            text: "Access burst pattern detected - may indicate automated activity",
-                            confidence: access.riskScore
-                        )
-                    }
-                    
-                    // Tag insights
-                    if let tag = tagMetrics, !tag.suspiciousTags.isEmpty {
-                        InsightRow(
-                            icon: "tag",
-                            text: "Suspicious content patterns identified in document metadata",
-                            confidence: tag.riskScore
-                        )
-                    }
-                    
-                    // All clear
-                    if (geoMetrics?.riskScore ?? 0) < 0.3 && 
-                       (accessMetrics?.riskScore ?? 0) < 0.3 && 
-                       (tagMetrics?.riskScore ?? 0) < 0.3 {
-                        InsightRow(
-                            icon: "checkmark.seal.fill",
-                            text: "ML analysis shows normal usage patterns across all metrics",
-                            confidence: 0.9
+                            icon: insight.icon,
+                            text: insight.text,
+                            confidence: insight.confidence
                         )
                     }
                 }
