@@ -135,7 +135,29 @@ struct DocumentUploadView: View {
             }
             .fileImporter(
                 isPresented: $isShowingDocumentPicker,
-                allowedContentTypes: [.pdf, .png, .jpeg, .heic, .video, .audio, .text, .data],
+                allowedContentTypes: [
+                    // Images
+                    .png, .jpeg, .heic, .gif, .bmp, .tiff,
+                    // Documents
+                    .pdf,
+                    // Office Documents
+                    UTType(filenameExtension: "docx") ?? .data,
+                    UTType(filenameExtension: "doc") ?? .data,
+                    UTType(filenameExtension: "xlsx") ?? .data,
+                    UTType(filenameExtension: "xls") ?? .data,
+                    UTType(filenameExtension: "pptx") ?? .data,
+                    UTType(filenameExtension: "ppt") ?? .data,
+                    // Text
+                    .text, .plainText, .rtf,
+                    // Archives
+                    UTType(filenameExtension: "zip") ?? .data,
+                    UTType(filenameExtension: "rar") ?? .data,
+                    // Media
+                    .video, .movie, .mpeg4Movie, .quickTimeMovie,
+                    .audio, .mp3, .mpeg4Audio,
+                    // Fallback - allows any file type
+                    .data
+                ],
                 allowsMultipleSelection: false
             ) { result in
                 Task {
@@ -160,7 +182,11 @@ struct DocumentUploadView: View {
             if let url = urls.first {
                 if let data = try? Data(contentsOf: url) {
                     let fileName = url.lastPathComponent
-                    let mimeType = url.pathExtension
+                    let fileExtension = url.pathExtension.lowercased()
+                    
+                    // Determine MIME type from file extension
+                    let mimeType = mimeTypeForExtension(fileExtension)
+                    
                     await uploadDocument(
                         data: data,
                         name: fileName,
@@ -172,6 +198,48 @@ struct DocumentUploadView: View {
         case .failure(let error):
             errorMessage = error.localizedDescription
             showError = true
+        }
+    }
+    
+    private func mimeTypeForExtension(_ ext: String) -> String? {
+        switch ext.lowercased() {
+        // Images
+        case "jpg", "jpeg": return "image/jpeg"
+        case "png": return "image/png"
+        case "heic": return "image/heic"
+        case "gif": return "image/gif"
+        case "bmp": return "image/bmp"
+        case "tiff", "tif": return "image/tiff"
+        
+        // Documents
+        case "pdf": return "application/pdf"
+        case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        case "doc": return "application/msword"
+        case "xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        case "xls": return "application/vnd.ms-excel"
+        case "pptx": return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        case "ppt": return "application/vnd.ms-powerpoint"
+        
+        // Text
+        case "txt": return "text/plain"
+        case "rtf": return "application/rtf"
+        case "md", "markdown": return "text/markdown"
+        
+        // Archives
+        case "zip": return "application/zip"
+        case "rar": return "application/x-rar-compressed"
+        
+        // Video
+        case "mp4": return "video/mp4"
+        case "mov": return "video/quicktime"
+        case "avi": return "video/x-msvideo"
+        
+        // Audio
+        case "m4a": return "audio/mp4"
+        case "mp3": return "audio/mpeg"
+        case "wav": return "audio/wav"
+        
+        default: return nil // Will be handled as "other" type
         }
     }
     

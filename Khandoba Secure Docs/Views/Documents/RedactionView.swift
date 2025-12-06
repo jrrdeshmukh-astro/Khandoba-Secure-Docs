@@ -21,7 +21,7 @@ struct RedactionView: View {
     
     @State private var redactionAreas: [CGRect] = []
     @State private var showSaveConfirm = false
-    @State private var autoDetectedPHI: [RedactionService.PHIMatch] = []
+    @State private var autoDetectedPHI: [PHIMatch] = []
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -144,7 +144,7 @@ struct RedactionView: View {
             let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
             for match in matches {
                 if let range = Range(match.range, in: text) {
-                    detected.append(RedactionService.PHIMatch(type: "SSN", value: String(text[range]), range: match.range))
+                    detected.append(PHIMatch(type: "SSN", value: String(text[range]), range: match.range))
                 }
             }
         }
@@ -155,7 +155,7 @@ struct RedactionView: View {
             let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
             for match in matches {
                 if let range = Range(match.range, in: text) {
-                    detected.append(RedactionService.PHIMatch(type: "DOB", value: String(text[range]), range: match.range))
+                    detected.append(PHIMatch(type: "DOB", value: String(text[range]), range: match.range))
                 }
             }
         }
@@ -166,7 +166,7 @@ struct RedactionView: View {
             let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
             for match in matches {
                 if let range = Range(match.range, in: text) {
-                    detected.append(RedactionService.PHIMatch(type: "MRN", value: String(text[range]), range: match.range))
+                    detected.append(PHIMatch(type: "MRN", value: String(text[range]), range: match.range))
                 }
             }
         }
@@ -267,7 +267,7 @@ struct RedactionView: View {
 // PHIMatch moved to RedactionService.swift
 
 struct PHIChip: View {
-    let phi: RedactionService.PHIMatch
+    let phi: PHIMatch
     let onSelect: () -> Void
     
     @Environment(\.unifiedTheme) var theme

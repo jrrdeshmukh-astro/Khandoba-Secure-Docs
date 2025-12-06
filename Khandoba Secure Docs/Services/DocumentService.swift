@@ -196,6 +196,17 @@ final class DocumentService: ObservableObject {
             return "audio"
         } else if mimeType.hasPrefix("text/") {
             return "text"
+        } else if mimeType.contains("wordprocessingml") || mimeType.contains("msword") {
+            // .docx, .doc
+            return "document"
+        } else if mimeType.contains("spreadsheetml") || mimeType.contains("ms-excel") {
+            // .xlsx, .xls
+            return "spreadsheet"
+        } else if mimeType.contains("presentationml") || mimeType.contains("ms-powerpoint") {
+            // .pptx, .ppt
+            return "presentation"
+        } else if mimeType.contains("zip") || mimeType.contains("rar") || mimeType.contains("archive") {
+            return "archive"
         }
         
         return "other"
