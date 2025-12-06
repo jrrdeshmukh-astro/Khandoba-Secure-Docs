@@ -51,11 +51,37 @@ struct ContentView: View {
                     .sheet(isPresented: $showInvitationView) {
                         if let token = pendingInviteToken {
                             AcceptNomineeInvitationView(inviteToken: token)
+                        } else {
+                            // Fallback view if token is missing
+                            VStack {
+                                Text("Invalid Invitation")
+                                    .font(.title)
+                                Text("The invitation link is invalid or expired.")
+                                    .foregroundColor(.secondary)
+                                Button("Close") {
+                                    showInvitationView = false
+                                }
+                                .padding()
+                            }
+                            .padding()
                         }
                     }
                     .sheet(isPresented: $showTransferView) {
                         if let token = pendingTransferToken {
                             AcceptTransferView(transferToken: token)
+                        } else {
+                            // Fallback view if token is missing
+                            VStack {
+                                Text("Invalid Transfer Request")
+                                    .font(.title)
+                                Text("The transfer link is invalid or expired.")
+                                    .foregroundColor(.secondary)
+                                Button("Close") {
+                                    showTransferView = false
+                                }
+                                .padding()
+                            }
+                            .padding()
                         }
                     }
             }
@@ -90,49 +116,81 @@ struct ContentView: View {
     }
     
     private func handleDeepLink(_ url: URL) {
+        print("🔗 Deep link received: \(url)")
         // Handle nominee invitation and transfer deep links
         if url.scheme == "khandoba" {
+            print("   Scheme: khandoba")
+            print("   Host: \(url.host ?? "nil")")
+            print("   Path: \(url.path)")
+            
             if url.host == "nominee" && url.path == "/invite" {
                 // New format: khandoba://nominee/invite?token=UUID&vault=Name
                 if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                    let token = components.queryItems?.first(where: { $0.name == "token" })?.value {
+                    print("   ✅ Found nominee invite token: \(token)")
                     handleNomineeInvitationToken(token)
+                } else {
+                    print("   ❌ Failed to extract token from nominee invite URL")
                 }
             } else if url.host == "invite" {
                 // Legacy format: khandoba://invite?token=UUID (for backward compatibility)
                 if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                    let token = components.queryItems?.first(where: { $0.name == "token" })?.value {
+                    print("   ✅ Found legacy invite token: \(token)")
                     handleNomineeInvitationToken(token)
+                } else {
+                    print("   ❌ Failed to extract token from invite URL")
                 }
             } else if url.host == "transfer" {
                 // Transfer format: khandoba://transfer?token=UUID
                 if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                    let token = components.queryItems?.first(where: { $0.name == "token" })?.value {
+                    print("   ✅ Found transfer token: \(token)")
                     handleTransferToken(token)
+                } else {
+                    print("   ❌ Failed to extract token from transfer URL")
                 }
+            } else {
+                print("   ⚠️ Unknown deep link host: \(url.host ?? "nil")")
             }
+        } else {
+            print("   ⚠️ Unknown URL scheme: \(url.scheme ?? "nil")")
         }
     }
     
     private func handleNomineeInvitationToken(_ token: String) {
+        print("📧 Handling nominee invitation token: \(token)")
         pendingInviteToken = token
         
         // If user is authenticated and setup is complete, show invitation view
         if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+            print("   ✅ User ready, showing invitation view")
             showInvitationView = true
         } else {
+            print("   ⏳ User not ready, storing token for later")
+            print("      Authenticated: \(authService.isAuthenticated)")
+            print("      Needs permissions: \(needsPermissionsSetup)")
+            print("      Needs subscription: \(needsSubscription)")
+            print("      Needs account setup: \(needsAccountSetup)")
             // Store token for later (after authentication/setup)
             UserDefaults.standard.set(token, forKey: "pending_invite_token")
         }
     }
     
     private func handleTransferToken(_ token: String) {
+        print("🔄 Handling transfer token: \(token)")
         pendingTransferToken = token
         
         // If user is authenticated and setup is complete, show transfer view
         if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+            print("   ✅ User ready, showing transfer view")
             showTransferView = true
         } else {
+            print("   ⏳ User not ready, storing token for later")
+            print("      Authenticated: \(authService.isAuthenticated)")
+            print("      Needs permissions: \(needsPermissionsSetup)")
+            print("      Needs subscription: \(needsSubscription)")
+            print("      Needs account setup: \(needsAccountSetup)")
             // Store token for later (after authentication/setup)
             UserDefaults.standard.set(token, forKey: "pending_transfer_token")
         }

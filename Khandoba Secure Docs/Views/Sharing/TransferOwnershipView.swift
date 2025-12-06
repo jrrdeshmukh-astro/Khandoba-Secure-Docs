@@ -519,9 +519,6 @@ struct TransferOwnershipView: View {
         showShareSheet = true
     }
     
-    @State private var showShareSheet = false
-    @State private var shareItems: [Any] = []
-    
     private func generateTransferURL(request: VaultTransferRequest) -> URL {
         // Create a URL for ShareLink
         let deepLink = "khandoba://transfer?token=\(request.transferToken)"

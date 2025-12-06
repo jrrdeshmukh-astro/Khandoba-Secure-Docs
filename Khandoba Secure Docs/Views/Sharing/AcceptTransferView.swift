@@ -281,6 +281,7 @@ struct AcceptTransferView: View {
     // MARK: - Actions
     
     private func loadTransferRequest() async {
+        print("🔄 Loading transfer request with token: \(transferToken)")
         isLoading = true
         
         do {
@@ -289,17 +290,22 @@ struct AcceptTransferView: View {
             )
             
             let requests = try modelContext.fetch(descriptor)
+            print("   Found \(requests.count) transfer request(s)")
             
             await MainActor.run {
                 transferRequest = requests.first
                 isLoading = false
                 
                 if transferRequest == nil {
+                    print("   ❌ Transfer request not found")
                     errorMessage = "Transfer request not found. It may have expired or been cancelled."
                     showError = true
+                } else {
+                    print("   ✅ Transfer request loaded: \(transferRequest?.vault?.name ?? "Unknown vault")")
                 }
             }
         } catch {
+            print("   ❌ Error loading transfer request: \(error.localizedDescription)")
             await MainActor.run {
                 errorMessage = "Failed to load transfer request: \(error.localizedDescription)"
                 showError = true

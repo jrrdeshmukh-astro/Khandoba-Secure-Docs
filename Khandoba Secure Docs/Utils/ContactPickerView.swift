@@ -18,8 +18,15 @@ struct ContactPickerView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> CNContactPickerViewController {
         let picker = CNContactPickerViewController()
         picker.delegate = context.coordinator
-        picker.displayedPropertyKeys = [CNContactPhoneNumbersKey]
-        picker.predicateForEnablingContact = NSPredicate(format: "phoneNumbers.@count > 0")
+        // Request all properties we need to access
+        picker.displayedPropertyKeys = [
+            CNContactGivenNameKey,
+            CNContactFamilyNameKey,
+            CNContactPhoneNumbersKey,
+            CNContactEmailAddressesKey
+        ]
+        // Allow contacts with either phone or email
+        picker.predicateForEnablingContact = NSPredicate(format: "phoneNumbers.@count > 0 OR emailAddresses.@count > 0")
         return picker
     }
     
@@ -38,16 +45,65 @@ struct ContactPickerView: UIViewControllerRepresentable {
         
         func contactPicker(_ picker: CNContactPickerViewController, didSelect contacts: [CNContact]) {
             // The picker will dismiss itself automatically
+            // Fetch full contact details for all selected contacts
+            let store = CNContactStore()
+            var fullContacts: [CNContact] = []
+            
+            for contact in contacts {
+                do {
+                    // Fetch the full contact with all needed properties
+                    let keysToFetch: [CNKeyDescriptor] = [
+                        CNContactGivenNameKey,
+                        CNContactFamilyNameKey,
+                        CNContactPhoneNumbersKey,
+                        CNContactEmailAddressesKey
+                    ] as [CNKeyDescriptor]
+                    
+                    let fullContact = try store.unifiedContact(
+                        withIdentifier: contact.identifier,
+                        keysToFetch: keysToFetch
+                    )
+                    fullContacts.append(fullContact)
+                } catch {
+                    print("⚠️ Failed to fetch full contact details: \(error.localizedDescription)")
+                    // Fallback: use the contact as-is (may have limited properties)
+                    fullContacts.append(contact)
+                }
+            }
+            
             // Call the callback on the main thread to ensure UI updates happen correctly
             DispatchQueue.main.async { [weak self] in
-                self?.parent.onContactsSelected(contacts)
+                self?.parent.onContactsSelected(fullContacts)
             }
         }
         
         func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
-            // Handle single contact selection (if needed)
-            DispatchQueue.main.async { [weak self] in
-                self?.parent.onContactsSelected([contact])
+            // Handle single contact selection
+            let store = CNContactStore()
+            
+            do {
+                // Fetch the full contact with all needed properties
+                let keysToFetch: [CNKeyDescriptor] = [
+                    CNContactGivenNameKey,
+                    CNContactFamilyNameKey,
+                    CNContactPhoneNumbersKey,
+                    CNContactEmailAddressesKey
+                ] as [CNKeyDescriptor]
+                
+                let fullContact = try store.unifiedContact(
+                    withIdentifier: contact.identifier,
+                    keysToFetch: keysToFetch
+                )
+                
+                DispatchQueue.main.async { [weak self] in
+                    self?.parent.onContactsSelected([fullContact])
+                }
+            } catch {
+                print("⚠️ Failed to fetch full contact details: \(error.localizedDescription)")
+                // Fallback: use the contact as-is
+                DispatchQueue.main.async { [weak self] in
+                    self?.parent.onContactsSelected([contact])
+                }
             }
         }
         

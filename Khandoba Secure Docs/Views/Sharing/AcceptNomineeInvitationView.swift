@@ -230,16 +230,27 @@ struct AcceptNomineeInvitationView: View {
     }
     
     private func loadInvitation() {
+        print("📧 Loading nominee invitation with token: \(inviteToken)")
         isLoading = true
         Task {
             do {
                 // Load the invitation without accepting it yet
-                let loadedNominee = try await nomineeService.loadInvite(token: inviteToken)
-                await MainActor.run {
-                    nominee = loadedNominee
-                    isLoading = false
+                if let loadedNominee = try await nomineeService.loadInvite(token: inviteToken) {
+                    print("   ✅ Nominee invitation loaded: \(loadedNominee.vault?.name ?? "Unknown vault")")
+                    await MainActor.run {
+                        nominee = loadedNominee
+                        isLoading = false
+                    }
+                } else {
+                    print("   ❌ Nominee invitation not found")
+                    await MainActor.run {
+                        errorMessage = "Invitation not found. It may have expired or been cancelled."
+                        showError = true
+                        isLoading = false
+                    }
                 }
             } catch {
+                print("   ❌ Error loading nominee invitation: \(error.localizedDescription)")
                 await MainActor.run {
                     errorMessage = error.localizedDescription
                     showError = true
