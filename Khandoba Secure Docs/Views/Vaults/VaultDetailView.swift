@@ -26,8 +26,7 @@ struct VaultDetailView: View {
     @State private var errorMessage = ""
     @State private var showUploadSheet = false
     @State private var showDocumentPicker = false
-    @State private var showShareView = false
-    @State private var shareMode: ShareMode = .nominee
+    @State private var showTransferView = false
     
     @EnvironmentObject var authService: AuthenticationService
     
@@ -245,27 +244,12 @@ struct VaultDetailView: View {
                                 Divider()
                                 
                                 Button {
-                                    shareMode = .nominee
-                                    showShareView = true
-                                } label: {
-                                    SecurityActionRow(
-                                        icon: "person.2.fill",
-                                        title: "Invite New Nominee",
-                                        subtitle: "Add someone to this vault",
-                                        color: colors.secondary
-                                    )
-                                }
-                                
-                                Divider()
-                                
-                                Button {
-                                    shareMode = .transfer
-                                    showShareView = true
+                                    showTransferView = true
                                 } label: {
                                     SecurityActionRow(
                                         icon: "arrow.triangle.2.circlepath",
                                         title: "Transfer Ownership",
-                                        subtitle: "Transfer vault via iMessage",
+                                        subtitle: "Transfer vault ownership",
                                         color: colors.warning
                                     )
                                 }
@@ -415,8 +399,8 @@ struct VaultDetailView: View {
         .sheet(isPresented: $showUploadSheet) {
             DocumentUploadView(vault: vault)
         }
-        .sheet(isPresented: $showShareView) {
-            UnifiedShareView(vault: vault, mode: shareMode)
+        .sheet(isPresented: $showTransferView) {
+            TransferOwnershipView(vault: vault)
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) { }

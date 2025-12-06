@@ -37,7 +37,18 @@ struct ContactPickerView: UIViewControllerRepresentable {
         }
         
         func contactPicker(_ picker: CNContactPickerViewController, didSelect contacts: [CNContact]) {
-            parent.onContactsSelected(contacts)
+            // The picker will dismiss itself automatically
+            // Call the callback on the main thread to ensure UI updates happen correctly
+            DispatchQueue.main.async { [weak self] in
+                self?.parent.onContactsSelected(contacts)
+            }
+        }
+        
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+            // Handle single contact selection (if needed)
+            DispatchQueue.main.async { [weak self] in
+                self?.parent.onContactsSelected([contact])
+            }
         }
         
         func contactPickerDidCancel(_ picker: CNContactPickerViewController) {

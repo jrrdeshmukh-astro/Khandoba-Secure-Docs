@@ -44,8 +44,8 @@ final class PushNotificationService: NSObject, ObservableObject {
                 // Register for remote notifications only in main app
                 // This code is excluded from ShareExtension compilation via conditional compilation
                 #if !APP_EXTENSION
-                await MainActor.run {
-                    UIApplication.shared.registerForRemoteNotifications()
+            await MainActor.run {
+                UIApplication.shared.registerForRemoteNotifications()
                 }
                 #endif
             }

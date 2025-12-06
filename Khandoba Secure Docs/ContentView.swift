@@ -15,9 +15,11 @@ struct ContentView: View {
     // Use @AppStorage to observe permissions changes
     @AppStorage("permissions_setup_complete") private var permissionsComplete = false
     
-    // Deep link handling for nominee invitations
+    // Deep link handling for nominee invitations and transfer requests
     @State private var pendingInviteToken: String?
+    @State private var pendingTransferToken: String?
     @State private var showInvitationView = false
+    @State private var showTransferView = false
     
     // Push notification handling
     @EnvironmentObject var pushNotificationService: PushNotificationService
@@ -51,6 +53,11 @@ struct ContentView: View {
                             AcceptNomineeInvitationView(inviteToken: token)
                         }
                     }
+                    .sheet(isPresented: $showTransferView) {
+                        if let token = pendingTransferToken {
+                            AcceptTransferView(transferToken: token)
+                        }
+                    }
             }
         }
         .onAppear {
@@ -60,6 +67,15 @@ struct ContentView: View {
                 UserDefaults.standard.removeObject(forKey: "pending_invite_token")
                 if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
                     showInvitationView = true
+                }
+            }
+            
+            // Check for pending transfer token from previous launch
+            if let token = UserDefaults.standard.string(forKey: "pending_transfer_token") {
+                pendingTransferToken = token
+                UserDefaults.standard.removeObject(forKey: "pending_transfer_token")
+                if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+                    showTransferView = true
                 }
             }
             
@@ -74,12 +90,26 @@ struct ContentView: View {
     }
     
     private func handleDeepLink(_ url: URL) {
-        // Handle nominee invitation deep links
-        // Format: khandoba://invite?token=UUID
-        if url.scheme == "khandoba" && url.host == "invite" {
-            if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-               let token = components.queryItems?.first(where: { $0.name == "token" })?.value {
-                handleNomineeInvitationToken(token)
+        // Handle nominee invitation and transfer deep links
+        if url.scheme == "khandoba" {
+            if url.host == "nominee" && url.path == "/invite" {
+                // New format: khandoba://nominee/invite?token=UUID&vault=Name
+                if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                   let token = components.queryItems?.first(where: { $0.name == "token" })?.value {
+                    handleNomineeInvitationToken(token)
+                }
+            } else if url.host == "invite" {
+                // Legacy format: khandoba://invite?token=UUID (for backward compatibility)
+                if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                   let token = components.queryItems?.first(where: { $0.name == "token" })?.value {
+                    handleNomineeInvitationToken(token)
+                }
+            } else if url.host == "transfer" {
+                // Transfer format: khandoba://transfer?token=UUID
+                if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                   let token = components.queryItems?.first(where: { $0.name == "token" })?.value {
+                    handleTransferToken(token)
+                }
             }
         }
     }
@@ -93,6 +123,18 @@ struct ContentView: View {
         } else {
             // Store token for later (after authentication/setup)
             UserDefaults.standard.set(token, forKey: "pending_invite_token")
+        }
+    }
+    
+    private func handleTransferToken(_ token: String) {
+        pendingTransferToken = token
+        
+        // If user is authenticated and setup is complete, show transfer view
+        if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+            showTransferView = true
+        } else {
+            // Store token for later (after authentication/setup)
+            UserDefaults.standard.set(token, forKey: "pending_transfer_token")
         }
     }
     

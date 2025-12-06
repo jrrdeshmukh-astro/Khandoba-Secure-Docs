@@ -49,6 +49,10 @@ final class VaultTransferRequest {
     var status: String = "pending" // "pending", "approved", "denied", "completed"
     var reason: String?
     var newOwnerID: UUID?
+    var newOwnerName: String?
+    var newOwnerPhone: String?
+    var newOwnerEmail: String?
+    var transferToken: String = UUID().uuidString  // Token for sharing and deep linking
     var approvedAt: Date?
     var approverID: UUID?
     
@@ -60,13 +64,21 @@ final class VaultTransferRequest {
         requestedAt: Date = Date(),
         status: String = "pending",
         reason: String? = nil,
-        newOwnerID: UUID? = nil
+        newOwnerID: UUID? = nil,
+        newOwnerName: String? = nil,
+        newOwnerPhone: String? = nil,
+        newOwnerEmail: String? = nil,
+        transferToken: String = UUID().uuidString
     ) {
         self.id = id
         self.requestedAt = requestedAt
         self.status = status
         self.reason = reason
         self.newOwnerID = newOwnerID
+        self.newOwnerName = newOwnerName
+        self.newOwnerPhone = newOwnerPhone
+        self.newOwnerEmail = newOwnerEmail
+        self.transferToken = transferToken
     }
 }
 

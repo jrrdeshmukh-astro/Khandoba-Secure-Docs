@@ -64,7 +64,13 @@ struct NomineeManagementView: View {
             }
         }
         .sheet(isPresented: $showAddNominee) {
-            AddNomineeView(vault: vault, nomineeService: nomineeService)
+            AddNomineeView(vault: vault)
+                .onDisappear {
+                    // Reload nominees when sheet dismisses
+                    Task {
+                        try? await nomineeService.loadNominees(for: vault)
+                    }
+                }
         }
         .task {
             nomineeService.configure(modelContext: modelContext)
@@ -78,14 +84,6 @@ struct NomineeManagementView: View {
                 try await nomineeService.loadNominees(for: vault)
             } catch {
                 print(" Failed to load nominees: \(error.localizedDescription)")
-            }
-        }
-        .onChange(of: showAddNominee) { oldValue, newValue in
-            // Reload nominees when the add sheet is dismissed
-            if oldValue == true && newValue == false {
-                Task {
-                    try? await nomineeService.loadNominees(for: vault)
-                }
             }
         }
         .refreshable {
@@ -172,165 +170,7 @@ struct NomineeRow: View {
     }
 }
 
-struct AddNomineeView: View {
-    let vault: Vault
-    @ObservedObject var nomineeService: NomineeService
-    
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var authService: AuthenticationService
-    
-    @State private var name = ""
-    @State private var phoneNumber = ""
-    @State private var email = ""
-    @State private var isLoading = false
-    @State private var showError = false
-    @State private var errorMessage = ""
-    
-    var body: some View {
-        let colors = theme.colors(for: colorScheme)
-        
-        NavigationStack {
-            ZStack {
-                colors.background
-                    .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: UnifiedTheme.Spacing.lg) {
-                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                            Text("Name")
-                                .font(theme.typography.subheadline)
-                                .foregroundColor(colors.textSecondary)
-                            
-                            TextField("Nominee name", text: $name)
-                                .font(theme.typography.body)
-                                .padding(UnifiedTheme.Spacing.md)
-                                .background(colors.surface)
-                                .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                            Text("Phone Number (Optional)")
-                                .font(theme.typography.subheadline)
-                                .foregroundColor(colors.textSecondary)
-                            
-                            TextField("+1 (555) 123-4567", text: $phoneNumber)
-                                .font(theme.typography.body)
-                                .keyboardType(.phonePad)
-                                .padding(UnifiedTheme.Spacing.md)
-                                .background(colors.surface)
-                                .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                            Text("Email (Optional)")
-                                .font(theme.typography.subheadline)
-                                .foregroundColor(colors.textSecondary)
-                            
-                            TextField("email@example.com", text: $email)
-                                .font(theme.typography.body)
-                                .keyboardType(.emailAddress)
-                                .textInputAutocapitalization(.never)
-                                .padding(UnifiedTheme.Spacing.md)
-                                .background(colors.surface)
-                                .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                        }
-                        
-                        StandardCard {
-                            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                                HStack {
-                                    Image(systemName: "info.circle.fill")
-                                        .foregroundColor(colors.info)
-                                    Text("Invitation Process")
-                                        .font(theme.typography.caption)
-                                        .foregroundColor(colors.textPrimary)
-                                        .fontWeight(.semibold)
-                                }
-                                
-                                Text("An invitation will be sent via Messages app. The nominee will receive a secure link to accept access to this vault.")
-                                    .font(theme.typography.caption)
-                                    .foregroundColor(colors.textSecondary)
-                            }
-                        }
-                        
-                        Button {
-                            sendInvite()
-                        } label: {
-                            if isLoading {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Text("Send Invitation")
-                            }
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .disabled(name.isEmpty || isLoading)
-                    }
-                    .padding(UnifiedTheme.Spacing.lg)
-                }
-            }
-            .navigationTitle("Invite Nominee")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(colors.primary)
-                }
-            }
-            .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(errorMessage)
-            }
-        }
-    }
-    
-    private func sendInvite() {
-        guard let userID = authService.currentUser?.id else {
-            errorMessage = "User not authenticated"
-            showError = true
-            return
-        }
-        
-        isLoading = true
-        Task {
-            do {
-                print("📤 Sending invitation to: \(name)")
-                let nominee = try await nomineeService.inviteNominee(
-                    name: name,
-                    phoneNumber: phoneNumber.isEmpty ? nil : phoneNumber,
-                    email: email.isEmpty ? nil : email,
-                    to: vault,
-                    invitedByUserID: userID
-                )
-                
-                print(" Invitation sent successfully")
-                print("   Nominee ID: \(nominee.id)")
-                print("   Nominee Token: \(nominee.inviteToken)")
-                print("   Vault: \(vault.name)")
-                
-                // Copy invitation link to clipboard
-                await MainActor.run {
-                    let invitationURL = "khandoba://nominee/invite?token=\(nominee.inviteToken)"
-                    UIPasteboard.general.string = invitationURL
-                    print("✅ Invitation created and link copied to clipboard")
-                    print("   📋 Link: \(invitationURL)")
-                    
-                    dismiss()
-                }
-            } catch {
-                print(" Failed to send invitation: \(error.localizedDescription)")
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    showError = true
-                    isLoading = false
-                }
-            }
-        }
-    }
-}
+// MARK: - AddNomineeView
+// Nominee invitations are created via AddNomineeView which generates invite links
+// Flow: User taps "+" → AddNomineeView → Create nominee → Get invite link → Share via Messages/Email/etc.
 

@@ -168,7 +168,19 @@ extension URL {
            let utType = UTType(typeID) {
             return utType.preferredMIMEType
         }
-        return nil
+        // Fallback to file extension
+        let ext = pathExtension.lowercased()
+        switch ext {
+        case "jpg", "jpeg": return "image/jpeg"
+        case "png": return "image/png"
+        case "heic": return "image/heic"
+        case "gif": return "image/gif"
+        case "mp4": return "video/mp4"
+        case "mov": return "video/quicktime"
+        case "pdf": return "application/pdf"
+        case "txt": return "text/plain"
+        default: return "application/octet-stream"
+        }
     }
 }
 

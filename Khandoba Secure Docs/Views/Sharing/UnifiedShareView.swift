@@ -9,6 +9,7 @@ import SwiftData
 import Contacts
 import MessageUI
 import Combine
+import UIKit
 
 enum ShareMode {
     case nominee
@@ -28,12 +29,10 @@ struct UnifiedShareView: View {
     @StateObject private var nomineeService = NomineeService()
     @State private var selectedContacts: [CNContact] = []
     @State private var showContactPicker = false
-    @State private var showMessageComposer = false
     @State private var accessLevel: NomineeAccessLevel = .view
     @State private var isProcessing = false
     @State private var showError = false
     @State private var errorMessage = ""
-    @State private var createdNominees: [Nominee] = []
     
     // Computed properties to avoid type-checking timeout
     private var selectedPhoneNumbers: [String] {
@@ -42,25 +41,12 @@ struct UnifiedShareView: View {
         }
     }
     
-    private var invitationMessage: String {
-        if mode == .nominee {
-            if !createdNominees.isEmpty {
-                // Generate message with all tokens
-                let tokens = createdNominees.compactMap { $0.inviteToken }
-                let deepLinks = tokens.map { "khandoba://invite?token=\($0)" }.joined(separator: "\n")
-                return "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it.\n\nTap to accept:\n\(deepLinks)\n\nOr download the app from the App Store!"
-            } else {
-                return "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it. Download the app from the App Store!"
-            }
-        } else {
-            return "You've been offered ownership of vault '\(vault.name)' in Khandoba Secure Docs. Accept to become the new owner. Download the app!"
-        }
-    }
+    // Removed invitationMessage - using iMessage extension instead
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         
-        NavigationView {
+        NavigationStack {
             ZStack {
                 colors.background
                     .ignoresSafeArea()
@@ -206,17 +192,17 @@ struct UnifiedShareView: View {
                                 .padding(.horizontal)
                             }
                             
-                            // Send Button
+                            // Send Button - Opens Messages app to use iMessage extension
                             Button {
                                 if mode == .nominee {
-                                    sendInvitationsAndAddNominees()
+                                    openMessagesForNomineeInvitation()
                                 } else {
                                     transferOwnership()
                                 }
                             } label: {
                                 HStack {
-                                    Image(systemName: "paperplane.fill")
-                                    Text(mode == .nominee ? "Send Invitations & Add Nominees" : "Transfer Ownership")
+                                    Image(systemName: "message.fill")
+                                    Text(mode == .nominee ? "Open Messages to Send Invitation" : "Transfer Ownership")
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
@@ -245,32 +231,38 @@ struct UnifiedShareView: View {
                 ContactPickerView(
                     vault: vault,
                     onContactsSelected: { contacts in
-                        selectedContacts = contacts
+                        // Add selected contacts to the list
+                        // CNContactPickerViewController typically returns one contact at a time
+                        print("📱 Contact picker selected \(contacts.count) contact(s)")
+                        for contact in contacts {
+                            // Check if contact already selected to avoid duplicates
+                            if !selectedContacts.contains(where: { $0.identifier == contact.identifier }) {
+                                selectedContacts.append(contact)
+                                print("   ✅ Added contact: \(contact.givenName) \(contact.familyName)")
+                            } else {
+                                print("   ⚠️ Contact already selected: \(contact.givenName) \(contact.familyName)")
+                            }
+                        }
+                        print("   📋 Total selected contacts: \(selectedContacts.count)")
+                        // Only close the contact picker, keep UnifiedShareView open
+                        // Use a small delay to ensure the picker dismisses first
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         showContactPicker = false
+                        }
                     },
                     onDismiss: {
+                        // Only dismiss the picker, not the main UnifiedShareView
                         showContactPicker = false
                     }
                 )
+                .interactiveDismissDisabled(false) // Allow contact picker to dismiss
             }
+            .interactiveDismissDisabled(true) // Prevent UnifiedShareView from being dismissed accidentally
             .onAppear {
                 // Configure nominee service
                 nomineeService.configure(modelContext: modelContext)
             }
-            .sheet(isPresented: $showMessageComposer) {
-                if !selectedContacts.isEmpty && !selectedPhoneNumbers.isEmpty {
-                    MessageComposeView(
-                        recipients: selectedPhoneNumbers,
-                        message: invitationMessage,
-                        onDismiss: {
-                            showMessageComposer = false
-                            selectedContacts = []
-                            createdNominees = []
-                            dismiss()
-                        }
-                    )
-                }
-            }
+            // Removed MessageComposeView sheet - using iMessage extension instead
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -309,8 +301,20 @@ struct UnifiedShareView: View {
                 modelContext.insert(transferNominee)
                 try modelContext.save()
                 
-                // Show iMessage composer
-                showMessageComposer = true
+                // For transfer, also use iMessage extension
+                // Open Messages app
+                #if !APP_EXTENSION
+                if let messagesURL = URL(string: "sms:") {
+                    UIApplication.shared.open(messagesURL) { success in
+                        if success {
+                            print("✅ Opened Messages app for transfer")
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                dismiss()
+                            }
+                        }
+                    }
+                }
+                #endif
                 
             } catch {
                 errorMessage = error.localizedDescription
@@ -320,53 +324,26 @@ struct UnifiedShareView: View {
         }
     }
     
-    private func sendInvitationsAndAddNominees() {
-        isProcessing = true
-        
-        Task {
-            do {
-                guard let currentUser = authService.currentUser else {
-                    throw AppError.authenticationFailed("User not authenticated")
-                }
-                
-                // 1. Create nominees for each contact using NomineeService
-                var created: [Nominee] = []
-                for contact in selectedContacts {
-                    let fullName = "\(contact.givenName) \(contact.familyName)"
-                    let phoneNumber = contact.phoneNumbers.first?.value.stringValue
-                    let email = contact.emailAddresses.first?.value as String?
-                    
-                    let nominee = try await nomineeService.inviteNominee(
-                        name: fullName,
-                        phoneNumber: phoneNumber,
-                        email: email,
-                        to: vault,
-                        invitedByUserID: currentUser.id
-                    )
-                    created.append(nominee)
-                }
-                
-                // Store created nominees for message generation
-                await MainActor.run {
-                    createdNominees = created
-                }
-                
-                // Small delay to ensure CloudKit sync starts
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                
-                // 2. Send iMessage invitations
-                await MainActor.run {
-                showMessageComposer = true
-                isProcessing = false
-                }
-            } catch {
-                await MainActor.run {
-                errorMessage = error.localizedDescription
+    private func openMessagesForNomineeInvitation() {
+        #if !APP_EXTENSION
+        // Open Messages app - user will use iMessage extension to send invitations
+        // The iMessage extension will handle creating nominees and sending invitations
+        if let messagesURL = URL(string: "sms:") {
+            UIApplication.shared.open(messagesURL) { success in
+                if success {
+                    print("✅ Opened Messages app - user can now use Khandoba extension")
+                    // Dismiss this view after opening Messages
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        dismiss()
+                    }
+                } else {
+                    print("❌ Failed to open Messages app")
+                    errorMessage = "Failed to open Messages app. Please open it manually and use the Khandoba extension."
                 showError = true
-                isProcessing = false
                 }
             }
         }
+        #endif
     }
 }
 
