@@ -96,7 +96,6 @@ final class UserRole {
     var assignedAt: Date = Date()
     var isActive: Bool = true
     
-    @Relationship(inverse: \User.roles)
     var user: User?
     
     var role: Role {

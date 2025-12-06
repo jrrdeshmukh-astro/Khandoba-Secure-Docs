@@ -40,7 +40,7 @@ struct NomineeManagementView: View {
                     } else {
                         LazyVStack(spacing: UnifiedTheme.Spacing.sm) {
                             ForEach(nomineeService.nominees) { nominee in
-                                NomineeRow(nominee: nominee) {
+                                NomineeRow(nominee: nominee, vault: vault) {
                                     await removeNominee(nominee)
                                 }
                             }
@@ -67,6 +67,12 @@ struct NomineeManagementView: View {
         }
         .task {
             nomineeService.configure(modelContext: modelContext)
+            
+            // Configure chat service
+            if let userID = authService.currentUser?.id {
+                chatService.configure(modelContext: modelContext, userID: userID)
+            }
+            
             do {
                 try await nomineeService.loadNominees(for: vault)
             } catch {
@@ -94,10 +100,12 @@ struct NomineeManagementView: View {
 
 struct NomineeRow: View {
     let nominee: Nominee
+    let vault: Vault
     let onRemove: () async -> Void
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var chatService: ChatService
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -130,6 +138,16 @@ struct NomineeRow: View {
                 }
                 
                 Spacer()
+                
+                // Chat button (only for accepted/active nominees)
+                if nominee.status == "accepted" || nominee.status == "active" {
+                    NavigationLink {
+                        SecureNomineeChatView(vault: vault, nominee: nominee)
+                    } label: {
+                        Image(systemName: "message.fill")
+                            .foregroundColor(colors.primary)
+                    }
+                }
                 
                 Button {
                     Task {

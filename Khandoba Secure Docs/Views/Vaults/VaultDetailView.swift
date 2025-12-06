@@ -19,6 +19,7 @@ struct VaultDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var documentService: DocumentService
+    @EnvironmentObject var chatService: ChatService
     
     @State private var isLoading = false
     @State private var showError = false
@@ -230,15 +231,28 @@ struct VaultDetailView: View {
                                     Divider()
                                 }
                                 
+                                NavigationLink {
+                                    NomineeManagementView(vault: vault)
+                                } label: {
+                                    SecurityActionRow(
+                                        icon: "person.badge.plus.fill",
+                                        title: "Manage Nominees",
+                                        subtitle: "Invite, chat, and manage access",
+                                        color: colors.info
+                                    )
+                                }
+                                
+                                Divider()
+                                
                                 Button {
                                     shareMode = .nominee
                                     showShareView = true
                                 } label: {
                                     SecurityActionRow(
-                                        icon: "person.badge.plus.fill",
-                                        title: "Invite Nominees",
-                                        subtitle: "Grant concurrent vault access",
-                                        color: colors.info
+                                        icon: "person.2.fill",
+                                        title: "Invite New Nominee",
+                                        subtitle: "Add someone to this vault",
+                                        color: colors.secondary
                                     )
                                 }
                                 

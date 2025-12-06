@@ -17,7 +17,6 @@ final class ChatMessage {
     var isRead: Bool = false
     var isEncrypted: Bool = true
     
-    @Relationship(inverse: \User.sentMessages)
     var sender: User?
     var senderID: UUID?
     var receiverID: UUID?

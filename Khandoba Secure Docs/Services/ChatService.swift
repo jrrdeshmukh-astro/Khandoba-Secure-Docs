@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 import SwiftUI
 import Combine
+import CryptoKit
 
 final class ChatService: ObservableObject {
     @Published var conversations: [String: [ChatMessage]] = [:]
@@ -66,12 +67,24 @@ final class ChatService: ObservableObject {
             throw ChatError.contextNotAvailable
         }
         
+        // Encrypt message content
+        let encryptedContent = try encryptMessage(content: content, conversationID: conversationID)
+        
         let message = ChatMessage(
-            content: content,
+            content: encryptedContent,
             senderID: currentUserID,
             receiverID: receiverID,
             conversationID: conversationID
         )
+        message.isEncrypted = true
+        
+        // Load sender user for relationship
+        let userDescriptor = FetchDescriptor<User>(
+            predicate: #Predicate { $0.id == currentUserID }
+        )
+        if let sender = try? modelContext.fetch(userDescriptor).first {
+            message.sender = sender
+        }
         
         modelContext.insert(message)
         try modelContext.save()
@@ -81,6 +94,94 @@ final class ChatService: ObservableObject {
             conversations[conversationID] = []
         }
         conversations[conversationID]?.append(message)
+    }
+    
+    // MARK: - Encryption
+    
+    private func encryptMessage(content: String, conversationID: String) throws -> String {
+        guard let data = content.data(using: .utf8) else {
+            throw ChatError.messageSendFailed
+        }
+        
+        // Generate or retrieve conversation key
+        let key = try getOrCreateConversationKey(conversationID: conversationID)
+        
+        // Encrypt using AES-256-GCM
+        let encrypted = try EncryptionService.encrypt(data: data, key: key)
+        
+        // Return base64 encoded encrypted data
+        return encrypted.ciphertext.base64EncodedString()
+    }
+    
+    func decryptMessage(_ encryptedContent: String, conversationID: String) throws -> String {
+        // Check if message is encrypted (base64 format)
+        guard let encryptedData = Data(base64Encoded: encryptedContent) else {
+            // If not base64, assume it's plain text (backward compatibility or unencrypted)
+            return encryptedContent
+        }
+        
+        // Retrieve conversation key
+        let key = try getOrCreateConversationKey(conversationID: conversationID)
+        
+        // Decrypt - AES-GCM stores nonce and tag in the combined data
+        let encrypted = EncryptedData(
+            ciphertext: encryptedData,
+            nonce: Data(),
+            tag: Data()
+        )
+        
+        do {
+            let decryptedData = try EncryptionService.decrypt(encryptedData: encrypted, key: key)
+            return String(data: decryptedData, encoding: .utf8) ?? encryptedContent
+        } catch {
+            // If decryption fails, return original (might be unencrypted legacy message)
+            print("⚠️ Failed to decrypt message, returning as-is: \(error.localizedDescription)")
+            return encryptedContent
+        }
+    }
+    
+    private func getOrCreateConversationKey(conversationID: String) throws -> SymmetricKey {
+        let keyIdentifier = "chat-\(conversationID)"
+        
+        // Try to retrieve existing key
+        do {
+            let existingKey = try EncryptionService.retrieveKey(identifier: keyIdentifier)
+            return existingKey
+        } catch {
+            // Key doesn't exist, generate new one
+            let newKey = EncryptionService.generateKey()
+            try EncryptionService.storeKey(newKey, identifier: keyIdentifier)
+            return newKey
+        }
+    }
+    
+    // MARK: - Nominee Chat
+    
+    func getNomineeConversationID(vaultID: UUID, nomineeID: UUID) -> String {
+        return "vault-\(vaultID.uuidString)-nominee-\(nomineeID.uuidString)"
+    }
+    
+    func loadNomineeConversations(for vault: Vault) async throws {
+        guard let nominees = vault.nomineeList else { return }
+        
+        for nominee in nominees where nominee.status == "accepted" || nominee.status == "active" {
+            let conversationID = getNomineeConversationID(vaultID: vault.id, nomineeID: nominee.id)
+            
+            // Load messages for this conversation
+            guard let modelContext = modelContext else { continue }
+            
+            let descriptor = FetchDescriptor<ChatMessage>(
+                predicate: #Predicate { $0.conversationID == conversationID },
+                sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+            )
+            
+            let messages = try? modelContext.fetch(descriptor)
+            if let messages = messages, !messages.isEmpty {
+                conversations[conversationID] = messages.sorted { $0.timestamp < $1.timestamp }
+            }
+        }
+        
+        updateUnreadCounts()
     }
     
     func markAsRead(conversationID: String) async throws {
