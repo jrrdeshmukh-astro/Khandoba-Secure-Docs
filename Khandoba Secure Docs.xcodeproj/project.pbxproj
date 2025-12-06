@@ -64,6 +64,13 @@
 			);
 			target = 24A78EA02EE4988400B2F32E /* ShareExtension */;
 		};
+		24A78EB12EE4988400B2F32E /* Exceptions for "Khandoba Secure Docs" folder in "ShareExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 24A78EA02EE4988400B2F32E /* ShareExtension */;
+		};
 		24FB38952EDF354C00BA1227 /* Exceptions for "Khandoba Secure Docs" folder in "Khandoba Secure Docs" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -86,6 +93,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				24FB38952EDF354C00BA1227 /* Exceptions for "Khandoba Secure Docs" folder in "Khandoba Secure Docs" target */,
+				24A78EB12EE4988400B2F32E /* Exceptions for "Khandoba Secure Docs" folder in "ShareExtension" target */,
 			);
 			path = "Khandoba Secure Docs";
 			sourceTree = "<group>";
