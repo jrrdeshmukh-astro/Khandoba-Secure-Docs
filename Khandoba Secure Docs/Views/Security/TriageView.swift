@@ -1070,7 +1070,7 @@ struct RemediationSuggestionsCard: View {
         if !leaks.isEmpty {
             remediations.append(Remediation(
                 id: UUID(),
-                priority: .critical,
+                priority: .immediate,
                 title: "Address Data Leaks",
                 description: "Potential data leaks detected. Take immediate action to secure your data.",
                 steps: [
@@ -1087,7 +1087,7 @@ struct RemediationSuggestionsCard: View {
         if leaks.contains(where: { $0.type == .massDeletion }) {
             remediations.append(Remediation(
                 id: UUID(),
-                priority: .critical,
+                priority: .immediate,
                 title: "Stop Mass Deletions",
                 description: "High deletion rate detected. This may indicate unauthorized access or data destruction.",
                 steps: [
@@ -1128,13 +1128,6 @@ struct Remediation: Identifiable {
     let steps: [String]
 }
 
-enum RemediationPriority: Int {
-    case low = 1
-    case medium = 2
-    case high = 3
-    case critical = 4
-}
-
 struct RemediationRow: View {
     let remediation: Remediation
     
@@ -1153,14 +1146,39 @@ struct RemediationRow: View {
                 
                 Spacer()
                 
-                Text(remediation.priority.rawValue == 4 ? "Critical" : remediation.priority.rawValue == 3 ? "High" : "Medium")
+                Text(priorityLabel(for: remediation.priority))
                     .font(theme.typography.caption)
                     .foregroundColor(.white)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(remediation.priority.rawValue == 4 ? colors.error : colors.warning)
+                    .background(priorityColor(for: remediation.priority, colors: colors))
                     .cornerRadius(4)
             }
+            
+            Text(remediation.description)
+                .font(theme.typography.caption)
+                .foregroundColor(colors.textSecondary)
+                .lineLimit(2)
+        }
+    }
+    
+    private func priorityLabel(for priority: RemediationPriority) -> String {
+        switch priority {
+        case .low: return "Low"
+        case .medium: return "Medium"
+        case .high: return "High"
+        case .immediate: return "Immediate"
+        }
+    }
+    
+    private func priorityColor(for priority: RemediationPriority, colors: UnifiedTheme.ColorSet) -> Color {
+        switch priority {
+        case .low: return colors.success
+        case .medium: return colors.warning
+        case .high: return colors.warning
+        case .immediate: return colors.error
+        }
+    }
             
             Text(remediation.description)
                 .font(theme.typography.caption)
