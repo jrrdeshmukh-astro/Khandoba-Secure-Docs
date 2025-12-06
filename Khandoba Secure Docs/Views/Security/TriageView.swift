@@ -1341,24 +1341,4 @@ struct RemediationStepsCard: View {
 }
 
 // MARK: - Secondary Button Style
-
-struct SecondaryButtonStyle: ButtonStyle {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    
-    func makeBody(configuration: Configuration) -> some View {
-        let colors = theme.colors(for: colorScheme)
-        
-        configuration.label
-            .font(theme.typography.body)
-            .foregroundColor(colors.primary)
-            .padding()
-            .background(colors.surface)
-            .cornerRadius(UnifiedTheme.CornerRadius.lg)
-            .overlay(
-                RoundedRectangle(cornerRadius: UnifiedTheme.CornerRadius.lg)
-                    .stroke(colors.primary, lineWidth: 1)
-            )
-            .opacity(configuration.isPressed ? 0.7 : 1.0)
-    }
-}
+// Note: SecondaryButtonStyle is defined in ThemeModifiers.swift
