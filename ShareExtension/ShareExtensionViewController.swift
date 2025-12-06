@@ -41,7 +41,8 @@ class ShareExtensionViewController: UIViewController {
                         self?.extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
                     },
                     onCancel: { [weak self] in
-                        self?.extensionContext?.cancelRequest(completionHandler: nil)
+                        let error = NSError(domain: "ShareExtension", code: 0, userInfo: [NSLocalizedDescriptionKey: "User cancelled"])
+                        self?.extensionContext?.cancelRequest(withError: error)
                     }
                 )
                 
@@ -196,7 +197,8 @@ class ShareExtensionViewController: UIViewController {
     private func showError(_ message: String) {
         let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in
-            self?.extensionContext?.cancelRequest(completionHandler: nil)
+            let error = NSError(domain: "ShareExtension", code: 0, userInfo: [NSLocalizedDescriptionKey: message])
+            self?.extensionContext?.cancelRequest(withError: error)
         })
         present(alert, animated: true)
     }
@@ -514,13 +516,5 @@ struct ShareExtensionView: View {
 }
 
 // MARK: - URL Extension
-
-extension URL {
-    func mimeType() -> String? {
-        if let uti = UTType(filenameExtension: pathExtension) {
-            return uti.preferredMIMEType
-        }
-        return nil
-    }
-}
-
+// Note: mimeType() extension is defined in Khandoba Secure Docs/Utils/DocumentPickerView.swift
+// and is accessible via file system sync, so no need to redeclare it here
