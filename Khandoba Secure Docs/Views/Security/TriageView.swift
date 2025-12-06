@@ -155,7 +155,7 @@ struct TriageView: View {
             for threat in threats {
                 detectedThreats.append(ThreatItem(
                     id: UUID(),
-                    type: .threat,
+                    type: .threat(threat.type),
                     severity: threat.severity,
                     title: threatTypeTitle(threat.type),
                     description: threat.description,
