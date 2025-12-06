@@ -11,6 +11,7 @@ struct NotificationSettingsView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var pushNotificationService: PushNotificationService
     
     @State private var pushNotificationsEnabled = false
     @State private var dualKeyRequestsEnabled = true
@@ -23,6 +24,8 @@ struct NotificationSettingsView: View {
     
     @State private var notificationPermissionStatus: UNAuthorizationStatus = .notDetermined
     @State private var showPermissionAlert = false
+    @State private var deviceToken: String?
+    @State private var isRegistered = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -58,10 +61,58 @@ struct NotificationSettingsView: View {
                                 .font(theme.typography.caption)
                                 .foregroundColor(colors.primary)
                             }
+                            
+                            // Device Token Status
+                            if notificationPermissionStatus == .authorized {
+                                Divider()
+                                    .padding(.vertical, 4)
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: isRegistered ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                            .foregroundColor(isRegistered ? colors.success : colors.warning)
+                                        
+                                        Text("Device Registration")
+                                            .font(theme.typography.caption)
+                                            .foregroundColor(colors.textSecondary)
+                                        
+                                        Spacer()
+                                        
+                                        Text(isRegistered ? "Registered" : "Not Registered")
+                                            .font(theme.typography.caption)
+                                            .foregroundColor(isRegistered ? colors.success : colors.warning)
+                                    }
+                                    
+                                    if let token = deviceToken {
+                                        Text("Token: \(token.prefix(20))...")
+                                            .font(.system(size: 10, design: .monospaced))
+                                            .foregroundColor(colors.textTertiary)
+                                    }
+                                }
+                            }
                         }
                         .padding(.vertical, 4)
                     }
                     .listRowBackground(colors.surface)
+                    
+                    // Test Notification
+                    if notificationPermissionStatus == .authorized {
+                        Section {
+                            Button {
+                                sendTestNotification()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "bell.badge.fill")
+                                        .foregroundColor(colors.primary)
+                                    Text("Send Test Notification")
+                                        .font(theme.typography.body)
+                                        .foregroundColor(colors.textPrimary)
+                                    Spacer()
+                                }
+                            }
+                        }
+                        .listRowBackground(colors.surface)
+                    }
                     
                     // Security Notifications
                     Section("Security Alerts") {
@@ -147,6 +198,13 @@ struct NotificationSettingsView: View {
             .task {
                 await checkNotificationPermission()
                 loadPreferences()
+                updateDeviceTokenStatus()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                Task {
+                    await checkNotificationPermission()
+                    updateDeviceTokenStatus()
+                }
             }
         }
     }
@@ -210,6 +268,33 @@ struct NotificationSettingsView: View {
     private func openAppSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
+        }
+    }
+    
+    private func updateDeviceTokenStatus() {
+        deviceToken = pushNotificationService.deviceToken
+        isRegistered = pushNotificationService.isRegistered
+    }
+    
+    private func sendTestNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Test Notification"
+        content.body = "Push notifications are working! ✅"
+        content.sound = .default
+        content.badge = 1
+        
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to send test notification: \(error.localizedDescription)")
+            } else {
+                print("✅ Test notification sent successfully")
+            }
         }
     }
 }
