@@ -267,7 +267,10 @@ struct NotificationSettingsView: View {
     
     private func openAppSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {
+            // Only open settings in main app, not in extensions
+            #if !APP_EXTENSION
             UIApplication.shared.open(url)
+            #endif
         }
     }
     

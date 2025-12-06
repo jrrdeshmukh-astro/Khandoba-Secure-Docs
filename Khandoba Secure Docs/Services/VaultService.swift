@@ -137,8 +137,9 @@ final class VaultService: ObservableObject {
         accessLog.vault = vault
         
         // Add location data if available
-        let locationService = LocationService()
-        if let location = locationService.currentLocation {
+        let locationService = await MainActor.run { LocationService() }
+        let location = await MainActor.run { locationService.currentLocation }
+        if let location = location {
             accessLog.locationLatitude = location.coordinate.latitude
             accessLog.locationLongitude = location.coordinate.longitude
         }
@@ -183,8 +184,8 @@ final class VaultService: ObservableObject {
                 print("   → Reusing existing request instead of creating duplicate")
                 
                 // Use the existing request for ML processing
-                let approvalService = DualKeyApprovalService()
-                approvalService.configure(modelContext: modelContext)
+                let approvalService = await MainActor.run { DualKeyApprovalService() }
+                await MainActor.run { approvalService.configure(modelContext: modelContext) }
                 
                 do {
                     let decision = try await approvalService.processDualKeyRequest(existingRequest, vault: vault)
@@ -230,8 +231,8 @@ final class VaultService: ObservableObject {
                 //  AUTOMATIC ML-BASED APPROVAL/DENIAL
                 print(" Dual-key request created - initiating ML analysis...")
                 
-                let approvalService = DualKeyApprovalService()
-                approvalService.configure(modelContext: modelContext)
+                let approvalService = await MainActor.run { DualKeyApprovalService() }
+                await MainActor.run { approvalService.configure(modelContext: modelContext) }
                 
                 do {
                     // Process with ML + Formal Logic
@@ -291,10 +292,11 @@ final class VaultService: ObservableObject {
         vault.lastAccessedAt = Date()
         
         // COMPREHENSIVE EVENT LOGGING with timestamp, location, owner
-        let locationService = LocationService()
+        let locationService = await MainActor.run { LocationService() }
         
         // Ensure we have location - request if needed
-        if locationService.currentLocation == nil {
+        let currentLocation = await MainActor.run { locationService.currentLocation }
+        if currentLocation == nil {
             await locationService.requestLocationPermission()
             // Give it a moment to get location
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
@@ -308,7 +310,8 @@ final class VaultService: ObservableObject {
         accessLog.vault = vault
         
         // Add comprehensive location data
-        if let location = locationService.currentLocation {
+        let finalLocation = await MainActor.run { locationService.currentLocation }
+        if let location = finalLocation {
             accessLog.locationLatitude = location.coordinate.latitude
             accessLog.locationLongitude = location.coordinate.longitude
             print("   Location logged: \(location.coordinate.latitude), \(location.coordinate.longitude)")
@@ -336,8 +339,8 @@ final class VaultService: ObservableObject {
         
         // 🔗 INTEGRATION: Open shared vault session for nominees
         if let currentUser = currentUser {
-            let sharedSessionService = SharedVaultSessionService()
-            sharedSessionService.configure(modelContext: modelContext, userID: currentUserID)
+            let sharedSessionService = await MainActor.run { SharedVaultSessionService() }
+            await MainActor.run { sharedSessionService.configure(modelContext: modelContext, userID: currentUserID) }
             try await sharedSessionService.openSharedVault(vault, unlockedBy: currentUser)
             print(" Shared vault session opened - nominees can now access")
             
@@ -445,8 +448,9 @@ final class VaultService: ObservableObject {
         accessLog.vault = vault
         
         // Add location data if available
-        let locationService = LocationService()
-        if let location = locationService.currentLocation {
+        let locationService = await MainActor.run { LocationService() }
+        let location = await MainActor.run { locationService.currentLocation }
+        if let location = location {
             accessLog.locationLatitude = location.coordinate.latitude
             accessLog.locationLongitude = location.coordinate.longitude
         }
@@ -472,8 +476,8 @@ final class VaultService: ObservableObject {
         
         // 🔗 INTEGRATION: Lock shared vault session (notifies all nominees)
         if let currentUser = currentUser {
-            let sharedSessionService = SharedVaultSessionService()
-            sharedSessionService.configure(modelContext: modelContext, userID: currentUserID)
+            let sharedSessionService = await MainActor.run { SharedVaultSessionService() }
+            await MainActor.run { sharedSessionService.configure(modelContext: modelContext, userID: currentUserID) }
             try? await sharedSessionService.lockSharedVault(vault, lockedBy: currentUser)
             print(" Shared vault session locked - nominees notified")
         }
@@ -487,8 +491,9 @@ final class VaultService: ObservableObject {
         accessLog.vault = vault
         
         // Add location data if available
-        let locationService = LocationService()
-        if let location = locationService.currentLocation {
+        let locationService = await MainActor.run { LocationService() }
+        let location = await MainActor.run { locationService.currentLocation }
+        if let location = location {
             accessLog.locationLatitude = location.coordinate.latitude
             accessLog.locationLongitude = location.coordinate.longitude
         }

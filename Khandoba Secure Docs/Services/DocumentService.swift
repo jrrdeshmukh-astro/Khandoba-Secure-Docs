@@ -117,10 +117,11 @@ final class DocumentService: ObservableObject {
         try modelContext.save()
         
         // COMPREHENSIVE EVENT LOGGING - document upload with location
-        let locationService = LocationService()
+        let locationService = await MainActor.run { LocationService() }
         
         // Request and wait for location
-        if locationService.currentLocation == nil {
+        let currentLocation = await MainActor.run { locationService.currentLocation }
+        if currentLocation == nil {
             await locationService.requestLocationPermission()
         }
         
@@ -140,7 +141,8 @@ final class DocumentService: ObservableObject {
         accessLog.vault = vault
         
         // Add comprehensive location data
-        if let location = locationService.currentLocation {
+        let finalLocation = await MainActor.run { locationService.currentLocation }
+        if let location = finalLocation {
             accessLog.locationLatitude = location.coordinate.latitude
             accessLog.locationLongitude = location.coordinate.longitude
             print("   Upload location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
@@ -171,10 +173,11 @@ final class DocumentService: ObservableObject {
         
         // Create access log entry for audit trail BEFORE deletion
         let vault = document.vault
-        let locationService = LocationService()
+        let locationService = await MainActor.run { LocationService() }
         
         // Request location if needed
-        if locationService.currentLocation == nil {
+        let currentLocation = await MainActor.run { locationService.currentLocation }
+        if currentLocation == nil {
             await locationService.requestLocationPermission()
         }
         
@@ -194,7 +197,8 @@ final class DocumentService: ObservableObject {
         accessLog.vault = vault
         
         // Add location data
-        if let location = locationService.currentLocation {
+        let finalLocation = await MainActor.run { locationService.currentLocation }
+        if let location = finalLocation {
             accessLog.locationLatitude = location.coordinate.latitude
             accessLog.locationLongitude = location.coordinate.longitude
         }
@@ -239,7 +243,7 @@ final class DocumentService: ObservableObject {
         
         // Log rename/edit event
         if let vault = document.vault {
-            let locationService = LocationService()
+            let locationService = await MainActor.run { LocationService() }
             await locationService.requestLocationPermission()
             let location = await locationService.getCurrentLocation()
             
