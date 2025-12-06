@@ -231,6 +231,7 @@ struct StoreView: View {
                 Button {
                     Task {
                         // Open Apple's subscription management
+                        #if !APP_EXTENSION
                         if let windowScene = await UIApplication.shared.connectedScenes.first as? UIWindowScene {
                             do {
                                 try await AppStore.showManageSubscriptions(in: windowScene)
@@ -238,6 +239,7 @@ struct StoreView: View {
                                 print(" Failed to show manage subscriptions: \(error)")
                             }
                         }
+                        #endif
                     }
                 } label: {
                     HStack {

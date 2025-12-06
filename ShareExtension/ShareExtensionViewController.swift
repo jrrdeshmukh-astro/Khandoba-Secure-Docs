@@ -465,8 +465,9 @@ struct ShareExtensionView: View {
                 let context = container.mainContext
                 
                 // Reload vault from context
+                let vaultID = vault.id
                 let vaultDescriptor = FetchDescriptor<Vault>(
-                    predicate: #Predicate { $0.id == vault.id }
+                    predicate: #Predicate { vault in vault.id == vaultID }
                 )
                 
                 guard let vaultInContext = try context.fetch(vaultDescriptor).first else {
