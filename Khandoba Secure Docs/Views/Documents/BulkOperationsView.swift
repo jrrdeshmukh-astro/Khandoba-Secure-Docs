@@ -8,6 +8,7 @@
 import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
+import PDFKit
 
 struct BulkUploadView: View {
     let vault: Vault
@@ -19,11 +20,14 @@ struct BulkUploadView: View {
     
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var selectedFiles: [URL] = []
+    @State private var selectedFileData: [URL: Data] = [:] // Store file data for preview
     @State private var isShowingFilePicker = false
     @State private var uploadProgress: [String: Double] = [:]
     @State private var isUploading = false
     @State private var completedUploads = 0
     @State private var failedUploads = 0
+    @State private var showPreview = false
+    @State private var previewFile: URL?
     
     // Computed property to avoid type-checking timeout
     private var allowedFileTypes: [UTType] {
@@ -124,30 +128,98 @@ struct BulkUploadView: View {
                         }
                         .padding(.horizontal)
                         
-                        // Selected Items Count
+                        // Selected Items Preview
                         if totalSelectedCount > 0 {
                             StandardCard {
-                                HStack {
-                                    Image(systemName: totalSelectedCount == selectedPhotos.count ? "photo.stack" : "doc.on.doc.fill")
-                                        .foregroundColor(colors.info)
-                                    
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("\(totalSelectedCount) item\(totalSelectedCount == 1 ? "" : "s") selected")
-                                            .font(theme.typography.subheadline)
-                                            .foregroundColor(colors.textPrimary)
+                                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                                    HStack {
+                                        Image(systemName: totalSelectedCount == selectedPhotos.count ? "photo.stack" : "doc.on.doc.fill")
+                                            .foregroundColor(colors.info)
                                         
-                                        if selectedPhotos.count > 0 && selectedFiles.count > 0 {
-                                            Text("\(selectedPhotos.count) photos, \(selectedFiles.count) files")
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("\(totalSelectedCount) item\(totalSelectedCount == 1 ? "" : "s") selected")
+                                                .font(theme.typography.subheadline)
+                                                .foregroundColor(colors.textPrimary)
+                                            
+                                            if selectedPhotos.count > 0 && selectedFiles.count > 0 {
+                                                Text("\(selectedPhotos.count) photos, \(selectedFiles.count) files")
+                                                    .font(theme.typography.caption)
+                                                    .foregroundColor(colors.textSecondary)
+                                            }
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Text("Premium: Unlimited")
+                                            .font(theme.typography.caption)
+                                            .foregroundColor(colors.success)
+                                    }
+                                    
+                                    // File List Preview
+                                    if !selectedFiles.isEmpty {
+                                        Divider()
+                                        
+                                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                                            Text("Selected Files:")
+                                                .font(theme.typography.caption)
+                                                .foregroundColor(colors.textSecondary)
+                                            
+                                            ForEach(Array(selectedFiles.enumerated()), id: \.offset) { index, url in
+                                                HStack {
+                                                    Image(systemName: iconForFile(url))
+                                                        .foregroundColor(colors.primary)
+                                                        .frame(width: 24)
+                                                    
+                                                    VStack(alignment: .leading, spacing: 2) {
+                                                        Text(url.lastPathComponent)
+                                                            .font(theme.typography.body)
+                                                            .foregroundColor(colors.textPrimary)
+                                                            .lineLimit(1)
+                                                        
+                                                        if let fileSize = getFileSize(url) {
+                                                            Text(fileSize)
+                                                                .font(theme.typography.caption)
+                                                                .foregroundColor(colors.textSecondary)
+                                                        }
+                                                    }
+                                                    
+                                                    Spacer()
+                                                    
+                                                    Button {
+                                                        previewFile = url
+                                                        showPreview = true
+                                                    } label: {
+                                                        Image(systemName: "eye.fill")
+                                                            .foregroundColor(colors.primary)
+                                                    }
+                                                    
+                                                    Button {
+                                                        selectedFiles.remove(at: index)
+                                                        selectedFileData.removeValue(forKey: url)
+                                                    } label: {
+                                                        Image(systemName: "xmark.circle.fill")
+                                                            .foregroundColor(colors.textTertiary)
+                                                    }
+                                                }
+                                                .padding(.vertical, 4)
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Photo Count (if any)
+                                    if !selectedPhotos.isEmpty {
+                                        if !selectedFiles.isEmpty {
+                                            Divider()
+                                        }
+                                        
+                                        HStack {
+                                            Image(systemName: "photo.stack")
+                                                .foregroundColor(colors.primary)
+                                            Text("\(selectedPhotos.count) photo\(selectedPhotos.count == 1 ? "" : "s") selected")
                                                 .font(theme.typography.caption)
                                                 .foregroundColor(colors.textSecondary)
                                         }
                                     }
-                                    
-                                    Spacer()
-                                    
-                                    Text("Premium: Unlimited")
-                                        .font(theme.typography.caption)
-                                        .foregroundColor(colors.success)
                                 }
                             }
                             .padding(.horizontal)
@@ -223,15 +295,41 @@ struct BulkUploadView: View {
                     .background(colors.surface)
                 }
             }
+            .sheet(isPresented: $showPreview) {
+                if let previewFile = previewFile {
+                    FilePreviewSheet(fileURL: previewFile, fileName: previewFile.lastPathComponent)
+                }
+            }
         }
     }
     
     private func handleFileSelection(_ result: Result<[URL], Error>) async {
         switch result {
         case .success(let urls):
+            for url in urls {
+                // Start accessing security-scoped resource
+                guard url.startAccessingSecurityScopedResource() else {
+                    print("⚠️ Failed to access security-scoped resource: \(url.lastPathComponent)")
+                    continue
+                }
+                
+                defer {
+                    url.stopAccessingSecurityScopedResource()
+                }
+                
+                // Load file data for preview
+                if let data = try? Data(contentsOf: url) {
+                    selectedFileData[url] = data
+                    print("✅ Loaded file data: \(url.lastPathComponent) (\(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)))")
+                } else {
+                    print("⚠️ Failed to load file data: \(url.lastPathComponent)")
+                }
+            }
+            
             selectedFiles.append(contentsOf: urls)
+            print("✅ Added \(urls.count) file(s) to selection")
         case .failure(let error):
-            print("File selection failed: \(error)")
+            print("❌ File selection failed: \(error.localizedDescription)")
         }
     }
     
@@ -268,28 +366,52 @@ struct BulkUploadView: View {
                 do {
                     let fileName = url.lastPathComponent
                     
-                    if let data = try? Data(contentsOf: url) {
-                        let fileExtension = url.pathExtension.lowercased()
-                        
-                        // Determine MIME type
-                        let mimeType = mimeTypeForExtension(fileExtension) ?? "application/octet-stream"
-                        
-                        _ = try await documentService.uploadDocument(
-                            data: data,
-                            name: fileName,
-                            mimeType: mimeType,
-                            to: vault,
-                            uploadMethod: .files
-                        )
-                        
-                        completedUploads += 1
-                    } else {
+                    // Start accessing security-scoped resource
+                    guard url.startAccessingSecurityScopedResource() else {
+                        print("❌ Failed to access security-scoped resource: \(fileName)")
                         failedUploads += 1
-                        print("Failed to read file: \(fileName)")
+                        continue
                     }
+                    
+                    defer {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                    
+                    // Try to get data from cache first, otherwise load from URL
+                    let data: Data
+                    if let cachedData = selectedFileData[url] {
+                        data = cachedData
+                        print("📦 Using cached data for: \(fileName)")
+                    } else if let loadedData = try? Data(contentsOf: url) {
+                        data = loadedData
+                        selectedFileData[url] = loadedData
+                        print("📥 Loaded data from URL: \(fileName)")
+                    } else {
+                        print("❌ Failed to read file data: \(fileName)")
+                        failedUploads += 1
+                        continue
+                    }
+                    
+                    let fileExtension = url.pathExtension.lowercased()
+                    
+                    // Determine MIME type
+                    let mimeType = mimeTypeForExtension(fileExtension) ?? "application/octet-stream"
+                    
+                    print("📤 Uploading: \(fileName) (\(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)))")
+                    
+                    _ = try await documentService.uploadDocument(
+                        data: data,
+                        name: fileName,
+                        mimeType: mimeType,
+                        to: vault,
+                        uploadMethod: .files
+                    )
+                    
+                    print("✅ Uploaded: \(fileName)")
+                    completedUploads += 1
                 } catch {
                     failedUploads += 1
-                    print("Upload failed for file \(index): \(error)")
+                    print("❌ Upload failed for file \(index) (\(url.lastPathComponent)): \(error.localizedDescription)")
                 }
             }
             
@@ -341,6 +463,213 @@ struct BulkUploadView: View {
         
         default: return nil
         }
+    }
+    
+    // MARK: - Preview Helpers
+    
+    private func iconForFile(_ url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
+        switch ext {
+        case "pdf": return "doc.fill"
+        case "doc", "docx": return "doc.text.fill"
+        case "xls", "xlsx": return "tablecells.fill"
+        case "ppt", "pptx": return "rectangle.stack.fill"
+        case "jpg", "jpeg", "png", "heic", "gif": return "photo.fill"
+        case "mp4", "mov", "avi": return "video.fill"
+        case "mp3", "m4a", "wav": return "music.note"
+        case "zip", "rar": return "archivebox.fill"
+        case "txt", "rtf": return "text.alignleft"
+        default: return "doc.fill"
+        }
+    }
+    
+    private func getFileSize(_ url: URL) -> String? {
+        // Try to get file size from cached data
+        if let data = selectedFileData[url] {
+            return ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)
+        }
+        
+        // Try to get from file attributes
+        guard url.startAccessingSecurityScopedResource() else { return nil }
+        defer { url.stopAccessingSecurityScopedResource() }
+        
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let size = attributes[.size] as? Int64 {
+            return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        }
+        
+        return nil
+    }
+}
+
+// MARK: - File Preview Sheet
+
+struct FilePreviewSheet: View {
+    let fileURL: URL
+    let fileName: String
+    
+    @Environment(\.dismiss) var dismiss
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    
+    @State private var fileData: Data?
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        NavigationStack {
+            ZStack {
+                colors.background
+                    .ignoresSafeArea()
+                
+                if isLoading {
+                    ProgressView("Loading preview...")
+                } else if let errorMessage = errorMessage {
+                    VStack(spacing: UnifiedTheme.Spacing.md) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                            .foregroundColor(colors.error)
+                        Text("Preview Unavailable")
+                            .font(theme.typography.headline)
+                        Text(errorMessage)
+                            .font(theme.typography.body)
+                            .foregroundColor(colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
+                } else if let data = fileData {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                            // File Info
+                            StandardCard {
+                                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                                    HStack {
+                                        Image(systemName: iconForFile(fileURL))
+                                            .foregroundColor(colors.primary)
+                                        Text(fileName)
+                                            .font(theme.typography.headline)
+                                            .foregroundColor(colors.textPrimary)
+                                    }
+                                    
+                                    Text(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))
+                                        .font(theme.typography.caption)
+                                        .foregroundColor(colors.textSecondary)
+                                }
+                            }
+                            .padding(.horizontal)
+                            
+                            // Preview based on file type
+                            if fileName.lowercased().hasSuffix(".pdf") {
+                                if let pdfDocument = PDFDocument(data: data) {
+                                    PDFKitView(data: data)
+                                        .frame(height: 600)
+                                } else {
+                                    Text("Unable to load PDF")
+                                        .foregroundColor(colors.error)
+                                }
+                            } else if let image = UIImage(data: data) {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxHeight: 400)
+                            } else {
+                                // Text preview
+                                if let text = String(data: data, encoding: .utf8) {
+                                    Text(text)
+                                        .font(theme.typography.body)
+                                        .foregroundColor(colors.textPrimary)
+                                        .padding()
+                                } else {
+                                    Text("Preview not available for this file type")
+                                        .foregroundColor(colors.textSecondary)
+                                        .padding()
+                                }
+                            }
+                        }
+                        .padding(.vertical)
+                    }
+                }
+            }
+            .navigationTitle("Preview")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+            }
+            .task {
+                await loadFileData()
+            }
+        }
+    }
+    
+    private func loadFileData() async {
+        isLoading = true
+        
+        guard fileURL.startAccessingSecurityScopedResource() else {
+            await MainActor.run {
+                errorMessage = "Unable to access file"
+                isLoading = false
+            }
+            return
+        }
+        
+        defer {
+            fileURL.stopAccessingSecurityScopedResource()
+        }
+        
+        do {
+            let data = try Data(contentsOf: fileURL)
+            await MainActor.run {
+                fileData = data
+                isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                isLoading = false
+            }
+        }
+    }
+    
+    private func iconForFile(_ url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
+        switch ext {
+        case "pdf": return "doc.fill"
+        case "doc", "docx": return "doc.text.fill"
+        case "xls", "xlsx": return "tablecells.fill"
+        case "ppt", "pptx": return "rectangle.stack.fill"
+        case "jpg", "jpeg", "png", "heic", "gif": return "photo.fill"
+        default: return "doc.fill"
+        }
+    }
+}
+
+// MARK: - PDFKit View for Preview
+
+struct PDFKitView: UIViewRepresentable {
+    let data: Data
+    
+    func makeUIView(context: Context) -> PDFView {
+        let pdfView = PDFView()
+        pdfView.autoScales = true
+        pdfView.displayMode = .singlePageContinuous
+        pdfView.displayDirection = .vertical
+        
+        if let pdfDocument = PDFDocument(data: data) {
+            pdfView.document = pdfDocument
+        }
+        
+        return pdfView
+    }
+    
+    func updateUIView(_ uiView: PDFView, context: Context) {
+        // Updates handled by PDFView
     }
 }
 
