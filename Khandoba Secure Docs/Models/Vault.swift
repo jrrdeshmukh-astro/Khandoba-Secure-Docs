@@ -29,7 +29,6 @@ final class Vault {
     var isZeroKnowledge: Bool = true
     
     // Relationships
-    @Relationship(inverse: \User.ownedVaults)
     var owner: User?
     var relationshipOfficerID: UUID? // Admin assigned to this vault
     
