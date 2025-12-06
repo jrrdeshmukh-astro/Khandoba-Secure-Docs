@@ -93,7 +93,6 @@ final class DocumentVersion {
     var encryptedFileData: Data?
     var changes: String?
     
-    @Relationship(inverse: \Document.versions)
     var document: Document?
     
     init(

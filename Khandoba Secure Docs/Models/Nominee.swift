@@ -52,7 +52,6 @@ final class VaultTransferRequest {
     var approvedAt: Date?
     var approverID: UUID?
     
-    @Relationship(inverse: \Vault.transferRequests)
     var vault: Vault?
     var requestedByUserID: UUID?
     
@@ -82,7 +81,6 @@ final class EmergencyAccessRequest {
     var approverID: UUID?
     var expiresAt: Date? // 24 hours from approval
     
-    @Relationship(inverse: \Vault.emergencyRequests)
     var vault: Vault?
     var requesterID: UUID?
     

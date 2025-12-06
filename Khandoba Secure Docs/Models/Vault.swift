@@ -87,9 +87,7 @@ final class VaultSession {
     var isActive: Bool = false
     var wasExtended: Bool = false
     
-    @Relationship(inverse: \Vault.sessions)
     var vault: Vault?
-    @Relationship(inverse: \User.vaultSessions)
     var user: User?
     
     init(
@@ -119,7 +117,6 @@ final class VaultAccessLog {
     var locationLongitude: Double?
     var ipAddress: String?
     
-    @Relationship(inverse: \Vault.accessLogs)
     var vault: Vault?
     
     init(
@@ -152,9 +149,7 @@ final class DualKeyRequest {
     var logicalReasoning: String? // Formal logic explanation
     var decisionMethod: String? // "ml_auto" or "logic_reasoning"
     
-    @Relationship(inverse: \Vault.dualKeyRequests)
     var vault: Vault?
-    @Relationship(inverse: \User.dualKeyRequests)
     var requester: User?
     
     init(

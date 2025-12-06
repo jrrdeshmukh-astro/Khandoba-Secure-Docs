@@ -169,8 +169,58 @@ final class DocumentService: ObservableObject {
     func deleteDocument(_ document: Document) async throws {
         guard let modelContext = modelContext else { return }
         
-        document.status = "deleted"
+        // Create access log entry for audit trail BEFORE deletion
+        let vault = document.vault
+        let locationService = LocationService()
+        
+        // Request location if needed
+        if locationService.currentLocation == nil {
+            await locationService.requestLocationPermission()
+        }
+        
+        // Get current user if not already loaded
+        if currentUser == nil, let userID = currentUserID {
+            let userDescriptor = FetchDescriptor<User>(
+                predicate: #Predicate { $0.id == userID }
+            )
+            currentUser = try? modelContext.fetch(userDescriptor).first
+        }
+        
+        let accessLog = VaultAccessLog(
+            accessType: "deleted",
+            userID: currentUserID,
+            userName: currentUser?.fullName
+        )
+        accessLog.vault = vault
+        
+        // Add location data
+        if let location = locationService.currentLocation {
+            accessLog.locationLatitude = location.coordinate.latitude
+            accessLog.locationLongitude = location.coordinate.longitude
+        }
+        
+        // Log deletion event
+        print("🗑️ Deleting document: \(document.name)")
+        print("   From vault: \(vault?.name ?? "Unknown")")
+        print("   Timestamp: \(Date())")
+        
+        // Insert access log BEFORE deleting document
+        modelContext.insert(accessLog)
+        
+        // Remove document from vault's documents array
+        if let vault = vault, var documents = vault.documents {
+            documents.removeAll { $0.id == document.id }
+            vault.documents = documents
+        }
+        
+        // Actually delete the document from SwiftData/CloudKit
+        // This ensures CloudKit syncs the deletion to other devices
+        modelContext.delete(document)
+        
+        // Save changes (deletion + access log)
         try modelContext.save()
+        
+        print("✅ Document deleted and will sync via CloudKit")
     }
     
     func archiveDocument(_ document: Document) async throws {
