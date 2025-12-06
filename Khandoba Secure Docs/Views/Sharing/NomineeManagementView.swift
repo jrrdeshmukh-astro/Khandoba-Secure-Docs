@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import MessageUI
 
 struct NomineeManagementView: View {
     let vault: Vault
@@ -64,7 +65,7 @@ struct NomineeManagementView: View {
             }
         }
         .sheet(isPresented: $showAddNominee) {
-            AddNomineeView(vault: vault)
+            AddNomineeView(vault: vault, nomineeService: nomineeService)
         }
         .task {
             nomineeService.configure(modelContext: modelContext)
@@ -174,6 +175,7 @@ struct NomineeRow: View {
 
 struct AddNomineeView: View {
     let vault: Vault
+    @ObservedObject var nomineeService: NomineeService
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
@@ -181,13 +183,14 @@ struct AddNomineeView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     
-    @StateObject private var nomineeService = NomineeService()
     @State private var name = ""
     @State private var phoneNumber = ""
     @State private var email = ""
     @State private var isLoading = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showMessageComposer = false
+    @State private var createdNominee: Nominee?
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -212,7 +215,7 @@ struct AddNomineeView: View {
                         }
                         
                         VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                            Text("Phone Number (Optional)")
+                            Text("Phone Number (Required)")
                                 .font(theme.typography.subheadline)
                                 .foregroundColor(colors.textSecondary)
                             
@@ -249,7 +252,7 @@ struct AddNomineeView: View {
                                         .fontWeight(.semibold)
                                 }
                                 
-                                Text("An invitation will be sent via Messages app. The nominee will receive a secure link to accept access to this vault.")
+                                Text("An invitation will be sent via Messages app. Please provide a phone number to send the invitation. The nominee will receive a secure link to accept access to this vault.")
                                     .font(theme.typography.caption)
                                     .foregroundColor(colors.textSecondary)
                             }
@@ -266,7 +269,7 @@ struct AddNomineeView: View {
                             }
                         }
                         .buttonStyle(PrimaryButtonStyle())
-                        .disabled(name.isEmpty || isLoading)
+                        .disabled(name.isEmpty || phoneNumber.isEmpty || isLoading)
                     }
                     .padding(UnifiedTheme.Spacing.lg)
                 }
@@ -286,8 +289,31 @@ struct AddNomineeView: View {
             } message: {
                 Text(errorMessage)
             }
-            .onAppear {
-                nomineeService.configure(modelContext: modelContext)
+            .sheet(isPresented: $showMessageComposer) {
+                if let nominee = createdNominee, !phoneNumber.isEmpty {
+                    let deepLink = "khandoba://invite?token=\(nominee.inviteToken)"
+                    let invitationMessage = """
+                    You've been invited to co-manage a vault in Khandoba Secure Docs!
+                    
+                    Vault: \(vault.name)
+                    Invited by: \(authService.currentUser?.fullName ?? "Vault Owner")
+                    
+                    Tap to accept: \(deepLink)
+                    
+                    Or download Khandoba Secure Docs from the App Store and use this token:
+                    \(nominee.inviteToken)
+                    """
+                    
+                    MessageComposeView(
+                        recipients: [phoneNumber],
+                        message: invitationMessage,
+                        onDismiss: {
+                            showMessageComposer = false
+                            createdNominee = nil
+                            dismiss()
+                        }
+                    )
+                }
             }
         }
     }
@@ -299,10 +325,24 @@ struct AddNomineeView: View {
             return
         }
         
+        // Check if Messages is available
+        guard MFMessageComposeViewController.canSendText() else {
+            errorMessage = "Messages app is not available on this device"
+            showError = true
+            return
+        }
+        
+        // If no phone number provided, show error
+        guard !phoneNumber.isEmpty else {
+            errorMessage = "Please provide a phone number to send the invitation"
+            showError = true
+            return
+        }
+        
         isLoading = true
         Task {
             do {
-                print("📤 Sending invitation to: \(name)")
+                print("📤 Creating nominee invitation for: \(name)")
                 let nominee = try await nomineeService.inviteNominee(
                     name: name,
                     phoneNumber: phoneNumber.isEmpty ? nil : phoneNumber,
@@ -311,7 +351,7 @@ struct AddNomineeView: View {
                     invitedByUserID: userID
                 )
                 
-                print(" Invitation sent successfully")
+                print(" Nominee created successfully")
                 print("   Nominee ID: \(nominee.id)")
                 print("   Nominee Token: \(nominee.inviteToken)")
                 print("   Vault: \(vault.name)")
@@ -320,10 +360,13 @@ struct AddNomineeView: View {
                 try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                 
                 await MainActor.run {
-                    dismiss()
+                    createdNominee = nominee
+                    isLoading = false
+                    // Show message composer to actually send the invitation
+                    showMessageComposer = true
                 }
             } catch {
-                print(" Failed to send invitation: \(error.localizedDescription)")
+                print(" Failed to create nominee: \(error.localizedDescription)")
                 await MainActor.run {
                     errorMessage = error.localizedDescription
                     showError = true

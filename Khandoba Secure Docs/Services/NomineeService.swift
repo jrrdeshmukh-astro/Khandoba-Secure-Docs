@@ -26,7 +26,7 @@ final class NomineeService: ObservableObject {
         self.cloudKitAPI = CloudKitAPIService()
     }
     
-    func loadNominees(for vault: Vault) async throws {
+    func loadNominees(for vault: Vault, includeInactive: Bool = false) async throws {
         isLoading = true
         defer { isLoading = false }
         
@@ -37,14 +37,25 @@ final class NomineeService: ObservableObject {
         
         print(" Loading nominees for vault: \(vault.name) (ID: \(vault.id))")
         
-        // Filter nominees by vault
+        // Filter nominees by vault and optionally exclude inactive ones
         let vaultID = vault.id
-        let descriptor = FetchDescriptor<Nominee>(
+        let descriptor: FetchDescriptor<Nominee>
+        
+        if includeInactive {
+            descriptor = FetchDescriptor<Nominee>(
             predicate: #Predicate { nominee in
                 nominee.vault?.id == vaultID
             },
             sortBy: [SortDescriptor(\.invitedAt, order: .reverse)]
         )
+        } else {
+            descriptor = FetchDescriptor<Nominee>(
+                predicate: #Predicate { nominee in
+                    nominee.vault?.id == vaultID && nominee.status != "inactive"
+                },
+                sortBy: [SortDescriptor(\.invitedAt, order: .reverse)]
+            )
+        }
         
         let fetchedNominees = try modelContext.fetch(descriptor)
         
@@ -75,8 +86,15 @@ final class NomineeService: ObservableObject {
             email: email
         )
         
+        // Set bidirectional relationship
         nominee.vault = vault
         nominee.invitedByUserID = invitedByUserID
+        
+        // Add nominee to vault's nomineeList to maintain relationship
+        if vault.nomineeList == nil {
+            vault.nomineeList = []
+        }
+        vault.nomineeList?.append(nominee)
         
         modelContext.insert(nominee)
         try modelContext.save()
@@ -104,8 +122,8 @@ final class NomineeService: ObservableObject {
             print("   📱 Push notification will be sent to: \(phoneNumber)")
         }
         
-        // Send invitation (placeholder - would use MessageUI in production)
-        await sendInvitation(to: nominee)
+        // Note: Message sending is now handled by the view (MessageComposeView)
+        // The view will show the Messages app composer after nominee creation
         
         // Reload nominees to refresh the list
         print("🔄 Reloading nominees list...")
@@ -119,13 +137,35 @@ final class NomineeService: ObservableObject {
         return nominee
     }
     
-    func removeNominee(_ nominee: Nominee) async throws {
+    func removeNominee(_ nominee: Nominee, permanently: Bool = false) async throws {
         guard let modelContext = modelContext else { return }
         
-        nominee.status = "inactive"
-        try modelContext.save()
+        let vault = nominee.vault
         
-        if let vault = nominee.vault {
+        if permanently {
+            // Permanently delete the nominee
+            // Remove from vault's nomineeList first
+            if let vault = vault {
+                vault.nomineeList?.removeAll { $0.id == nominee.id }
+            }
+            
+            modelContext.delete(nominee)
+            try modelContext.save()
+            
+            print(" Nominee permanently deleted: \(nominee.name)")
+        } else {
+            // Soft delete - mark as inactive
+        nominee.status = "inactive"
+            
+            // Optionally remove from vault's nomineeList (but keep in database)
+            // This is a design choice - keeping it allows viewing inactive nominees
+        try modelContext.save()
+            
+            print(" Nominee marked as inactive: \(nominee.name)")
+        }
+        
+        // Reload the list
+        if let vault = vault {
             try await loadNominees(for: vault)
         }
     }
