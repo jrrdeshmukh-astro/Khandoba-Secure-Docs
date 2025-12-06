@@ -268,18 +268,11 @@ final class SharedVaultSessionService: ObservableObject {
     }
     
     private func sendLocalNotification(title: String, body: String, vaultID: UUID) async {
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
-        content.sound = .default
-        
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
-            content: content,
-            trigger: nil // Immediate
+        // Use PushNotificationService for consistent notification handling
+        PushNotificationService.shared.sendVaultAccessNotification(
+            vaultName: title,
+            openedBy: body
         )
-        
-        try? await UNUserNotificationCenter.current().add(request)
     }
     
     // MARK: - Helpers

@@ -8,10 +8,14 @@
 import SwiftUI
 import SwiftData
 import Combine
+import UserNotifications
 
 @main
 struct Khandoba_Secure_DocsApp: App {
     @StateObject private var authService = AuthenticationService()
+    @StateObject private var pushNotificationService = PushNotificationService.shared
+    
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -75,12 +79,72 @@ struct Khandoba_Secure_DocsApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(authService)
+                .environmentObject(pushNotificationService)
                 .environment(\.unifiedTheme, UnifiedTheme())
                 .onAppear {
                     authService.configure(modelContext: sharedModelContainer.mainContext)
+                    setupPushNotifications()
                 }
                 .preferredColorScheme(.dark) // Force dark theme
         }
         .modelContainer(sharedModelContainer)
+    }
+    
+    private func setupPushNotifications() {
+        Task {
+            do {
+                let granted = try await pushNotificationService.requestAuthorization()
+                if granted {
+                    print("✅ Push notifications enabled")
+                }
+            } catch {
+                print("❌ Push notification setup failed: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+// MARK: - AppDelegate for Push Notifications
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Set notification delegate
+        UNUserNotificationCenter.current().delegate = PushNotificationService.shared
+        return true
+    }
+    
+    // Handle device token registration
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task { @MainActor in
+            PushNotificationService.shared.registerDeviceToken(deviceToken)
+        }
+    }
+    
+    // Handle registration failure
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Task { @MainActor in
+            PushNotificationService.shared.registrationFailed(error: error)
+        }
+    }
+    
+    // Handle remote notification when app is in background
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        Task {
+            let result = await PushNotificationService.shared.handleRemoteNotification(userInfo)
+            completionHandler(result)
+        }
     }
 }

@@ -19,6 +19,9 @@ struct ContentView: View {
     @State private var pendingInviteToken: String?
     @State private var showInvitationView = false
     
+    // Push notification handling
+    @EnvironmentObject var pushNotificationService: PushNotificationService
+    
     var body: some View {
         Group {
             if authService.isLoading {
@@ -59,6 +62,14 @@ struct ContentView: View {
                     showInvitationView = true
                 }
             }
+            
+            // Listen for push notification events
+            setupNotificationObservers()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .nomineeInvitationReceived)) { notification in
+            if let token = notification.userInfo?["token"] as? String {
+                handleNomineeInvitationToken(token)
+            }
         }
     }
     
@@ -68,17 +79,26 @@ struct ContentView: View {
         if url.scheme == "khandoba" && url.host == "invite" {
             if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                let token = components.queryItems?.first(where: { $0.name == "token" })?.value {
-                pendingInviteToken = token
-                
-                // If user is authenticated and setup is complete, show invitation view
-                if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
-                    showInvitationView = true
-                } else {
-                    // Store token for later (after authentication/setup)
-                    UserDefaults.standard.set(token, forKey: "pending_invite_token")
-                }
+                handleNomineeInvitationToken(token)
             }
         }
+    }
+    
+    private func handleNomineeInvitationToken(_ token: String) {
+        pendingInviteToken = token
+        
+        // If user is authenticated and setup is complete, show invitation view
+        if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+            showInvitationView = true
+        } else {
+            // Store token for later (after authentication/setup)
+            UserDefaults.standard.set(token, forKey: "pending_invite_token")
+        }
+    }
+    
+    private func setupNotificationObservers() {
+        // Observer setup is handled by .onReceive modifier
+        // This method can be used for additional setup if needed
     }
     
     /// Check if user needs permissions setup

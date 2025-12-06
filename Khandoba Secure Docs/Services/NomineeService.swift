@@ -67,6 +67,15 @@ final class NomineeService: ObservableObject {
         print("   Status: \(nominee.status)")
         print("   📤 CloudKit sync: Nominee record will sync automatically")
         
+        // Send push notification to nominee (if they have the app installed)
+        // Note: In production, this would be sent via your backend server
+        if let phoneNumber = nominee.phoneNumber {
+            // TODO: Send push notification via backend API
+            // The backend would look up the device token for this phone number
+            // and send a push notification with the invitation token
+            print("   📱 Push notification will be sent to: \(phoneNumber)")
+        }
+        
         // Send invitation (placeholder - would use MessageUI in production)
         await sendInvitation(to: nominee)
         
@@ -151,6 +160,13 @@ final class NomineeService: ObservableObject {
         print("✅ Invitation accepted: \(nominee.name)")
         print("   Vault: \(nominee.vault?.name ?? "Unknown")")
         print("   📤 CloudKit sync: Status update will sync to owner's device")
+        
+        // Send push notification to vault owner
+        // Note: In production, this would be sent via your backend server
+        if let vault = nominee.vault, let owner = vault.owner {
+            // TODO: Send push notification to owner via backend API
+            print("   📱 Push notification will be sent to vault owner: \(owner.fullName)")
+        }
         
         return nominee
     }

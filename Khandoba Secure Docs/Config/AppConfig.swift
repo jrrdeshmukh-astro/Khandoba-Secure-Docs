@@ -22,7 +22,7 @@ struct AppConfig {
     
     // CloudKit API Configuration
     static let cloudKitKeyID = "PR62QK662L"
-    static let cloudKitTeamID = "YOUR_TEAM_ID" // TODO: Set your Apple Developer Team ID
+    static let cloudKitTeamID = "Q5Y8754WU4"
     static let cloudKitKeyPath = "AuthKey_PR62QK662L.p8" // Relative to project root
     
     // Feature Flags

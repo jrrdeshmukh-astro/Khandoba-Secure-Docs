@@ -15,6 +15,7 @@ struct PermissionsSetupView: View {
     @AppStorage("permissions_setup_complete") private var permissionsComplete = false
     
     @StateObject private var locationService = LocationService()
+    @StateObject private var pushNotificationService = PushNotificationService.shared
     @State private var isRequesting = false
     
     var body: some View {
@@ -31,51 +32,52 @@ struct PermissionsSetupView: View {
                     
                     // Header
                     VStack(spacing: UnifiedTheme.Spacing.md) {
-                        Image(systemName: "location.circle.fill")
+                        Image(systemName: "bell.badge.fill")
                             .font(.system(size: 80))
                             .foregroundColor(colors.primary)
                         
-                        Text("Location Access")
+                        Text("Enable Notifications")
                             .font(theme.typography.largeTitle)
                             .foregroundColor(colors.textPrimary)
                             .fontWeight(.bold)
                         
-                        Text("Required for security features")
+                        Text("Get alerts for vault access and invitations")
                             .font(theme.typography.body)
                             .foregroundColor(colors.textSecondary)
+                            .multilineTextAlignment(.center)
                     }
                     
                     // Why we need it
                     VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
-                        Text("Why we need location access:")
+                        Text("Why we need notifications:")
                             .font(theme.typography.headline)
                             .foregroundColor(colors.textPrimary)
                         
                         PermissionReason(
-                            icon: "shield.checkered",
-                            title: "Security Monitoring",
-                            description: "Detect access from unusual locations",
+                            icon: "person.badge.plus",
+                            title: "Nominee Invitations",
+                            description: "Get notified when someone invites you to a vault",
                             colors: colors
                         )
                         
                         PermissionReason(
-                            icon: "map.fill",
-                            title: "Access Map",
-                            description: "Visualize where you access your vaults",
+                            icon: "lock.shield.fill",
+                            title: "Vault Access Alerts",
+                            description: "Know when vaults are opened or locked",
                             colors: colors
                         )
                         
                         PermissionReason(
-                            icon: "exclamationmark.triangle.fill",
-                            title: "Threat Detection",
-                            description: "Alert you to suspicious location changes",
+                            icon: "exclamationmark.shield.fill",
+                            title: "Security Alerts",
+                            description: "Immediate alerts for suspicious activity",
                             colors: colors
                         )
                         
                         PermissionReason(
-                            icon: "chart.xyaxis.line",
-                            title: "ML Risk Analysis",
-                            description: "Analyze geographic patterns for security",
+                            icon: "checkmark.circle.fill",
+                            title: "Status Updates",
+                            description: "Get notified when nominees accept invitations",
                             colors: colors
                         )
                     }
@@ -95,7 +97,7 @@ struct PermissionsSetupView: View {
                                 .fontWeight(.semibold)
                         }
                         
-                        Text("Location data is encrypted and stored only on your device. We never share your location with third parties.")
+                        Text("Notifications are sent only for important events. You can manage notification preferences in Settings.")
                             .font(theme.typography.caption)
                             .foregroundColor(colors.textSecondary)
                             .multilineTextAlignment(.center)
@@ -114,7 +116,7 @@ struct PermissionsSetupView: View {
                                     ProgressView()
                                         .tint(.white)
                                 } else {
-                                    Text("Enable Location Access")
+                                    Text("Enable Notifications")
                                 }
                             }
                             .frame(maxWidth: .infinity)
@@ -140,6 +142,18 @@ struct PermissionsSetupView: View {
         isRequesting = true
         
         Task {
+            // Request push notification permission
+            do {
+                let granted = try await pushNotificationService.requestAuthorization()
+                if granted {
+                    print("✅ Push notification permission granted")
+                } else {
+                    print("⚠️ Push notification permission denied")
+                }
+            } catch {
+                print("❌ Push notification request failed: \(error.localizedDescription)")
+            }
+            
             // Request location permission
             await locationService.requestLocationPermission()
             
@@ -153,7 +167,7 @@ struct PermissionsSetupView: View {
                 isRequesting = false
                 // Mark complete - this will trigger ContentView to move forward
                 permissionsComplete = true
-                print("Location permission granted - tracking started")
+                print("✅ Permissions setup complete")
             }
         }
     }
