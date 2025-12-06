@@ -15,6 +15,7 @@ struct NomineeManagementView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var chatService: ChatService
     
     @StateObject private var nomineeService = NomineeService()
     @State private var showAddNominee = false
