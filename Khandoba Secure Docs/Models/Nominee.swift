@@ -10,14 +10,14 @@ import SwiftData
 
 @Model
 final class Nominee {
-    var id: UUID
+    @Attribute(.unique) var id: UUID
     var name: String
     var phoneNumber: String?
     var email: String?
     var status: String // "pending", "accepted", "active", "inactive"
     var invitedAt: Date
     var acceptedAt: Date?
-    var inviteToken: String
+    @Attribute(.unique) var inviteToken: String  // Unique token for CloudKit sync
     
     var vault: Vault?
     var invitedByUserID: UUID?

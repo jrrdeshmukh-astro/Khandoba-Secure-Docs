@@ -20,6 +20,11 @@ struct AppConfig {
     static let apiBaseURL = "https://api.khandoba.com" // Configure your API endpoint
     static let cloudKitContainer = "iCloud.com.khandoba.securedocs"
     
+    // CloudKit API Configuration
+    static let cloudKitKeyID = "PR62QK662L"
+    static let cloudKitTeamID = "YOUR_TEAM_ID" // TODO: Set your Apple Developer Team ID
+    static let cloudKitKeyPath = "AuthKey_PR62QK662L.p8" // Relative to project root
+    
     // Feature Flags
     static let enableAnalytics = true
     static let enableCrashReporting = true

@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 import MessageUI
 import Combine
+import CloudKit
 
 @MainActor
 final class NomineeService: ObservableObject {
@@ -16,11 +17,13 @@ final class NomineeService: ObservableObject {
     @Published var isLoading = false
     
     private var modelContext: ModelContext?
+    private var cloudKitAPI: CloudKitAPIService?
     
     nonisolated init() {}
     
     func configure(modelContext: ModelContext) {
         self.modelContext = modelContext
+        self.cloudKitAPI = CloudKitAPIService()
     }
     
     func loadNominees(for vault: Vault) async throws {
@@ -58,6 +61,12 @@ final class NomineeService: ObservableObject {
         modelContext.insert(nominee)
         try modelContext.save()
         
+        print("✅ Nominee created: \(nominee.name)")
+        print("   Token: \(nominee.inviteToken)")
+        print("   Vault: \(vault.name)")
+        print("   Status: \(nominee.status)")
+        print("   📤 CloudKit sync: Nominee record will sync automatically")
+        
         // Send invitation (placeholder - would use MessageUI in production)
         await sendInvitation(to: nominee)
         
@@ -82,15 +91,44 @@ final class NomineeService: ObservableObject {
             throw NomineeError.contextNotAvailable
         }
         
+        print("🔍 Loading invitation with token: \(token)")
+        print("   📥 Checking local database and CloudKit sync...")
+        
+        // First, try local SwiftData (CloudKit syncs automatically)
         let descriptor = FetchDescriptor<Nominee>(
             predicate: #Predicate { $0.inviteToken == token }
         )
         
-        guard let nominee = try modelContext.fetch(descriptor).first else {
-            throw NomineeError.invalidToken
+        var nominees = try modelContext.fetch(descriptor)
+        
+        // If not found locally, verify with CloudKit API (for server-side validation)
+        if nominees.isEmpty, let cloudKitAPI = cloudKitAPI {
+            print("   🔄 Not found locally, verifying with CloudKit API...")
+            do {
+                let exists = try await cloudKitAPI.verifyNomineeToken(token)
+                if exists {
+                    print("   ✅ Token verified in CloudKit, waiting for SwiftData sync...")
+                    // Wait a moment for SwiftData to sync
+                    try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                    nominees = try modelContext.fetch(descriptor)
+                }
+            } catch {
+                print("   ⚠️ CloudKit API verification failed: \(error.localizedDescription)")
+                // Continue with local-only search
+            }
         }
         
-        return nominee
+        if let nominee = nominees.first {
+            print("✅ Invitation found: \(nominee.name)")
+            print("   Vault: \(nominee.vault?.name ?? "Unknown")")
+            print("   Status: \(nominee.status)")
+            return nominee
+        } else {
+            print("❌ Invitation not found with token: \(token)")
+            print("   💡 If this is a new invitation, wait a few seconds for CloudKit sync")
+            print("   💡 Make sure both devices are signed into the same iCloud account")
+            throw NomineeError.invalidToken
+        }
     }
     
     func acceptInvite(token: String) async throws -> Nominee? {
@@ -109,6 +147,10 @@ final class NomineeService: ObservableObject {
         nominee.status = "accepted"
         nominee.acceptedAt = Date()
         try modelContext.save()
+        
+        print("✅ Invitation accepted: \(nominee.name)")
+        print("   Vault: \(nominee.vault?.name ?? "Unknown")")
+        print("   📤 CloudKit sync: Status update will sync to owner's device")
         
         return nominee
     }
