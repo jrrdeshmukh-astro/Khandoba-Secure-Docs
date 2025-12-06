@@ -11,6 +11,7 @@ import CoreLocation
 import PDFKit
 import Combine
 import UIKit
+import Vision
 
 struct RedactionView: View {
     let document: Document
@@ -25,6 +26,10 @@ struct RedactionView: View {
     @State private var showSaveConfirm = false
     @State private var autoDetectedPHI: [PHIMatch] = []
     @StateObject private var locationService = LocationService()
+    @State private var isDrawing = false
+    @State private var currentRedactionRect: CGRect = .zero
+    @State private var startPoint: CGPoint = .zero
+    @State private var documentSize: CGSize = .zero
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -55,27 +60,108 @@ struct RedactionView: View {
                 colors.background
                 
                 if document.documentType == "pdf" || document.documentType == "image" {
-                    // Document preview with redaction capability
-                    DocumentPreviewView(document: document)
-                        .overlay(
-                            VStack(spacing: UnifiedTheme.Spacing.sm) {
-                                Spacer()
-                                Text("Tap and drag to mark areas for redaction")
-                                    .font(theme.typography.caption)
-                                    .foregroundColor(.white)
-                                    .padding(8)
-                                    .background(Color.black.opacity(0.7))
-                                    .cornerRadius(8)
-                                    .padding()
+                    GeometryReader { geometry in
+                        // Document preview with redaction capability
+                        DocumentPreviewView(document: document)
+                            .onAppear {
+                                // Get document size for coordinate conversion
+                                if let data = document.encryptedFileData {
+                                    if document.documentType == "image",
+                                       let image = UIImage(data: data) {
+                                        documentSize = image.size
+                                    } else if document.documentType == "pdf",
+                                              let pdf = PDFDocument(data: data),
+                                              let page = pdf.page(at: 0) {
+                                        documentSize = page.bounds(for: .mediaBox).size
+                                    }
+                                }
                             }
-                        )
-                    
-                    // Redaction overlays
-                    ForEach(Array(redactionAreas.enumerated()), id: \.offset) { index, rect in
-                        Rectangle()
-                            .fill(Color.black)
-                            .frame(width: rect.width, height: rect.height)
-                            .position(x: rect.midX, y: rect.midY)
+                            .overlay(
+                                VStack(spacing: UnifiedTheme.Spacing.sm) {
+                                    Spacer()
+                                    Text("Tap and drag to mark areas for redaction")
+                                        .font(theme.typography.caption)
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(Color.black.opacity(0.7))
+                                        .cornerRadius(8)
+                                        .padding()
+                                }
+                            )
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { value in
+                                        if !isDrawing {
+                                            isDrawing = true
+                                            startPoint = value.startLocation
+                                        }
+                                        
+                                        // Calculate rectangle from start to current point
+                                        let minX = min(startPoint.x, value.location.x)
+                                        let minY = min(startPoint.y, value.location.y)
+                                        let maxX = max(startPoint.x, value.location.x)
+                                        let maxY = max(startPoint.y, value.location.y)
+                                        
+                                        currentRedactionRect = CGRect(
+                                            x: minX,
+                                            y: minY,
+                                            width: maxX - minX,
+                                            height: maxY - minY
+                                        )
+                                    }
+                                    .onEnded { value in
+                                        isDrawing = false
+                                        
+                                        // Convert view coordinates to document coordinates
+                                        if documentSize.width > 0 && documentSize.height > 0 {
+                                            let viewSize = geometry.size
+                                            let scaleX = documentSize.width / viewSize.width
+                                            let scaleY = documentSize.height / viewSize.height
+                                            
+                                            let docRect = CGRect(
+                                                x: currentRedactionRect.origin.x * scaleX,
+                                                y: currentRedactionRect.origin.y * scaleY,
+                                                width: currentRedactionRect.width * scaleX,
+                                                height: currentRedactionRect.height * scaleY
+                                            )
+                                            
+                                            // Only add if rectangle is large enough
+                                            if docRect.width > 10 && docRect.height > 10 {
+                                                redactionAreas.append(docRect)
+                                            }
+                                        }
+                                        
+                                        currentRedactionRect = .zero
+                                    }
+                            )
+                        
+                        // Redaction overlays (existing redactions)
+                        ForEach(Array(redactionAreas.enumerated()), id: \.offset) { index, rect in
+                            Rectangle()
+                                .fill(Color.black.opacity(0.7))
+                                .frame(width: rect.width, height: rect.height)
+                                .position(x: rect.midX, y: rect.midY)
+                        }
+                        
+                        // Current drawing rectangle
+                        if isDrawing && currentRedactionRect.width > 0 && currentRedactionRect.height > 0 {
+                            Rectangle()
+                                .stroke(Color.red, lineWidth: 2)
+                                .fill(Color.red.opacity(0.3))
+                                .frame(width: currentRedactionRect.width, height: currentRedactionRect.height)
+                                .position(x: currentRedactionRect.midX, y: currentRedactionRect.midY)
+                        }
+                    }
+                } else {
+                    VStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(colors.warning)
+                        Text("Redaction not supported for this document type")
+                            .font(theme.typography.body)
+                            .foregroundColor(colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding()
                     }
                 }
             }
@@ -87,8 +173,10 @@ struct RedactionView: View {
                     HStack(spacing: UnifiedTheme.Spacing.sm) {
                         ForEach(autoDetectedPHI) { phi in
                             PHIChip(phi: phi) {
-                                // Add to redaction areas when tapped
-                                // TODO: Implement area selection from PHI match
+                                // Auto-redact detected PHI using OCR
+                                Task {
+                                    await redactPHIMatch(phi)
+                                }
                             }
                         }
                     }
@@ -175,6 +263,64 @@ struct RedactionView: View {
         }
         
         autoDetectedPHI = detected
+    }
+    
+    private func redactPHIMatch(_ phi: PHIMatch) async {
+        guard let data = document.encryptedFileData else { return }
+        
+        // Use OCR to find the text location in the image
+        if document.documentType == "image",
+           let image = UIImage(data: data),
+           let cgImage = image.cgImage {
+            
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            let textRequest = VNRecognizeTextRequest { request, error in
+                guard let observations = request.results as? [VNRecognizedTextObservation] else {
+                    return
+                }
+                
+                for observation in observations {
+                    guard let candidate = observation.topCandidates(1).first else { continue }
+                    
+                    if candidate.string.contains(phi.value) {
+                        // Convert Vision coordinates to UIKit coordinates
+                        let boundingBox = observation.boundingBox
+                        let imageSize = image.size
+                        
+                        let rect = CGRect(
+                            x: boundingBox.origin.x * imageSize.width,
+                            y: (1 - boundingBox.origin.y - boundingBox.height) * imageSize.height,
+                            width: boundingBox.width * imageSize.width,
+                            height: boundingBox.height * imageSize.height
+                        )
+                        
+                        Task { @MainActor in
+                            redactionAreas.append(rect)
+                        }
+                        break
+                    }
+                }
+            }
+            
+            textRequest.recognitionLevel = .accurate
+            try? handler.perform([textRequest])
+        } else if document.documentType == "pdf",
+                  let pdf = PDFDocument(data: data) {
+            // For PDF, find text on each page
+            for pageIndex in 0..<pdf.pageCount {
+                guard let page = pdf.page(at: pageIndex),
+                      let pageText = page.string,
+                      pageText.contains(phi.value) else { continue }
+                
+                // Find text selection that matches PHI
+                if let selection = page.selectionForRange(NSRange(location: 0, length: pageText.count)) {
+                    let bounds = selection.bounds(for: page, characterRange: NSRange(location: 0, length: pageText.count))
+                    Task { @MainActor in
+                        redactionAreas.append(bounds)
+                    }
+                }
+            }
+        }
     }
     
     private func applyRedactions() {

@@ -80,6 +80,7 @@ final class RedactionService {
             throw RedactionError.invalidPDF
         }
         
+        // Create a new PDF document
         let redactedPDF = PDFDocument()
         
         for pageIndex in 0..<pdfDocument.pageCount {
@@ -87,24 +88,55 @@ final class RedactionService {
             
             let pageRect = originalPage.bounds(for: .mediaBox)
             
-            // Render page as image
-            let renderer = UIGraphicsImageRenderer(size: pageRect.size)
+            // Render page as image at high resolution
+            let scale: CGFloat = 2.0 // Higher resolution for better quality
+            let imageSize = CGSize(width: pageRect.width * scale, height: pageRect.height * scale)
+            let renderer = UIGraphicsImageRenderer(size: imageSize)
+            
             let pageImage = renderer.image { context in
-                context.cgContext.translateBy(x: 0, y: pageRect.height)
-                context.cgContext.scaleBy(x: 1.0, y: -1.0)
+                context.cgContext.translateBy(x: 0, y: imageSize.height)
+                context.cgContext.scaleBy(x: scale, y: -scale)
                 originalPage.draw(with: .mediaBox, to: context.cgContext)
             }
             
-            // Redact image
-            let redactedImage = redactImage(image: pageImage, redactionAreas: redactionAreas, phiMatches: phiMatches)
+            // Scale redaction areas to match image size
+            let scaledRedactionAreas = redactionAreas.map { rect in
+                CGRect(
+                    x: rect.origin.x * scale,
+                    y: rect.origin.y * scale,
+                    width: rect.width * scale,
+                    height: rect.height * scale
+                )
+            }
             
-            // Convert redacted image to PDF page
-            if let imageData = redactedImage.pngData(),
-               let imagePDF = PDFDocument(data: imageData) {
-                if let imagePage = imagePDF.page(at: 0) {
-                    imagePage.setBounds(pageRect, for: .mediaBox)
-                    redactedPDF.insert(imagePage, at: redactedPDF.pageCount)
-                }
+            // Redact image
+            let redactedImage = redactImage(image: pageImage, redactionAreas: scaledRedactionAreas, phiMatches: phiMatches)
+            
+            // Create PDF page from redacted image
+            guard let cgImage = redactedImage.cgImage else { continue }
+            
+            // Create a new PDF page with the image
+            let pdfData = NSMutableData()
+            let consumer = CGDataConsumer(data: pdfData as CFMutableData)!
+            var mediaBox = pageRect
+            
+            guard let pdfContext = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
+                continue
+            }
+            
+            pdfContext.beginPage(mediaBox: &mediaBox)
+            
+            // Draw the redacted image onto the PDF page
+            pdfContext.draw(cgImage, in: pageRect)
+            
+            pdfContext.endPage()
+            pdfContext.closePDF()
+            
+            // Create PDF page from the rendered data
+            if let pagePDF = PDFDocument(data: pdfData as Data),
+               let imagePage = pagePDF.page(at: 0) {
+                imagePage.setBounds(pageRect, for: .mediaBox)
+                redactedPDF.insert(imagePage, at: redactedPDF.pageCount)
             }
         }
         
