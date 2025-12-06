@@ -72,6 +72,12 @@ final class ShareExtensionService: ObservableObject {
         let documentService = DocumentService()
         documentService.configure(modelContext: modelContext, userID: userID)
         
+        let vaultService = VaultService()
+        vaultService.configure(modelContext: modelContext, userID: userID)
+        
+        // Track which vaults we've opened to avoid duplicate sessions
+        var openedVaults: Set<UUID> = []
+        
         for uploadInfo in uploads {
             guard let vaultIDString = uploadInfo["vaultID"] as? String,
                   let vaultID = UUID(uuidString: vaultIDString),
@@ -92,6 +98,57 @@ final class ShareExtensionService: ObservableObject {
                 continue
             }
             
+            // Open vault session if not already open
+            // For dual-key vaults, this will trigger full ML approval process
+            var vaultAccessGranted = false
+            
+            if !openedVaults.contains(vaultID) {
+                do {
+                    // Check if vault is already open
+                    if vaultService.hasActiveSession(for: vaultID) {
+                        print(" ShareExtensionService: Vault \(vault.name) already has active session")
+                        vaultAccessGranted = true
+                    } else {
+                        print(" ShareExtensionService: Opening vault session for \(vault.name)")
+                        
+                        // For dual-key vaults, this will:
+                        // 1. Create DualKeyRequest
+                        // 2. Process with ML + Formal Logic
+                        // 3. Auto-approve or auto-deny based on security analysis
+                        // 4. Throw VaultError.accessDenied if denied
+                        try await vaultService.openVault(vault)
+                        
+                        print(" ShareExtensionService: Vault session opened successfully")
+                        vaultAccessGranted = true
+                    }
+                    openedVaults.insert(vaultID)
+                } catch VaultError.accessDenied {
+                    print(" ShareExtensionService: ⚠️ ACCESS DENIED for vault \(vault.name)")
+                    print("   ML security analysis denied access - document will NOT be saved")
+                    print("   This is expected behavior for dual-key vaults with suspicious activity")
+                    // Do NOT save document - access was denied
+                    continue
+                } catch VaultError.awaitingApproval {
+                    print(" ShareExtensionService: ⚠️ AWAITING APPROVAL for vault \(vault.name)")
+                    print("   Dual-key request pending - document will NOT be saved until approved")
+                    // Do NOT save document - approval is pending
+                    continue
+                } catch {
+                    print(" ShareExtensionService: ❌ Failed to open vault \(vault.name): \(error.localizedDescription)")
+                    // Unknown error - do not save document for security
+                    continue
+                }
+            } else {
+                // Vault already opened in this batch
+                vaultAccessGranted = true
+            }
+            
+            // Only upload document if vault access was granted
+            guard vaultAccessGranted else {
+                print(" ShareExtensionService: Skipping upload - vault access not granted")
+                continue
+            }
+            
             // Upload document
             do {
                 _ = try await documentService.uploadDocument(
@@ -101,9 +158,9 @@ final class ShareExtensionService: ObservableObject {
                     to: vault,
                     uploadMethod: .shareExtension
                 )
-                print(" ShareExtensionService: Uploaded \(name) to vault \(vault.name)")
+                print(" ShareExtensionService: ✅ Uploaded \(name) to vault \(vault.name)")
             } catch {
-                print(" ShareExtensionService: Failed to upload \(name): \(error.localizedDescription)")
+                print(" ShareExtensionService: ❌ Failed to upload \(name): \(error.localizedDescription)")
             }
         }
         
