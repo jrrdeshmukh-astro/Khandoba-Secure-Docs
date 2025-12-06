@@ -11,32 +11,32 @@ import Combine
 
 @Model
 final class Document {
-    var id: UUID
-    var name: String
+    var id: UUID = UUID()
+    var name: String = ""
     var fileExtension: String?
     var mimeType: String?
-    var fileSize: Int64
-    var createdAt: Date
-    var uploadedAt: Date
+    var fileSize: Int64 = 0
+    var createdAt: Date = Date()
+    var uploadedAt: Date = Date()
     var lastModifiedAt: Date?
     
     // Encryption
     var encryptedFileData: Data?
     var encryptionKeyData: Data?
-    var isEncrypted: Bool
+    var isEncrypted: Bool = true
     
     // Document classification
-    var documentType: String // "image", "pdf", "video", "audio", "text", "other"
+    var documentType: String = "other" // "image", "pdf", "video", "audio", "text", "other"
     var sourceSinkType: String? // "source", "sink", "both"
     
     // Status
-    var isArchived: Bool
-    var isRedacted: Bool
-    var status: String // "active", "archived", "deleted"
+    var isArchived: Bool = false
+    var isRedacted: Bool = false
+    var status: String = "active" // "active", "archived", "deleted"
     
     // Indexing and search
     var extractedText: String?
-    var aiTags: [String]
+    var aiTags: [String] = []
     var fileHash: String?
     var metadata: String? // JSON string for additional metadata
     
@@ -54,7 +54,7 @@ final class Document {
     
     init(
         id: UUID = UUID(),
-        name: String,
+        name: String = "",
         fileExtension: String? = nil,
         mimeType: String? = nil,
         fileSize: Int64 = 0,
@@ -68,7 +68,7 @@ final class Document {
         aiTags: [String] = []
     ) {
         self.id = id
-        self.name = name
+        self.name = name.isEmpty ? "Document" : name
         self.fileExtension = fileExtension
         self.mimeType = mimeType
         self.fileSize = fileSize
@@ -86,18 +86,19 @@ final class Document {
 
 @Model
 final class DocumentVersion {
-    var id: UUID
-    var versionNumber: Int
-    var createdAt: Date
-    var fileSize: Int64
+    var id: UUID = UUID()
+    var versionNumber: Int = 1
+    var createdAt: Date = Date()
+    var fileSize: Int64 = 0
     var encryptedFileData: Data?
     var changes: String?
     
+    @Relationship(inverse: \Document.versions)
     var document: Document?
     
     init(
         id: UUID = UUID(),
-        versionNumber: Int,
+        versionNumber: Int = 1,
         createdAt: Date = Date(),
         fileSize: Int64 = 0,
         changes: String? = nil

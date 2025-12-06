@@ -11,21 +11,22 @@ import Combine
 
 @Model
 final class Nominee {
-    @Attribute(.unique) var id: UUID
-    var name: String
+    var id: UUID = UUID()
+    var name: String = ""
     var phoneNumber: String?
     var email: String?
-    var status: String // "pending", "accepted", "active", "inactive"
-    var invitedAt: Date
+    var status: String = "pending" // "pending", "accepted", "active", "inactive"
+    var invitedAt: Date = Date()
     var acceptedAt: Date?
-    @Attribute(.unique) var inviteToken: String  // Unique token for CloudKit sync
+    var inviteToken: String = UUID().uuidString  // Token for CloudKit sync (uniqueness enforced in app logic)
     
+    @Relationship(inverse: \Vault.nomineeList)
     var vault: Vault?
     var invitedByUserID: UUID?
     
     init(
         id: UUID = UUID(),
-        name: String,
+        name: String = "",
         phoneNumber: String? = nil,
         email: String? = nil,
         status: String = "pending",
@@ -33,7 +34,7 @@ final class Nominee {
         inviteToken: String = UUID().uuidString
     ) {
         self.id = id
-        self.name = name
+        self.name = name.isEmpty ? "Nominee" : name
         self.phoneNumber = phoneNumber
         self.email = email
         self.status = status
@@ -44,14 +45,15 @@ final class Nominee {
 
 @Model
 final class VaultTransferRequest {
-    var id: UUID
-    var requestedAt: Date
-    var status: String // "pending", "approved", "denied", "completed"
+    var id: UUID = UUID()
+    var requestedAt: Date = Date()
+    var status: String = "pending" // "pending", "approved", "denied", "completed"
     var reason: String?
     var newOwnerID: UUID?
     var approvedAt: Date?
     var approverID: UUID?
     
+    @Relationship(inverse: \Vault.transferRequests)
     var vault: Vault?
     var requestedByUserID: UUID?
     
@@ -72,22 +74,23 @@ final class VaultTransferRequest {
 
 @Model
 final class EmergencyAccessRequest {
-    var id: UUID
-    var requestedAt: Date
-    var reason: String
-    var urgency: String // "low", "medium", "high", "critical"
-    var status: String // "pending", "approved", "denied"
+    var id: UUID = UUID()
+    var requestedAt: Date = Date()
+    var reason: String = ""
+    var urgency: String = "medium" // "low", "medium", "high", "critical"
+    var status: String = "pending" // "pending", "approved", "denied"
     var approvedAt: Date?
     var approverID: UUID?
     var expiresAt: Date? // 24 hours from approval
     
+    @Relationship(inverse: \Vault.emergencyRequests)
     var vault: Vault?
     var requesterID: UUID?
     
     init(
         id: UUID = UUID(),
         requestedAt: Date = Date(),
-        reason: String,
+        reason: String = "",
         urgency: String = "medium",
         status: String = "pending"
     ) {

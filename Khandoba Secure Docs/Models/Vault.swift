@@ -11,10 +11,10 @@ import Combine
 
 @Model
 final class Vault {
-    var id: UUID
-    var name: String
+    var id: UUID = UUID()
+    var name: String = ""
     var vaultDescription: String?
-    var createdAt: Date
+    var createdAt: Date = Date()
     var lastAccessedAt: Date?
     var status: String = "locked" // "active", "locked", "archived"
     var keyType: String = "single" // "single", "dual"
@@ -23,12 +23,13 @@ final class Vault {
     
     // Encryption
     var encryptionKeyData: Data?
-    var isEncrypted: Bool
+    var isEncrypted: Bool = true
     
     // Zero-knowledge architecture
-    var isZeroKnowledge: Bool
+    var isZeroKnowledge: Bool = true
     
     // Relationships
+    @Relationship(inverse: \User.ownedVaults)
     var owner: User?
     var relationshipOfficerID: UUID? // Admin assigned to this vault
     
@@ -50,9 +51,12 @@ final class Vault {
     @Relationship(deleteRule: .cascade, inverse: \EmergencyAccessRequest.vault)
     var emergencyRequests: [EmergencyAccessRequest]?
     
+    @Relationship(deleteRule: .cascade, inverse: \VaultTransferRequest.vault)
+    var transferRequests: [VaultTransferRequest]?
+    
     init(
         id: UUID = UUID(),
-        name: String,
+        name: String = "",
         vaultDescription: String? = nil,
         createdAt: Date = Date(),
         status: String = "locked",
@@ -61,7 +65,7 @@ final class Vault {
         isZeroKnowledge: Bool = true
     ) {
         self.id = id
-        self.name = name
+        self.name = name.isEmpty ? "New Vault" : name
         self.vaultDescription = vaultDescription
         self.createdAt = createdAt
         self.status = status
@@ -78,13 +82,15 @@ final class Vault {
 
 @Model
 final class VaultSession {
-    var id: UUID
-    var startedAt: Date
-    var expiresAt: Date
-    var isActive: Bool
-    var wasExtended: Bool
+    var id: UUID = UUID()
+    var startedAt: Date = Date()
+    var expiresAt: Date = Date()
+    var isActive: Bool = false
+    var wasExtended: Bool = false
     
+    @Relationship(inverse: \Vault.sessions)
     var vault: Vault?
+    @Relationship(inverse: \User.vaultSessions)
     var user: User?
     
     init(
@@ -104,9 +110,9 @@ final class VaultSession {
 
 @Model
 final class VaultAccessLog {
-    var id: UUID
-    var timestamp: Date
-    var accessType: String // "opened", "closed", "viewed", "modified", "deleted"
+    var id: UUID = UUID()
+    var timestamp: Date = Date()
+    var accessType: String = "viewed" // "opened", "closed", "viewed", "modified", "deleted"
     var userID: UUID?
     var userName: String?
     var deviceInfo: String?
@@ -114,12 +120,13 @@ final class VaultAccessLog {
     var locationLongitude: Double?
     var ipAddress: String?
     
+    @Relationship(inverse: \Vault.accessLogs)
     var vault: Vault?
     
     init(
         id: UUID = UUID(),
         timestamp: Date = Date(),
-        accessType: String,
+        accessType: String = "viewed",
         userID: UUID? = nil,
         userName: String? = nil,
         deviceInfo: String? = nil
@@ -135,9 +142,9 @@ final class VaultAccessLog {
 
 @Model
 final class DualKeyRequest {
-    var id: UUID
-    var requestedAt: Date
-    var status: String // "pending", "approved", "denied"
+    var id: UUID = UUID()
+    var requestedAt: Date = Date()
+    var status: String = "pending" // "pending", "approved", "denied"
     var reason: String?
     var approvedAt: Date?
     var deniedAt: Date?
@@ -146,7 +153,9 @@ final class DualKeyRequest {
     var logicalReasoning: String? // Formal logic explanation
     var decisionMethod: String? // "ml_auto" or "logic_reasoning"
     
+    @Relationship(inverse: \Vault.dualKeyRequests)
     var vault: Vault?
+    @Relationship(inverse: \User.dualKeyRequests)
     var requester: User?
     
     init(

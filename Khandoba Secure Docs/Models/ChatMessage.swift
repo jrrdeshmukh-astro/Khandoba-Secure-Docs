@@ -11,26 +11,27 @@ import Combine
 
 @Model
 final class ChatMessage {
-    var id: UUID
-    var content: String
-    var timestamp: Date
-    var isRead: Bool
-    var isEncrypted: Bool
+    var id: UUID = UUID()
+    var content: String = ""
+    var timestamp: Date = Date()
+    var isRead: Bool = false
+    var isEncrypted: Bool = true
     
+    @Relationship(inverse: \User.sentMessages)
     var sender: User?
     var senderID: UUID?
     var receiverID: UUID?
-    var conversationID: String // Unique ID for client-admin conversation
+    var conversationID: String = "" // Unique ID for client-admin conversation
     
     init(
         id: UUID = UUID(),
-        content: String,
+        content: String = "",
         timestamp: Date = Date(),
         isRead: Bool = false,
         isEncrypted: Bool = true,
         senderID: UUID? = nil,
         receiverID: UUID? = nil,
-        conversationID: String
+        conversationID: String = ""
     ) {
         self.id = id
         self.content = content

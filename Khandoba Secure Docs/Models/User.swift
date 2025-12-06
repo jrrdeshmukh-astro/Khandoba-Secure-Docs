@@ -11,8 +11,8 @@ import Combine
 
 @Model
 final class User {
-    @Attribute(.unique) var id: UUID
-    @Attribute(.unique) var appleUserID: String
+    var id: UUID = UUID()
+    var appleUserID: String = ""
     var fullName: String = ""
     var email: String?
     var profilePictureData: Data?
@@ -32,14 +32,22 @@ final class User {
     @Relationship(deleteRule: .cascade, inverse: \ChatMessage.sender)
     var sentMessages: [ChatMessage]?
     
+    // Vault sessions
+    @Relationship(deleteRule: .nullify, inverse: \VaultSession.user)
+    var vaultSessions: [VaultSession]?
+    
+    // Dual key requests
+    @Relationship(deleteRule: .nullify, inverse: \DualKeyRequest.requester)
+    var dualKeyRequests: [DualKeyRequest]?
+    
     // Subscription status
     var isPremiumSubscriber: Bool = false
     var subscriptionExpiryDate: Date?
     
     init(
         id: UUID = UUID(),
-        appleUserID: String,
-        fullName: String,
+        appleUserID: String = "",
+        fullName: String = "",
         email: String? = nil,
         profilePictureData: Data? = nil,
         createdAt: Date = Date(),
@@ -47,8 +55,8 @@ final class User {
         isActive: Bool = true
     ) {
         self.id = id
-        self.appleUserID = appleUserID
-        self.fullName = fullName
+        self.appleUserID = appleUserID.isEmpty ? UUID().uuidString : appleUserID
+        self.fullName = fullName.isEmpty ? "User" : fullName
         self.email = email
         self.profilePictureData = profilePictureData
         self.createdAt = createdAt
@@ -57,6 +65,8 @@ final class User {
         self.roles = []
         self.ownedVaults = []
         self.sentMessages = []
+        self.vaultSessions = []
+        self.dualKeyRequests = []
     }
 }
 
@@ -81,11 +91,12 @@ enum Role: String, Codable, CaseIterable {
 
 @Model
 final class UserRole {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
     var roleRawValue: String = "client"
     var assignedAt: Date = Date()
     var isActive: Bool = true
     
+    @Relationship(inverse: \User.roles)
     var user: User?
     
     var role: Role {
