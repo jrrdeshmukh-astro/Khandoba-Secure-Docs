@@ -153,7 +153,7 @@ struct GuidedRemediationWizard: View {
                     isExecutingAction = false
                 }
             } catch {
-                print("❌ Failed to execute action: \(error.localizedDescription)")
+                print(" Failed to execute action: \(error.localizedDescription)")
                 await MainActor.run {
                     isExecutingAction = false
                 }

@@ -135,7 +135,7 @@ final class ChatService: ObservableObject {
             return String(data: decryptedData, encoding: .utf8) ?? encryptedContent
         } catch {
             // If decryption fails, return original (might be unencrypted legacy message)
-            print("⚠️ Failed to decrypt message, returning as-is: \(error.localizedDescription)")
+            print(" Failed to decrypt message, returning as-is: \(error.localizedDescription)")
             return encryptedContent
         }
     }

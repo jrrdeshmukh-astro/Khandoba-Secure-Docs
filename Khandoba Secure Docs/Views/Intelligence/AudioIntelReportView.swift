@@ -185,7 +185,7 @@ struct AudioIntelReportView: View {
         }
         
         do {
-            print("💾 Saving Intel debrief to vault: \(vault.name)")
+            print(" Saving Intel debrief to vault: \(vault.name)")
             
             // Load audio data
             let audioData = try Data(contentsOf: audioURL)
@@ -217,7 +217,7 @@ struct AudioIntelReportView: View {
             modelContext.insert(document)
             try modelContext.save()
             
-            print("✅ Intel debrief saved successfully!")
+            print(" Intel debrief saved successfully!")
             print("   Document: \(document.name)")
             print("   Vault: \(vault.name)")
             print("   Tags: \(document.aiTags.joined(separator: ", "))")
@@ -229,7 +229,7 @@ struct AudioIntelReportView: View {
             dismiss()
             
         } catch {
-            print("❌ Save error: \(error)")
+            print(" Save error: \(error)")
             errorMessage = "Failed to save: \(error.localizedDescription)"
             showError = true
         }

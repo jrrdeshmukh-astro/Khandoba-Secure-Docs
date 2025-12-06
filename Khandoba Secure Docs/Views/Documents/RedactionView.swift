@@ -181,7 +181,7 @@ struct RedactionView: View {
         Task {
             do {
                 guard let originalData = document.encryptedFileData else {
-                    print("❌ No document data to redact")
+                    print(" No document data to redact")
                     return
                 }
                 
@@ -207,7 +207,7 @@ struct RedactionView: View {
                     )
                 } else if document.documentType == "image" {
                     guard let image = UIImage(data: originalData) else {
-                        print("❌ Invalid image data")
+                        print(" Invalid image data")
                         return
                     }
                     
@@ -218,13 +218,13 @@ struct RedactionView: View {
                     )
                     
                     guard let imageData = redactedImage.pngData() else {
-                        print("❌ Failed to convert redacted image to data")
+                        print(" Failed to convert redacted image to data")
                         return
                     }
                     
                     redactedData = imageData
                 } else {
-                    print("⚠️ Redaction not supported for document type: \(document.documentType)")
+                    print(" Redaction not supported for document type: \(document.documentType)")
                     return
                 }
                 
@@ -235,7 +235,7 @@ struct RedactionView: View {
                 )
                 
                 if !verified {
-                    print("⚠️ Redaction verification failed - PHI may still be present")
+                    print(" Redaction verification failed - PHI may still be present")
                 }
                 
                 // Update document with redacted data
@@ -277,14 +277,14 @@ struct RedactionView: View {
                 
                 try modelContext.save()
                 
-                print("✅ Redactions applied: \(redactionAreas.count) areas, \(autoDetectedPHI.count) PHI matches")
+                print(" Redactions applied: \(redactionAreas.count) areas, \(autoDetectedPHI.count) PHI matches")
                 
                 await MainActor.run {
                     dismiss()
                 }
                 
             } catch {
-                print("❌ Redaction failed: \(error.localizedDescription)")
+                print(" Redaction failed: \(error.localizedDescription)")
             }
         }
     }

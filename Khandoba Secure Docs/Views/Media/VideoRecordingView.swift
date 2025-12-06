@@ -177,17 +177,17 @@ struct VideoRecordingView: View {
     
     private func saveVideo(_ url: URL) async {
         do {
-            print("🎥 Saving video recording...")
+            print(" Saving video recording...")
             
             // Load video data
             let data = try Data(contentsOf: url)
             let fileName = "video_\(Date().timeIntervalSince1970).mp4"
             
-            print("   📊 File size: \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))")
-            print("   ⏱️ Duration: \(formatDuration(recordingDuration))")
+            print("    File size: \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))")
+            print("    Duration: \(formatDuration(recordingDuration))")
             
-            // 🤖 GENERATE AI TAGS FOR VIDEO
-            print("   🤖 Generating AI tags...")
+            //  GENERATE AI TAGS FOR VIDEO
+            print("    Generating AI tags...")
             let tags = await NLPTaggingService.generateTags(
                 for: data,
                 mimeType: "video/mp4",
@@ -195,9 +195,9 @@ struct VideoRecordingView: View {
             )
             
             if !tags.isEmpty {
-                print("   ✅ Generated \(tags.count) AI tags: \(tags.joined(separator: ", "))")
+                print("    Generated \(tags.count) AI tags: \(tags.joined(separator: ", "))")
             } else {
-                print("   ℹ️ No AI tags generated")
+                print("    No AI tags generated")
             }
             
             // Upload with AI tags
@@ -215,10 +215,10 @@ struct VideoRecordingView: View {
                 print("   📝 AI tags applied to document")
             }
             
-            print("   ✅ Video saved successfully to vault: \(vault.name)")
+            print("    Video saved successfully to vault: \(vault.name)")
             dismiss()
         } catch {
-            print("❌ Error saving video: \(error)")
+            print(" Error saving video: \(error)")
         }
     }
 }

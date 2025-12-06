@@ -175,7 +175,7 @@ struct SecureNomineeChatView: View {
                     conversationID: conversationID
                 )
             } catch {
-                print("❌ Failed to send message: \(error.localizedDescription)")
+                print(" Failed to send message: \(error.localizedDescription)")
             }
             isLoading = false
         }
@@ -195,7 +195,7 @@ struct SecurityWarningBanner: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundColor(colors.error)
             
-            Text("⚠️ Screen recording detected - Chat may be compromised")
+            Text("Screen recording detected - Chat may be compromised")
                 .font(theme.typography.caption)
                 .foregroundColor(colors.error)
             

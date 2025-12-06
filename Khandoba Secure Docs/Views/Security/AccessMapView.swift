@@ -328,7 +328,7 @@ struct AccessMapView: View {
         }
         
         allAnnotations.append(contentsOf: requestAnnotations)
-        print("   ✅ Loaded \(requestAnnotations.count) dual-key requests")
+        print("    Loaded \(requestAnnotations.count) dual-key requests")
         
         // 3. DOCUMENT ACTIONS (preview, edit, rename, redact)
         var documentActionAnnotations: [AccessAnnotation] = []

@@ -279,7 +279,7 @@ struct NotificationSettingsView: View {
     private func sendTestNotification() {
         let content = UNMutableNotificationContent()
         content.title = "Test Notification"
-        content.body = "Push notifications are working! ✅"
+        content.body = "Push notifications are working!"
         content.sound = .default
         content.badge = 1
         
@@ -291,9 +291,9 @@ struct NotificationSettingsView: View {
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to send test notification: \(error.localizedDescription)")
+                print(" Failed to send test notification: \(error.localizedDescription)")
             } else {
-                print("✅ Test notification sent successfully")
+                print(" Test notification sent successfully")
             }
         }
     }

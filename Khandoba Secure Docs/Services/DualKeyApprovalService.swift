@@ -240,7 +240,7 @@ final class DualKeyApprovalService: ObservableObject {
             let timeWindow = recentLogs.first!.timestamp.timeIntervalSince(recentLogs.last!.timestamp)
             if timeWindow < 60 { // 5 attempts in 1 minute
                 score += 25
-                print("   ⚠️ Rapid access detected: 5 attempts in \(Int(timeWindow))s")
+                print("    Rapid access detected: 5 attempts in \(Int(timeWindow))s")
             }
         }
         
@@ -248,7 +248,7 @@ final class DualKeyApprovalService: ObservableObject {
         let failedAttempts = logs.filter { $0.accessType == "failed" }.count
         if failedAttempts > 3 {
             score += Double(failedAttempts) * 5
-            print("   ⚠️ Failed attempts: \(failedAttempts)")
+            print("    Failed attempts: \(failedAttempts)")
         }
         
         // Night access frequency
@@ -257,7 +257,7 @@ final class DualKeyApprovalService: ObservableObject {
             let nightPercentage = Double(nightAccess.count) / Double(logs.count)
             if nightPercentage > 0.5 {
                 score += 20
-                print("   ⚠️ High night access: \(Int(nightPercentage * 100))%")
+                print("    High night access: \(Int(nightPercentage * 100))%")
             }
         }
         
@@ -270,7 +270,7 @@ final class DualKeyApprovalService: ObservableObject {
         var risk: Double = 0.0
         
         guard let currentLocation = locationService.currentLocation else {
-            print("   ⚠️ No location data available")
+            print("    No location data available")
             return 50.0 // Unknown location = medium risk
         }
         
@@ -281,7 +281,7 @@ final class DualKeyApprovalService: ObservableObject {
         let userLocations = getUserTypicalLocations(vault: vault)
         
         if userLocations.isEmpty {
-            print("   ⚠️ No baseline locations established")
+            print("    No baseline locations established")
             return 30.0 // New vault, moderate risk
         }
         
@@ -295,7 +295,7 @@ final class DualKeyApprovalService: ObservableObject {
             minDistance = min(minDistance, distance)
         }
         
-        print("   📍 Distance from typical location: \(String(format: "%.1f", minDistance)) km")
+        print("    Distance from typical location: \(String(format: "%.1f", minDistance)) km")
         
         // Risk based on distance
         if minDistance < 10 {
@@ -308,7 +308,7 @@ final class DualKeyApprovalService: ObservableObject {
             risk += 40 // Different city
         } else {
             risk += 60 // International/very far
-            print("   ⚠️ Access from unusual location: \(String(format: "%.1f", minDistance)) km away")
+            print("    Access from unusual location: \(String(format: "%.1f", minDistance)) km away")
         }
         
         // Check for impossible travel
@@ -324,7 +324,7 @@ final class DualKeyApprovalService: ObservableObject {
             
             if travelDistance > impossibleTravelThreshold && timeSinceLastAccess < 1 {
                 risk += 40
-                print("   🚨 IMPOSSIBLE TRAVEL: \(String(format: "%.0f", travelDistance)) km in \(String(format: "%.1f", timeSinceLastAccess)) hours")
+                print("    IMPOSSIBLE TRAVEL: \(String(format: "%.0f", travelDistance)) km in \(String(format: "%.1f", timeSinceLastAccess)) hours")
             }
         }
         
@@ -349,7 +349,7 @@ final class DualKeyApprovalService: ObservableObject {
         // New user requesting access
         if userLogs.isEmpty {
             score += 30
-            print("   ⚠️ First-time access request from this user")
+            print("    First-time access request from this user")
         }
         
         // Access frequency pattern
@@ -359,13 +359,13 @@ final class DualKeyApprovalService: ObservableObject {
             // Too frequent (potential bot/automated)
             if avgDaysBetweenAccess < 0.1 { // Multiple times per day
                 score += 20
-                print("   ⚠️ Unusually frequent access pattern")
+                print("    Unusually frequent access pattern")
             }
             
             // Too infrequent (dormant account suddenly active)
             if avgDaysBetweenAccess > 30 && userLogs.count > 5 {
                 score += 15
-                print("   ⚠️ Dormant account suddenly active")
+                print("    Dormant account suddenly active")
             }
         }
         
@@ -375,7 +375,7 @@ final class DualKeyApprovalService: ObservableObject {
         
         if !userTypicalHours.contains(currentHour) && userTypicalHours.count > 5 {
             score += 15
-            print("   ⚠️ Access at unusual time for this user")
+            print("    Access at unusual time for this user")
         }
         
         // Device/platform consistency
@@ -533,7 +533,7 @@ final class DualKeyApprovalService: ObservableObject {
             decision.reason = reasoning
             decision.logicalReasoning = reasoning
             
-            print("   ✅ APPROVED: Score \(String(format: "%.1f", mlScore)) < \(autoApproveThreshold)")
+            print("    APPROVED: Score \(String(format: "%.1f", mlScore)) < \(autoApproveThreshold)")
             
         } else {
             // DENY with simple explanation
@@ -588,7 +588,7 @@ final class DualKeyApprovalService: ObservableObject {
             decision.reason = reasoning
             decision.logicalReasoning = reasoning
             
-            print("   🚫 DENIED: Score \(String(format: "%.1f", mlScore)) ≥ \(autoApproveThreshold)")
+            print("    DENIED: Score \(String(format: "%.1f", mlScore)) ≥ \(autoApproveThreshold)")
         }
         
         return decision

@@ -29,7 +29,7 @@ final class FormalLogicEngine: ObservableObject {
     func applyDeductiveReasoning() -> [LogicalInference] {
         var inferences: [LogicalInference] = []
         
-        print("🔍 Deductive Reasoning: Applying syllogistic logic")
+        print(" Deductive Reasoning: Applying syllogistic logic")
         
         // Modus Ponens: If P then Q. P is true. Therefore Q is true.
         // Example: If confidential, then needs encryption. Document is confidential. → Needs encryption.
@@ -92,7 +92,7 @@ final class FormalLogicEngine: ObservableObject {
         // Example: Document is source OR sink. Not source. → Is sink.
         
         self.deductiveInferences = inferences
-        print("   ✅ Generated \(inferences.count) deductive inferences")
+        print("    Generated \(inferences.count) deductive inferences")
         return inferences
     }
     
@@ -103,7 +103,7 @@ final class FormalLogicEngine: ObservableObject {
     func applyInductiveReasoning() -> [LogicalInference] {
         var inferences: [LogicalInference] = []
         
-        print("🔍 Inductive Reasoning: Pattern generalization")
+        print(" Inductive Reasoning: Pattern generalization")
         
         // Enumerative Induction: Observe many instances, generalize
         // Example: 10 documents from John all confidential → John only sends confidential docs
@@ -166,7 +166,7 @@ final class FormalLogicEngine: ObservableObject {
         // Example: Accessed Mon-Fri 9-5 for 30 days → Will access Mon-Fri 9-5 tomorrow
         
         self.inductiveInferences = inferences
-        print("   ✅ Generated \(inferences.count) inductive inferences")
+        print("    Generated \(inferences.count) inductive inferences")
         return inferences
     }
     
@@ -177,7 +177,7 @@ final class FormalLogicEngine: ObservableObject {
     func applyAbductiveReasoning() -> [LogicalInference] {
         var inferences: [LogicalInference] = []
         
-        print("🔍 Abductive Reasoning: Finding best explanations")
+        print(" Abductive Reasoning: Finding best explanations")
         
         // Effect → Cause inference
         // Example: Night access spike → Likely unauthorized access OR deadline pressure
@@ -258,7 +258,7 @@ final class FormalLogicEngine: ObservableObject {
         }
         
         self.abductiveInferences = inferences
-        print("   ✅ Generated \(inferences.count) abductive inferences")
+        print("    Generated \(inferences.count) abductive inferences")
         return inferences
     }
     
@@ -268,7 +268,7 @@ final class FormalLogicEngine: ObservableObject {
     func applyAnalogicalReasoning() -> [LogicalInference] {
         var inferences: [LogicalInference] = []
         
-        print("🔍 Analogical Reasoning: Similarity-based inference")
+        print(" Analogical Reasoning: Similarity-based inference")
         
         // Find similar documents and transfer properties
         // Example: Doc A similar to Doc B. Doc B needs dual-key. → Doc A probably needs dual-key too.
@@ -315,7 +315,7 @@ final class FormalLogicEngine: ObservableObject {
         // Example: Previous breach had patterns X,Y,Z. Current situation shows X,Y. → Probably Z too.
         
         self.analogicalInferences = inferences
-        print("   ✅ Generated \(inferences.count) analogical inferences")
+        print("    Generated \(inferences.count) analogical inferences")
         return inferences
     }
     
@@ -325,7 +325,7 @@ final class FormalLogicEngine: ObservableObject {
     func applyStatisticalReasoning() -> [LogicalInference] {
         var inferences: [LogicalInference] = []
         
-        print("🔍 Statistical Reasoning: Bayesian inference")
+        print(" Statistical Reasoning: Bayesian inference")
         
         // Bayesian Inference: Update probabilities based on evidence
         // P(Threat|Evidence) = P(Evidence|Threat) × P(Threat) / P(Evidence)
@@ -397,7 +397,7 @@ final class FormalLogicEngine: ObservableObject {
         // Example: High document count correlates with high threat score
         
         self.statisticalInferences = inferences
-        print("   ✅ Generated \(inferences.count) statistical inferences")
+        print("    Generated \(inferences.count) statistical inferences")
         return inferences
     }
     
@@ -407,7 +407,7 @@ final class FormalLogicEngine: ObservableObject {
     func applyTemporalLogic() -> [LogicalInference] {
         var inferences: [LogicalInference] = []
         
-        print("🔍 Temporal Logic: Time-based causality")
+        print(" Temporal Logic: Time-based causality")
         
         // Always/Eventually operators
         // □P (Always P): Property holds at all times
@@ -447,7 +447,7 @@ final class FormalLogicEngine: ObservableObject {
     func applyModalLogic() -> [LogicalInference] {
         var inferences: [LogicalInference] = []
         
-        print("🔍 Modal Logic: Possibility and necessity")
+        print(" Modal Logic: Possibility and necessity")
         
         // Necessary (□): Must be true
         // Example: If medical records → □(HIPAA compliance required)
@@ -553,7 +553,7 @@ final class FormalLogicEngine: ObservableObject {
                             analogical.count + statistical.count
         )
         
-        print("✅ Complete analysis: \(report.totalInferences) total inferences")
+        print(" Complete analysis: \(report.totalInferences) total inferences")
         print("   Deductive: \(deductive.count) (certainty)")
         print("   Inductive: \(inductive.count) (generalization)")
         print("   Abductive: \(abductive.count) (best explanation)")

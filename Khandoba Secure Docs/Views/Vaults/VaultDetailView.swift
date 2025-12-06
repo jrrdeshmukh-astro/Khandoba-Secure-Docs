@@ -445,7 +445,7 @@ struct VaultDetailView: View {
         Task {
             do {
                 try await vaultService.closeVault(vault)
-                print("✅ Vault locked by owner")
+                print(" Vault locked by owner")
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true

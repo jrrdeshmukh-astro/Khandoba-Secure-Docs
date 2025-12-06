@@ -34,7 +34,7 @@ class NLPTaggingService {
             mimeType: mimeType,
             fallbackName: fallbackName
         ) {
-            print("   ✅ LLAMA name: \(intelligentName)")
+            print("    LLAMA name: \(intelligentName)")
             return intelligentName
         }
         
@@ -483,7 +483,7 @@ class NLPTaggingService {
             tags.append(contentsOf: llamaTags)
             print("   🦙 LLAMA tags: \(llamaTags.count) intelligent tags")
         } else {
-            print("   ⚠️ Skipping LLAMA analysis (file too large: \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)))")
+            print("    Skipping LLAMA analysis (file too large: \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)))")
         }
         
         // OPTIMIZED: Only do deep analysis on smaller files
@@ -516,7 +516,7 @@ class NLPTaggingService {
         
         // Remove duplicates and return
         let uniqueTags = Array(Set(tags))
-        print("   ✅ Total LLAMA tags: \(uniqueTags.count)")
+        print("    Total LLAMA tags: \(uniqueTags.count)")
         return uniqueTags
     }
     

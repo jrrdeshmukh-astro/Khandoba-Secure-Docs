@@ -85,7 +85,7 @@ final class TextIntelligenceService: ObservableObject {
         processingProgress = 0.0
         defer { isProcessing = false }
         
-        print("📊 TEXT INTEL PIPELINE START")
+        print(" TEXT INTEL PIPELINE START")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("📁 Processing \(documents.count) documents")
         
@@ -93,34 +93,34 @@ final class TextIntelligenceService: ObservableObject {
         currentStep = "Converting media to text..."
         processingProgress = 0.2
         let textDescriptions = await convertAllMediaToText(documents)
-        print("✅ Step 1: \(textDescriptions.count) text descriptions created")
+        print(" Step 1: \(textDescriptions.count) text descriptions created")
         
         // STEP 2: Extract entities and metadata
         currentStep = "Extracting entities and metadata..."
         processingProgress = 0.4
         let intelligence = await extractIntelligence(from: textDescriptions, documents: documents)
         intelligenceData = intelligence
-        print("✅ Step 2: Intelligence extracted")
+        print(" Step 2: Intelligence extracted")
         
         // STEP 3: Apply formal logic reasoning
         currentStep = "Applying logical reasoning..."
         processingProgress = 0.6
         let logicalInsights = await applyFormalLogic(intelligence)
         self.logicalInsights = logicalInsights
-        print("✅ Step 3: Logical reasoning complete")
+        print(" Step 3: Logical reasoning complete")
         
         // STEP 4: Generate layman-friendly debrief
         currentStep = "Generating debrief..."
         processingProgress = 0.8
         let debrief = generateLaymanDebrief(intelligence, insights: logicalInsights)
-        print("✅ Step 4: Debrief generated (\(debrief.count) chars)")
+        print(" Step 4: Debrief generated (\(debrief.count) chars)")
         
         processingProgress = 1.0
         currentStep = "Complete"
         debriefText = debrief
         
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("✅ TEXT INTEL COMPLETE")
+        print(" TEXT INTEL COMPLETE")
         
         return debrief
     }
@@ -323,7 +323,7 @@ final class TextIntelligenceService: ObservableObject {
             try? FileManager.default.removeItem(at: tempURL)
             
         } catch {
-            print("   ⚠️ Video analysis error: \(error)")
+            print("    Video analysis error: \(error)")
         }
         
         return (text.trimmingCharacters(in: .whitespaces), Array(Set(entities)), Array(Set(actions)))
@@ -354,7 +354,7 @@ final class TextIntelligenceService: ObservableObject {
             try? FileManager.default.removeItem(at: tempURL)
             
         } catch {
-            print("   ⚠️ Audio analysis error: \(error)")
+            print("    Audio analysis error: \(error)")
         }
         
         return ("", [], [])
@@ -372,13 +372,13 @@ final class TextIntelligenceService: ObservableObject {
         }
         
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
-            print("   ⚠️ Speech recognition not authorized")
+            print("    Speech recognition not authorized")
             return nil
         }
         
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
         guard let recognizer = recognizer, recognizer.isAvailable else {
-            print("   ⚠️ Speech recognizer not available")
+            print("    Speech recognizer not available")
             return nil
         }
         
@@ -390,12 +390,12 @@ final class TextIntelligenceService: ObservableObject {
             var finalTranscript = ""
             recognizer.recognitionTask(with: request) { result, error in
                 if let error = error {
-                    print("   ⚠️ Transcription error: \(error.localizedDescription)")
+                    print("    Transcription error: \(error.localizedDescription)")
                     continuation.resume(returning: nil)
                 } else if let result = result {
                     finalTranscript = result.bestTranscription.formattedString
                     if result.isFinal {
-                        print("   ✅ Transcription complete: \(finalTranscript.count) characters")
+                        print("    Transcription complete: \(finalTranscript.count) characters")
                         continuation.resume(returning: finalTranscript)
                     }
                 }

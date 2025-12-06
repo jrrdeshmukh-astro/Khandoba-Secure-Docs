@@ -200,7 +200,7 @@ struct SubscriptionRequiredView: View {
                 await MainActor.run {
                     isPurchasing = false
                     HapticManager.shared.notification(.success)
-                    print("✅ Subscription activated - user should proceed to main app")
+                    print(" Subscription activated - user should proceed to main app")
                 }
                 
             } catch {
@@ -241,7 +241,7 @@ struct SubscriptionRequiredView: View {
         // 3. Verify receipt
         // 4. Update user subscription status
         
-        print("✅ DEV MODE: Subscription auto-granted for: \(plan.rawValue)")
+        print(" DEV MODE: Subscription auto-granted for: \(plan.rawValue)")
         print("   User will be marked as premium subscriber")
     }
 }

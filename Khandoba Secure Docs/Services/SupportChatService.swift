@@ -76,7 +76,7 @@ final class SupportChatService: ObservableObject {
             4. Enter vault name and description
             5. Tap **Create Vault**
             
-            💡 Tip: Use dual-key for sensitive documents - it adds ML-powered security with auto-approval!
+            Tip: Use dual-key for sensitive documents - it adds ML-powered security with auto-approval!
             """
         }
         
@@ -112,7 +112,7 @@ final class SupportChatService: ObservableObject {
             
             **No manual approval needed!** Everything runs on ML autopilot.
             
-            💡 Use dual-key for: Medical records, legal documents, financial files
+            Use dual-key for: Medical records, legal documents, financial files
             """
         }
         

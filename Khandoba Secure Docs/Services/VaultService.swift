@@ -71,7 +71,7 @@ final class VaultService: ObservableObject {
         let intelVaults = try modelContext.fetch(descriptor)
         
         if !intelVaults.isEmpty {
-            print("🗑️ Deleting Intel Reports vaults...")
+            print(" Deleting Intel Reports vaults...")
             for vault in intelVaults {
                 // Delete all documents in the vault first
                 if let documents = vault.documents {
@@ -87,7 +87,7 @@ final class VaultService: ObservableObject {
             }
             
             try modelContext.save()
-            print("✅ Intel Reports vault(s) permanently deleted")
+            print(" Intel Reports vault(s) permanently deleted")
         }
     }
     
@@ -167,7 +167,7 @@ final class VaultService: ObservableObject {
         
         // Check if vault requires dual-key approval
         if vault.keyType == "dual" {
-            // ⚠️ CHECK: Prevent duplicate pending requests for same vault
+            //  CHECK: Prevent duplicate pending requests for same vault
             // Fetch all pending requests and filter in Swift (simpler than complex predicate)
             let allPendingDescriptor = FetchDescriptor<DualKeyRequest>(
                 predicate: #Predicate { $0.status == "pending" }
@@ -177,7 +177,7 @@ final class VaultService: ObservableObject {
             let existingRequests = allPendingRequests.filter { $0.vault?.id == vault.id }
             
             if let existingRequest = existingRequests.first {
-                print("⚠️ Pending request already exists for vault: \(vault.name)")
+                print(" Pending request already exists for vault: \(vault.name)")
                 print("   Request ID: \(existingRequest.id)")
                 print("   Requested: \(existingRequest.requestedAt)")
                 print("   → Reusing existing request instead of creating duplicate")
@@ -191,7 +191,7 @@ final class VaultService: ObservableObject {
                     
                     switch decision.action {
                     case .autoApproved:
-                        print("✅ ML AUTO-APPROVED: Access granted")
+                        print(" ML AUTO-APPROVED: Access granted")
                         
                         // CLEAR all other pending requests for this user after approval
                         let userPendingRequests = allPendingRequests.filter { $0.requester?.id == currentUserID }
@@ -204,11 +204,11 @@ final class VaultService: ObservableObject {
                         // Continue to session creation below
                         
                     case .autoDenied:
-                        print("🚫 ML AUTO-DENIED: Access denied")
+                        print(" ML AUTO-DENIED: Access denied")
                         throw VaultError.accessDenied
                     }
                 } catch {
-                    print("❌ ML processing error: \(error)")
+                    print(" ML processing error: \(error)")
                     throw VaultError.awaitingApproval
                 }
             } else {
@@ -227,8 +227,8 @@ final class VaultService: ObservableObject {
             modelContext.insert(request)
             try modelContext.save()
             
-                // 🤖 AUTOMATIC ML-BASED APPROVAL/DENIAL
-                print("🔐 Dual-key request created - initiating ML analysis...")
+                //  AUTOMATIC ML-BASED APPROVAL/DENIAL
+                print(" Dual-key request created - initiating ML analysis...")
                 
                 let approvalService = DualKeyApprovalService()
                 approvalService.configure(modelContext: modelContext)
@@ -240,7 +240,7 @@ final class VaultService: ObservableObject {
                     // Check the automatic decision
                     switch decision.action {
                     case .autoApproved:
-                        print("✅ ML AUTO-APPROVED: Access granted automatically")
+                        print(" ML AUTO-APPROVED: Access granted automatically")
                         print("   Confidence: \(Int(decision.confidence * 100))%")
                         print("   Reasoning: \(decision.logicalReasoning.prefix(200))...")
                         
@@ -255,17 +255,17 @@ final class VaultService: ObservableObject {
                         // Request is now approved - continue with session creation below
                         
                     case .autoDenied:
-                        print("🚫 ML AUTO-DENIED: Access denied automatically")
+                        print(" ML AUTO-DENIED: Access denied automatically")
                         print("   Confidence: \(Int(decision.confidence * 100))%")
                         print("   Reasoning: \(decision.logicalReasoning.prefix(200))...")
                         throw VaultError.accessDenied
                     }
                     
                     // If approved, continue to create session
-                    print("   ✅ Proceeding with vault access...")
+                    print("    Proceeding with vault access...")
                     
                 } catch {
-                    print("❌ ML processing error: \(error)")
+                    print(" ML processing error: \(error)")
                     // Fallback: treat as denied for security
             throw VaultError.awaitingApproval
                 }
@@ -339,9 +339,9 @@ final class VaultService: ObservableObject {
             let sharedSessionService = SharedVaultSessionService()
             sharedSessionService.configure(modelContext: modelContext, userID: currentUserID)
             try await sharedSessionService.openSharedVault(vault, unlockedBy: currentUser)
-            print("✅ Shared vault session opened - nominees can now access")
+            print(" Shared vault session opened - nominees can now access")
             
-            // ✅ NOMINEE ACCESS: Check if current user is a nominee
+            //  NOMINEE ACCESS: Check if current user is a nominee
             await checkAndGrantNomineeAccess(for: vault, userID: currentUserID)
         }
         
@@ -375,16 +375,16 @@ final class VaultService: ObservableObject {
             // Note: In production, you'd match by authenticated user email/phone
             // For now, we'll check if there are any active nominees and grant them access
             if !nominees.isEmpty {
-                print("👥 Found \(nominees.count) active nominee(s) for vault: \(vault.name)")
+                print(" Found \(nominees.count) active nominee(s) for vault: \(vault.name)")
                 
                 // Grant access via shared session (already opened above)
                 // Nominees will be notified via SharedVaultSessionService notifications
                 for nominee in nominees {
-                    print("   ✅ Nominee '\(nominee.name)' has access (status: \(nominee.status))")
+                    print("    Nominee '\(nominee.name)' has access (status: \(nominee.status))")
                 }
             }
         } catch {
-            print("⚠️ Error checking nominee access: \(error)")
+            print(" Error checking nominee access: \(error)")
         }
     }
     
@@ -475,7 +475,7 @@ final class VaultService: ObservableObject {
             let sharedSessionService = SharedVaultSessionService()
             sharedSessionService.configure(modelContext: modelContext, userID: currentUserID)
             try? await sharedSessionService.lockSharedVault(vault, lockedBy: currentUser)
-            print("✅ Shared vault session locked - nominees notified")
+            print(" Shared vault session locked - nominees notified")
         }
         
         // Log access with location

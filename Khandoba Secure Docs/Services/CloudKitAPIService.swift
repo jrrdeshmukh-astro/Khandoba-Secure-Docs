@@ -65,9 +65,9 @@ final class CloudKitAPIService: ObservableObject {
                 switch result {
                 case .success(let record):
                     recordCount += 1
-                    print("📋 Found nominee record: \(record.recordID.recordName)")
+                    print(" Found nominee record: \(record.recordID.recordName)")
                 case .failure(let error):
-                    print("⚠️ Error fetching record: \(error.localizedDescription)")
+                    print(" Error fetching record: \(error.localizedDescription)")
                 }
             }
             
@@ -77,14 +77,14 @@ final class CloudKitAPIService: ObservableObject {
                 syncError = nil
             }
             
-            print("✅ CloudKit sync check complete: \(recordCount) nominee records found")
+            print(" CloudKit sync check complete: \(recordCount) nominee records found")
             
         } catch {
             await MainActor.run {
                 syncStatus = .error(error.localizedDescription)
                 syncError = error.localizedDescription
             }
-            print("❌ CloudKit sync check failed: \(error.localizedDescription)")
+            print(" CloudKit sync check failed: \(error.localizedDescription)")
         }
     }
     
@@ -109,20 +109,20 @@ final class CloudKitAPIService: ObservableObject {
                 switch result {
                 case .success(let record):
                     if let tokenValue = record["inviteToken"] as? String, tokenValue == token {
-                        print("✅ Nominee token verified in CloudKit: \(token)")
+                        print(" Nominee token verified in CloudKit: \(token)")
                         return true
                     }
                 case .failure(let error):
-                    print("⚠️ Error verifying token: \(error.localizedDescription)")
+                    print(" Error verifying token: \(error.localizedDescription)")
                     throw error
                 }
             }
             
-            print("❌ Nominee token not found in CloudKit: \(token)")
+            print(" Nominee token not found in CloudKit: \(token)")
             return false
             
         } catch {
-            print("❌ CloudKit query failed: \(error.localizedDescription)")
+            print(" CloudKit query failed: \(error.localizedDescription)")
             throw CloudKitAPIError.queryFailed(error.localizedDescription)
         }
     }

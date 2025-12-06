@@ -186,60 +186,60 @@ final class ThreatRemediationAIService: ObservableObject {
         
         // Immediate actions based on threat type
         if urgency == .critical || urgency == .high {
-            steps.append("🔒 IMMEDIATE: Lock the affected vault to prevent further access")
+            steps.append("IMMEDIATE: Lock the affected vault to prevent further access")
             
             if context.contains("rapid access") || context.contains("brute force") {
-                steps.append("🔑 Change vault password immediately using a strong, unique password")
-                steps.append("🛡️ Enable dual-key protection to require ML approval for all access")
+                steps.append("Change vault password immediately using a strong, unique password")
+                steps.append("Enable dual-key protection to require ML approval for all access")
             }
             
             if context.contains("unauthorized") || context.contains("breach") {
-                steps.append("🚨 Revoke all active sessions and force re-authentication")
-                steps.append("📋 Review all access logs from the past 24 hours for suspicious activity")
+                steps.append("Revoke all active sessions and force re-authentication")
+                steps.append("Review all access logs from the past 24 hours for suspicious activity")
             }
         }
         
         // Threat-specific steps
         if context.contains("geographic") || context.contains("location") {
-            steps.append("📍 Review access map to identify all access locations")
-            steps.append("🌍 Verify if you recognize all locations - revoke access from unknown locations")
-            steps.append("🔔 Enable location-based alerts for future access")
+            steps.append("Review access map to identify all access locations")
+            steps.append("Verify if you recognize all locations - revoke access from unknown locations")
+            steps.append("Enable location-based alerts for future access")
         }
         
         if context.contains("deletion") || context.contains("destroy") {
-            steps.append("📦 Check document version history to restore deleted files")
-            steps.append("🗑️ Review deletion logs to identify what was deleted and when")
-            steps.append("💾 If critical documents were deleted, restore from version history immediately")
+            steps.append("Check document version history to restore deleted files")
+            steps.append("Review deletion logs to identify what was deleted and when")
+            steps.append("If critical documents were deleted, restore from version history immediately")
         }
         
         if context.contains("data leak") || context.contains("exfiltration") {
-            steps.append("📊 Review all recent document uploads and sharing activity")
-            steps.append("🔒 Archive or restrict access to sensitive documents that may be compromised")
-            steps.append("👥 Review nominee access - revoke access for any suspicious nominees")
+            steps.append("Review all recent document uploads and sharing activity")
+            steps.append("Archive or restrict access to sensitive documents that may be compromised")
+            steps.append("Review nominee access - revoke access for any suspicious nominees")
         }
         
         if context.contains("nominee") || context.contains("compromised") {
-            steps.append("👤 Review all active nominees and their access patterns")
-            steps.append("🚫 Revoke access for nominees showing suspicious activity")
-            steps.append("🔐 Enable dual-key protection to require approval for nominee access")
+            steps.append("Review all active nominees and their access patterns")
+            steps.append("Revoke access for nominees showing suspicious activity")
+            steps.append("Enable dual-key protection to require approval for nominee access")
         }
         
         // Monitoring and verification
-        steps.append("📈 Enable enhanced threat monitoring for this vault")
-        steps.append("🔍 Monitor access logs over the next 24-48 hours for continued suspicious activity")
+        steps.append("Enable enhanced threat monitoring for this vault")
+        steps.append("Monitor access logs over the next 24-48 hours for continued suspicious activity")
         
         // Final verification
         if urgency == .critical {
-            steps.append("📞 Contact support if you didn't authorize these activities or if threat persists")
+            steps.append("Contact support if you didn't authorize these activities or if threat persists")
         } else {
-            steps.append("✅ Verify all remediation steps are completed and threat is resolved")
+            steps.append("Verify all remediation steps are completed and threat is resolved")
         }
         
         // Ensure we have at least 3 steps
         if steps.count < 3 {
-            steps.append("🔐 Change vault password as a precautionary measure")
-            steps.append("📋 Review all recent vault activity in access logs")
-            steps.append("🛡️ Enable additional security features like dual-key protection")
+            steps.append("Change vault password as a precautionary measure")
+            steps.append("Review all recent vault activity in access logs")
+            steps.append("Enable additional security features like dual-key protection")
         }
         
         return Array(steps.prefix(8)) // Limit to 8 most important steps

@@ -58,7 +58,7 @@ final class InferenceEngine: ObservableObject {
         
         self.inferences = generatedInferences
         
-        print("✅ Generated \(generatedInferences.count) inferences")
+        print(" Generated \(generatedInferences.count) inferences")
         return generatedInferences
     }
     

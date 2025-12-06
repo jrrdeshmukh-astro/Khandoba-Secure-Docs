@@ -191,7 +191,7 @@ struct TextIntelReportView: View {
         }
         
         do {
-            print("💾 Saving text Intel debrief to vault: \(vault.name)")
+            print(" Saving text Intel debrief to vault: \(vault.name)")
             
             // Convert debrief to data (preserve markdown formatting)
             guard let textData = debriefText.data(using: .utf8) else {
@@ -227,7 +227,7 @@ struct TextIntelReportView: View {
             modelContext.insert(document)
             try modelContext.save()
             
-            print("✅ Text Intel debrief saved successfully!")
+            print(" Text Intel debrief saved successfully!")
             print("   Document: \(document.name)")
             print("   Vault: \(vault.name)")
             print("   Size: \(ByteCountFormatter.string(fromByteCount: document.fileSize, countStyle: .file))")
@@ -235,7 +235,7 @@ struct TextIntelReportView: View {
             dismiss()
             
         } catch {
-            print("❌ Save error: \(error)")
+            print(" Save error: \(error)")
             errorMessage = "Failed to save: \(error.localizedDescription)"
             showError = true
         }

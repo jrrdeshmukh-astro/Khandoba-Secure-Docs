@@ -200,7 +200,7 @@ final class DocumentService: ObservableObject {
         }
         
         // Log deletion event
-        print("🗑️ Deleting document: \(document.name)")
+        print(" Deleting document: \(document.name)")
         print("   From vault: \(vault?.name ?? "Unknown")")
         print("   Timestamp: \(Date())")
         
@@ -220,7 +220,7 @@ final class DocumentService: ObservableObject {
         // Save changes (deletion + access log)
         try modelContext.save()
         
-        print("✅ Document deleted and will sync via CloudKit")
+        print(" Document deleted and will sync via CloudKit")
     }
     
     func archiveDocument(_ document: Document) async throws {
@@ -262,7 +262,7 @@ final class DocumentService: ObservableObject {
         }
         
         try modelContext.save()
-        print("✏️ Document rename logged: \(oldName) → \(newName)")
+        print(" Document rename logged: \(oldName) → \(newName)")
     }
     
     func searchDocuments(query: String, in vaults: [Vault]) -> [Document] {

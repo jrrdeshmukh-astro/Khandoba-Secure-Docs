@@ -31,11 +31,11 @@ final class NomineeService: ObservableObject {
         defer { isLoading = false }
         
         guard let modelContext = modelContext else {
-            print("❌ NomineeService: ModelContext not available")
+            print(" NomineeService: ModelContext not available")
             return
         }
         
-        print("🔍 Loading nominees for vault: \(vault.name) (ID: \(vault.id))")
+        print(" Loading nominees for vault: \(vault.name) (ID: \(vault.id))")
         
         // Filter nominees by vault
         let vaultID = vault.id
@@ -48,7 +48,7 @@ final class NomineeService: ObservableObject {
         
         let fetchedNominees = try modelContext.fetch(descriptor)
         
-        print("✅ Found \(fetchedNominees.count) nominee(s) for vault '\(vault.name)'")
+        print(" Found \(fetchedNominees.count) nominee(s) for vault '\(vault.name)'")
         for nominee in fetchedNominees {
             print("   - \(nominee.name) (Status: \(nominee.status), Token: \(nominee.inviteToken))")
         }
@@ -81,7 +81,7 @@ final class NomineeService: ObservableObject {
         modelContext.insert(nominee)
         try modelContext.save()
         
-        print("✅ Nominee created: \(nominee.name)")
+        print(" Nominee created: \(nominee.name)")
         print("   Token: \(nominee.inviteToken)")
         print("   Vault: \(vault.name) (ID: \(vault.id))")
         print("   Status: \(nominee.status)")
@@ -90,9 +90,9 @@ final class NomineeService: ObservableObject {
         
         // Verify the relationship was set correctly
         if nominee.vault?.id == vault.id {
-            print("   ✅ Vault relationship verified")
+            print("    Vault relationship verified")
         } else {
-            print("   ⚠️ WARNING: Vault relationship may not be set correctly")
+            print("    WARNING: Vault relationship may not be set correctly")
         }
         
         // Send push notification to nominee (if they have the app installed)
@@ -113,7 +113,7 @@ final class NomineeService: ObservableObject {
         
         // Force a refresh on the main thread
         await MainActor.run {
-            print("✅ Nominees list updated: \(nominees.count) nominee(s)")
+            print(" Nominees list updated: \(nominees.count) nominee(s)")
         }
         
         return nominee
@@ -135,8 +135,8 @@ final class NomineeService: ObservableObject {
             throw NomineeError.contextNotAvailable
         }
         
-        print("🔍 Loading invitation with token: \(token)")
-        print("   📥 Checking local database and CloudKit sync...")
+        print(" Loading invitation with token: \(token)")
+        print("    Checking local database and CloudKit sync...")
         
         // First, try local SwiftData (CloudKit syncs automatically)
         let descriptor = FetchDescriptor<Nominee>(
@@ -151,26 +151,26 @@ final class NomineeService: ObservableObject {
             do {
                 let exists = try await cloudKitAPI.verifyNomineeToken(token)
                 if exists {
-                    print("   ✅ Token verified in CloudKit, waiting for SwiftData sync...")
+                    print("    Token verified in CloudKit, waiting for SwiftData sync...")
                     // Wait a moment for SwiftData to sync
                     try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
                     nominees = try modelContext.fetch(descriptor)
                 }
             } catch {
-                print("   ⚠️ CloudKit API verification failed: \(error.localizedDescription)")
+                print("    CloudKit API verification failed: \(error.localizedDescription)")
                 // Continue with local-only search
             }
         }
         
         if let nominee = nominees.first {
-            print("✅ Invitation found: \(nominee.name)")
+            print(" Invitation found: \(nominee.name)")
             print("   Vault: \(nominee.vault?.name ?? "Unknown")")
             print("   Status: \(nominee.status)")
             return nominee
         } else {
-            print("❌ Invitation not found with token: \(token)")
-            print("   💡 If this is a new invitation, wait a few seconds for CloudKit sync")
-            print("   💡 Make sure both devices are signed into the same iCloud account")
+            print(" Invitation not found with token: \(token)")
+            print("    If this is a new invitation, wait a few seconds for CloudKit sync")
+            print("    Make sure both devices are signed into the same iCloud account")
             throw NomineeError.invalidToken
         }
     }
@@ -192,7 +192,7 @@ final class NomineeService: ObservableObject {
         nominee.acceptedAt = Date()
         try modelContext.save()
         
-        print("✅ Invitation accepted: \(nominee.name)")
+        print(" Invitation accepted: \(nominee.name)")
         print("   Vault: \(nominee.vault?.name ?? "Unknown")")
         print("   📤 CloudKit sync: Status update will sync to owner's device")
         
@@ -228,7 +228,7 @@ final class NomineeService: ObservableObject {
         // Copy to clipboard as fallback
         UIPasteboard.general.string = invitationMessage
         
-        print("✅ Invitation generated for: \(nominee.name)")
+        print(" Invitation generated for: \(nominee.name)")
         print("   Deep link: \(deepLink)")
         print("   Message copied to clipboard for sharing")
     }

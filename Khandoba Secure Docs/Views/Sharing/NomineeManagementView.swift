@@ -77,7 +77,7 @@ struct NomineeManagementView: View {
             do {
                 try await nomineeService.loadNominees(for: vault)
             } catch {
-                print("❌ Failed to load nominees: \(error.localizedDescription)")
+                print(" Failed to load nominees: \(error.localizedDescription)")
             }
         }
         .onChange(of: showAddNominee) { oldValue, newValue in
@@ -311,7 +311,7 @@ struct AddNomineeView: View {
                     invitedByUserID: userID
                 )
                 
-                print("✅ Invitation sent successfully")
+                print(" Invitation sent successfully")
                 print("   Nominee ID: \(nominee.id)")
                 print("   Nominee Token: \(nominee.inviteToken)")
                 print("   Vault: \(vault.name)")
@@ -323,7 +323,7 @@ struct AddNomineeView: View {
                     dismiss()
                 }
             } catch {
-                print("❌ Failed to send invitation: \(error.localizedDescription)")
+                print(" Failed to send invitation: \(error.localizedDescription)")
                 await MainActor.run {
                     errorMessage = error.localizedDescription
                     showError = true

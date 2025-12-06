@@ -35,7 +35,7 @@ final class DocumentIndexingService: ObservableObject {
         isIndexing = true
         defer { isIndexing = false }
         
-        print("🔍 Indexing document: \(document.name)")
+        print(" Indexing document: \(document.name)")
         
         // Extract text content
         let text = await extractText(from: document)
@@ -101,7 +101,7 @@ final class DocumentIndexingService: ObservableObject {
             try modelContext.save()
         }
         
-        print("✅ Document indexed: \(tags.count) tags, \(entities.count) entities")
+        print(" Document indexed: \(tags.count) tags, \(entities.count) entities")
         
         return index
     }

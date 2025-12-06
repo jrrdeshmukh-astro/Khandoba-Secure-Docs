@@ -235,7 +235,7 @@ struct StoreView: View {
                             do {
                                 try await AppStore.showManageSubscriptions(in: windowScene)
                             } catch {
-                                print("❌ Failed to show manage subscriptions: \(error)")
+                                print(" Failed to show manage subscriptions: \(error)")
                             }
                         }
                     }

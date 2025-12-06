@@ -40,9 +40,9 @@ final class PushNotificationService: NSObject, ObservableObject {
             await MainActor.run {
                 UIApplication.shared.registerForRemoteNotifications()
             }
-            print("✅ Push notification authorization granted")
+            print(" Push notification authorization granted")
         } else {
-            print("❌ Push notification authorization denied")
+            print(" Push notification authorization denied")
         }
         
         return granted
@@ -54,7 +54,7 @@ final class PushNotificationService: NSObject, ObservableObject {
         deviceToken = tokenString
         isRegistered = true
         
-        print("✅ Device token registered: \(tokenString)")
+        print(" Device token registered: \(tokenString)")
         
         // TODO: Send token to your backend server for push notification delivery
         // sendTokenToServer(tokenString)
@@ -63,7 +63,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     /// Handle registration failure
     func registrationFailed(error: Error) {
         isRegistered = false
-        print("❌ Push notification registration failed: \(error.localizedDescription)")
+        print(" Push notification registration failed: \(error.localizedDescription)")
     }
     
     // MARK: - Notification Handling
@@ -90,7 +90,7 @@ final class PushNotificationService: NSObject, ObservableObject {
             case "security_alert":
                 await handleSecurityAlertNotification(userInfo)
             default:
-                print("⚠️ Unknown notification type: \(notificationType)")
+                print(" Unknown notification type: \(notificationType)")
             }
         }
         
@@ -125,7 +125,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     }
     
     private func handleVaultLockedNotification(_ userInfo: [AnyHashable: Any]) async {
-        print("🔒 Vault locked notification")
+        print(" Vault locked notification")
         if let vaultID = userInfo["vaultID"] as? String {
             print("   Vault ID: \(vaultID)")
             NotificationCenter.default.post(
@@ -137,7 +137,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     }
     
     private func handleNomineeAcceptedNotification(_ userInfo: [AnyHashable: Any]) async {
-        print("✅ Nominee accepted notification")
+        print(" Nominee accepted notification")
         if let nomineeID = userInfo["nomineeID"] as? String {
             print("   Nominee ID: \(nomineeID)")
             NotificationCenter.default.post(
@@ -149,7 +149,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     }
     
     private func handleSecurityAlertNotification(_ userInfo: [AnyHashable: Any]) async {
-        print("🚨 Security alert notification")
+        print(" Security alert notification")
         if let alertType = userInfo["alertType"] as? String {
             print("   Alert Type: \(alertType)")
             NotificationCenter.default.post(
@@ -183,9 +183,9 @@ final class PushNotificationService: NSObject, ObservableObject {
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to send notification: \(error.localizedDescription)")
+                print(" Failed to send notification: \(error.localizedDescription)")
             } else {
-                print("✅ Nominee invitation notification sent")
+                print(" Nominee invitation notification sent")
             }
         }
     }
@@ -232,9 +232,9 @@ final class PushNotificationService: NSObject, ObservableObject {
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to send security alert: \(error.localizedDescription)")
+                print(" Failed to send security alert: \(error.localizedDescription)")
             } else {
-                print("✅ Security alert sent: \(title)")
+                print(" Security alert sent: \(title)")
             }
         }
     }

@@ -127,7 +127,7 @@ final class ABTestingService: ObservableObject {
         events.append(event)
         saveEvents(events)
         
-        print("📊 Event: \(eventName)")
+        print(" Event: \(eventName)")
     }
     
     /// Track conversion event with test context

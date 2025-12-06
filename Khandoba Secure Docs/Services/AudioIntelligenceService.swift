@@ -43,39 +43,39 @@ final class AudioIntelligenceService: ObservableObject {
         processingProgress = 0.0
         defer { isProcessing = false }
         
-        print("🎙️ AUDIO INTEL PIPELINE START")
+        print("AUDIO INTEL PIPELINE START")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("📊 Processing \(documents.count) documents")
+        print(" Processing \(documents.count) documents")
         
         // STEP 1: Convert all documents to audio descriptions
         currentStep = "Converting media to audio..."
         processingProgress = 0.1
         let audioDescriptions = await convertAllDocumentsToAudio(documents)
-        print("✅ Step 1: \(audioDescriptions.count) audio streams created")
+        print(" Step 1: \(audioDescriptions.count) audio streams created")
         
         // STEP 2: Transcribe all audio to text
         currentStep = "Transcribing audio content..."
         processingProgress = 0.3
         let combinedTranscript = await transcribeAllAudio(audioDescriptions)
-        print("✅ Step 2: Combined transcript (\(combinedTranscript.count) chars)")
+        print(" Step 2: Combined transcript (\(combinedTranscript.count) chars)")
         
         // STEP 3: Analyze transcript for intelligence
         currentStep = "Analyzing intelligence..."
         processingProgress = 0.5
         let intelligence = await analyzeTranscriptForIntel(combinedTranscript, documents: documents)
-        print("✅ Step 3: Intelligence analysis complete")
+        print(" Step 3: Intelligence analysis complete")
         
         // STEP 4: Generate debrief narrative
         currentStep = "Generating debrief..."
         processingProgress = 0.7
         let debriefText = generateDebriefNarrative(intelligence)
-        print("✅ Step 4: Debrief narrative generated (\(debriefText.count) chars)")
+        print(" Step 4: Debrief narrative generated (\(debriefText.count) chars)")
         
         // STEP 5: Convert debrief to audio
         currentStep = "Creating audio debrief..."
         processingProgress = 0.9
         let debriefAudioURL = try await convertTextToAudio(debriefText)
-        print("✅ Step 5: Audio debrief created")
+        print(" Step 5: Audio debrief created")
         
         processingProgress = 1.0
         currentStep = "Complete"
@@ -192,7 +192,7 @@ final class AudioIntelligenceService: ObservableObject {
             try? FileManager.default.removeItem(at: tempURL)
             
         } catch {
-            print("   ❌ Video processing error: \(error)")
+            print("    Video processing error: \(error)")
         }
         
         return AudioDescription(
@@ -292,7 +292,7 @@ final class AudioIntelligenceService: ObservableObject {
             return transcription
             
         } catch {
-            print("   ⚠️ Transcription error: \(error)")
+            print("    Transcription error: \(error)")
             return nil
         }
     }

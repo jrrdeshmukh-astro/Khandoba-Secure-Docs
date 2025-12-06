@@ -309,7 +309,7 @@ struct BulkUploadView: View {
             for url in urls {
                 // Start accessing security-scoped resource
                 guard url.startAccessingSecurityScopedResource() else {
-                    print("⚠️ Failed to access security-scoped resource: \(url.lastPathComponent)")
+                    print(" Failed to access security-scoped resource: \(url.lastPathComponent)")
                     continue
                 }
                 
@@ -320,16 +320,16 @@ struct BulkUploadView: View {
                 // Load file data for preview
                 if let data = try? Data(contentsOf: url) {
                     selectedFileData[url] = data
-                    print("✅ Loaded file data: \(url.lastPathComponent) (\(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)))")
+                    print(" Loaded file data: \(url.lastPathComponent) (\(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)))")
                 } else {
-                    print("⚠️ Failed to load file data: \(url.lastPathComponent)")
+                    print(" Failed to load file data: \(url.lastPathComponent)")
                 }
             }
             
             selectedFiles.append(contentsOf: urls)
-            print("✅ Added \(urls.count) file(s) to selection")
+            print(" Added \(urls.count) file(s) to selection")
         case .failure(let error):
-            print("❌ File selection failed: \(error.localizedDescription)")
+            print(" File selection failed: \(error.localizedDescription)")
         }
     }
     
@@ -368,7 +368,7 @@ struct BulkUploadView: View {
                     
                     // Start accessing security-scoped resource
                     guard url.startAccessingSecurityScopedResource() else {
-                        print("❌ Failed to access security-scoped resource: \(fileName)")
+                        print(" Failed to access security-scoped resource: \(fileName)")
                         failedUploads += 1
                         continue
                     }
@@ -381,13 +381,13 @@ struct BulkUploadView: View {
                     let data: Data
                     if let cachedData = selectedFileData[url] {
                         data = cachedData
-                        print("📦 Using cached data for: \(fileName)")
+                        print(" Using cached data for: \(fileName)")
                     } else if let loadedData = try? Data(contentsOf: url) {
                         data = loadedData
                         selectedFileData[url] = loadedData
-                        print("📥 Loaded data from URL: \(fileName)")
+                        print(" Loaded data from URL: \(fileName)")
                     } else {
-                        print("❌ Failed to read file data: \(fileName)")
+                        print(" Failed to read file data: \(fileName)")
                         failedUploads += 1
                         continue
                     }
@@ -407,11 +407,11 @@ struct BulkUploadView: View {
                         uploadMethod: .files
                     )
                     
-                    print("✅ Uploaded: \(fileName)")
+                    print(" Uploaded: \(fileName)")
                     completedUploads += 1
                 } catch {
                     failedUploads += 1
-                    print("❌ Upload failed for file \(index) (\(url.lastPathComponent)): \(error.localizedDescription)")
+                    print(" Upload failed for file \(index) (\(url.lastPathComponent)): \(error.localizedDescription)")
                 }
             }
             

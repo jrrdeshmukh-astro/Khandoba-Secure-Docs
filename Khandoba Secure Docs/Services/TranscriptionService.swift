@@ -41,7 +41,7 @@ final class TranscriptionService: NSObject, ObservableObject {
         isTranscribing = true
         defer { isTranscribing = false }
         
-        print("🎤 Transcribing audio: \(url.lastPathComponent)")
+        print(" Transcribing audio: \(url.lastPathComponent)")
         
         // Request authorization
         let authorized = await requestSpeechAuthorization()

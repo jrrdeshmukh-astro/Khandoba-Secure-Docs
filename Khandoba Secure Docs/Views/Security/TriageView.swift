@@ -412,7 +412,7 @@ struct TriageView: View {
         
         if captured && !isScreenCaptured {
             // Screen capture just started - trigger automatic triage
-            print("🚨 Screen monitoring detected - triggering automatic triage")
+            print("Screen monitoring detected - triggering automatic triage")
             Task {
                 await autoTriageService.performAutomaticTriage()
                 // Auto-execute critical actions
@@ -431,7 +431,7 @@ struct TriageView: View {
         
         for threat in criticalThreats {
             PushNotificationService.shared.sendSecurityAlertNotification(
-                title: "🚨 Critical Threat Detected",
+                title: "Critical Threat Detected",
                 body: threat.title,
                 threatType: threat.type.rawValue
             )
@@ -440,7 +440,7 @@ struct TriageView: View {
         // Send alerts for data leaks
         for leak in leaks.filter({ $0.severity == .critical || $0.severity == .high }) {
             PushNotificationService.shared.sendSecurityAlertNotification(
-                title: "⚠️ Data Leak Detected",
+                title: "Data Leak Detected",
                 body: leak.title,
                 threatType: leak.type.rawValue
             )
@@ -471,9 +471,9 @@ struct TriageView: View {
             for action in result.autoActions {
                 do {
                     try await autoTriageService.executeAction(action, in: flow)
-                    print("✅ Auto-executed action: \(actionTitle(action))")
+                    print("Auto-executed action: \(actionTitle(action))")
                 } catch {
-                    print("❌ Failed to execute auto-action: \(error.localizedDescription)")
+                    print(" Failed to execute auto-action: \(error.localizedDescription)")
                 }
             }
             
@@ -510,7 +510,7 @@ struct TriageView: View {
         allThreats.removeAll { $0.id == threat.id }
         
         // Log resolution
-        print("✅ Threat resolved: \(threat.title)")
+        print("Threat resolved: \(threat.title)")
     }
     
     private func resolveLeak(_ leak: DataLeak) {
@@ -518,7 +518,7 @@ struct TriageView: View {
         dataLeaks.removeAll { $0.id == leak.id }
         
         // Log resolution
-        print("✅ Data leak resolved: \(leak.title)")
+        print("Data leak resolved: \(leak.title)")
     }
     
     // MARK: - Helpers
@@ -820,14 +820,6 @@ struct ThreatRow: View {
                 Divider()
                 
                 HStack {
-                    Button {
-                        onTap()
-                    } label: {
-                        Label("View Details", systemImage: "info.circle")
-                            .font(theme.typography.caption)
-                    }
-                    .foregroundColor(colors.primary)
-                    
                     Spacer()
                     
                     Button {

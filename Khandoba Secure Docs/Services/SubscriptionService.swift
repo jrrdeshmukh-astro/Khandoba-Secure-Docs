@@ -44,13 +44,13 @@ final class SubscriptionService: ObservableObject {
         
         do {
             products = try await Product.products(for: productIDs)
-            print("✅ Loaded \(products.count) subscription products")
+            print(" Loaded \(products.count) subscription products")
             
             for product in products {
                 print("   - \(product.displayName): \(product.displayPrice)")
             }
         } catch {
-            print("❌ Failed to load products: \(error)")
+            print(" Failed to load products: \(error)")
         }
     }
     
@@ -164,7 +164,7 @@ final class SubscriptionService: ObservableObject {
         
         try? modelContext.save()
         
-        print("✅ Subscription updated: \(transaction.productID)")
+        print(" Subscription updated: \(transaction.productID)")
     }
     
     // MARK: - Verification

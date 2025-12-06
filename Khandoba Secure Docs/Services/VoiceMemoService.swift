@@ -40,9 +40,9 @@ final class VoiceMemoService: NSObject, ObservableObject {
         isGenerating = true
         defer { isGenerating = false }
         
-        print("🎤 ═══════════════════════════════════")
-        print("🎤 VOICE MEMO GENERATION START")
-        print("🎤 ═══════════════════════════════════")
+        print(" ═══════════════════════════════════")
+        print(" VOICE MEMO GENERATION START")
+        print(" ═══════════════════════════════════")
         print("📝 Text length: \(text.count) characters")
         print("📝 Preview: \(String(text.prefix(150)))")
         print("")
@@ -60,11 +60,11 @@ final class VoiceMemoService: NSObject, ObservableObject {
         let audioSession = AVAudioSession.sharedInstance()
         try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothA2DP])
         try audioSession.setActive(true)
-        print("✅ Audio session configured")
+        print(" Audio session configured")
         print("")
         
         // Create audio recorder with settings
-        print("🎙️ Creating audio recorder...")
+        print("Creating audio recorder...")
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
             AVSampleRateKey: 44100.0,
@@ -76,17 +76,17 @@ final class VoiceMemoService: NSObject, ObservableObject {
         let recorder = try AVAudioRecorder(url: outputURL, settings: settings)
         recorder.prepareToRecord()
         recorder.record()
-        print("✅ Recorder started")
+        print(" Recorder started")
         print("")
         
         // Create utterance for synthesis
-        print("🗣️ Creating speech utterance...")
+        print("Creating speech utterance...")
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
         utterance.rate = 0.50  // Natural speed
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
-        print("✅ Utterance created")
+        print(" Utterance created")
         print("   Language: en-US")
         print("   Rate: 0.50")
         print("   Estimated duration: ~\(text.count / 150) seconds")
@@ -118,35 +118,35 @@ final class VoiceMemoService: NSObject, ObservableObject {
                         let attributes = try FileManager.default.attributesOfItem(atPath: outputURL.path)
                         let fileSize = attributes[.size] as? UInt64 ?? 0
                         
-                        print("📊 Final audio file:")
+                        print(" Final audio file:")
                         print("   Size: \(fileSize) bytes")
                         print("   Path: \(outputURL.lastPathComponent)")
                         
                         if fileSize > 10000 {  // At least 10KB = has audio content
-                            print("✅ SUCCESS: Voice memo generated with audio content")
-                            print("🎤 ═══════════════════════════════════")
+                            print(" SUCCESS: Voice memo generated with audio content")
+                            print(" ═══════════════════════════════════")
                             print("")
                             await MainActor.run {
                                 self.currentOutputURL = outputURL
                             }
                             continuation.resume(returning: outputURL)
                         } else {
-                            print("❌ FAILURE: Audio file too small (\(fileSize) bytes)")
+                            print(" FAILURE: Audio file too small (\(fileSize) bytes)")
                             print("   Expected: >10,000 bytes")
                             print("   This indicates no audio was captured")
-                            print("🎤 ═══════════════════════════════════")
+                            print(" ═══════════════════════════════════")
                             print("")
                             continuation.resume(throwing: VoiceMemoError.generationFailed)
                         }
                     } catch {
-                        print("❌ Error checking file: \(error)")
+                        print(" Error checking file: \(error)")
                         continuation.resume(throwing: VoiceMemoError.generationFailed)
                     }
                 }
             }
             
             // Start speaking
-            print("🗣️ Starting speech synthesis...")
+            print("Starting speech synthesis...")
             print("   This will capture system audio while speaking")
             print("")
             speechSynthesizer.speak(utterance)
@@ -200,7 +200,7 @@ final class VoiceMemoService: NSObject, ObservableObject {
         modelContext.insert(document)
         try modelContext.save()
         
-        print("✅ Voice memo saved to vault: \(title)")
+        print(" Voice memo saved to vault: \(title)")
         return document
     }
     
@@ -214,14 +214,14 @@ final class VoiceMemoService: NSObject, ObservableObject {
 extension VoiceMemoService: AVSpeechSynthesizerDelegate {
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor in
-            print("🎙️ Speech synthesis finished - calling completion handler")
+            print("Speech synthesis finished - calling completion handler")
             speechCompletionHandler?()
         }
     }
     
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
         Task { @MainActor in
-            print("🎤 Speech synthesis started")
+            print(" Speech synthesis started")
         }
     }
 }
@@ -233,7 +233,7 @@ extension VoiceMemoService: AVAudioPlayerDelegate {
         Task { @MainActor in
             isPlaying = false
             currentProgress = 0.0
-            print("✅ Audio playback finished")
+            print(" Audio playback finished")
         }
     }
 }

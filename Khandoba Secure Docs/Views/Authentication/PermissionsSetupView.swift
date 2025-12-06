@@ -146,12 +146,12 @@ struct PermissionsSetupView: View {
             do {
                 let granted = try await pushNotificationService.requestAuthorization()
                 if granted {
-                    print("✅ Push notification permission granted")
+                    print(" Push notification permission granted")
                 } else {
-                    print("⚠️ Push notification permission denied")
+                    print(" Push notification permission denied")
                 }
             } catch {
-                print("❌ Push notification request failed: \(error.localizedDescription)")
+                print(" Push notification request failed: \(error.localizedDescription)")
             }
             
             // Request location permission
@@ -167,7 +167,7 @@ struct PermissionsSetupView: View {
                 isRequesting = false
                 // Mark complete - this will trigger ContentView to move forward
                 permissionsComplete = true
-                print("✅ Permissions setup complete")
+                print(" Permissions setup complete")
             }
         }
     }

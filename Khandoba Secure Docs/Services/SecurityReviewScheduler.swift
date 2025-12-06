@@ -102,7 +102,7 @@ final class SecurityReviewScheduler: ObservableObject {
         scheduledReviews.append(review)
         saveScheduledReviews()
         
-        print("✅ Scheduled \(frequency.rawValue) review for: \(vault.name)")
+        print(" Scheduled \(frequency.rawValue) review for: \(vault.name)")
     }
     
     /// Schedule review based on threat level
@@ -125,7 +125,7 @@ final class SecurityReviewScheduler: ObservableObject {
     
     private func createCalendarEvent(for review: SecurityReview) throws {
         let event = EKEvent(eventStore: eventStore)
-        event.title = "🔐 Security Review: \(review.vaultName)"
+        event.title = " Security Review: \(review.vaultName)"
         event.notes = """
         Scheduled security review for \(review.vaultName) vault.
         

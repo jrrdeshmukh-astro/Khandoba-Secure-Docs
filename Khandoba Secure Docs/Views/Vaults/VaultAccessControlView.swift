@@ -219,13 +219,13 @@ struct VaultAccessControlView: View {
     private func revokeNomineeAccess(_ nominee: Nominee) {
         nominee.status = "inactive"
         try? modelContext.save()
-        print("✅ Access revoked for: \(nominee.name)")
+        print(" Access revoked for: \(nominee.name)")
     }
     
     private func revokeEmergencyAccess(_ request: EmergencyAccessRequest) {
         request.status = "revoked"
         try? modelContext.save()
-        print("✅ Emergency access revoked")
+        print(" Emergency access revoked")
     }
 }
 
@@ -470,7 +470,7 @@ struct AccessLogRow: View {
                 }
                 
                 if let lat = log.locationLatitude, let lon = log.locationLongitude {
-                    Text("📍 \(String(format: "%.4f, %.4f", lat, lon))")
+                    Text("\(String(format: "%.4f, %.4f", lat, lon))")
                         .font(.caption2)
                         .foregroundColor(colors.textTertiary)
                 }

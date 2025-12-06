@@ -40,13 +40,13 @@ struct Khandoba_Secure_DocsApp: App {
 
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            print("✅ ModelContainer created successfully with CloudKit sync enabled")
+            print(" ModelContainer created successfully with CloudKit sync enabled")
             print("   CloudKit Container: \(AppConfig.cloudKitContainer)")
             return container
         } catch {
             // Log error and provide fallback
-            print("❌ ModelContainer creation failed: \(error.localizedDescription)")
-            print("⚠️ Falling back to local-only storage (CloudKit sync disabled)")
+            print(" ModelContainer creation failed: \(error.localizedDescription)")
+            print(" Falling back to local-only storage (CloudKit sync disabled)")
             // Try local-only fallback (no CloudKit)
             do {
                 let localConfig = ModelConfiguration(
@@ -55,18 +55,18 @@ struct Khandoba_Secure_DocsApp: App {
                     cloudKitDatabase: .none
                 )
                 let container = try ModelContainer(for: schema, configurations: [localConfig])
-                print("✅ Fallback: Using local-only storage")
+                print(" Fallback: Using local-only storage")
                 return container
             } catch {
-                print("❌ Even local container failed: \(error.localizedDescription)")
+                print(" Even local container failed: \(error.localizedDescription)")
                 // Last resort: in-memory container
                 do {
                     let memoryConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
                     let container = try ModelContainer(for: schema, configurations: [memoryConfig])
-                    print("⚠️ Last resort: Using in-memory storage (data will be lost on app close)")
+                    print(" Last resort: Using in-memory storage (data will be lost on app close)")
                     return container
                 } catch {
-                    print("❌ All container creation attempts failed")
+                    print(" All container creation attempts failed")
                     // Absolute last resort: minimal container
                     let minimalSchema = Schema([User.self, UserRole.self])
                     return try! ModelContainer(for: minimalSchema, configurations: [ModelConfiguration(schema: minimalSchema, isStoredInMemoryOnly: true)])
@@ -95,10 +95,10 @@ struct Khandoba_Secure_DocsApp: App {
             do {
                 let granted = try await pushNotificationService.requestAuthorization()
                 if granted {
-                    print("✅ Push notifications enabled")
+                    print(" Push notifications enabled")
                 }
             } catch {
-                print("❌ Push notification setup failed: \(error.localizedDescription)")
+                print(" Push notification setup failed: \(error.localizedDescription)")
             }
         }
     }

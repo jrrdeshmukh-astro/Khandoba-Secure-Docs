@@ -44,7 +44,7 @@ final class SharedVaultSessionService: ObservableObject {
         
         // Check if vault already has active session
         if let existingSession = sharedSessions[vault.id] {
-            print("   ℹ️ Vault already open (shared session active)")
+            print("    Vault already open (shared session active)")
             // Notify user that vault is already open
             await notifySessionAlreadyActive(vault: vault, openedBy: existingSession.unlockedBy)
             return
@@ -62,7 +62,7 @@ final class SharedVaultSessionService: ObservableObject {
         
         sharedSessions[vault.id] = session
         
-        print("✅ Shared session created for: \(vault.name)")
+        print(" Shared session created for: \(vault.name)")
         print("   Unlocked by: \(user.fullName)")
         print("   Expires: \(session.expiresAt.formatted(date: .omitted, time: .shortened))")
         
@@ -75,17 +75,17 @@ final class SharedVaultSessionService: ObservableObject {
     
     /// Lock vault - closes session for ALL users
     func lockSharedVault(_ vault: Vault, lockedBy user: User) async throws {
-        print("🔒 Locking shared vault: \(vault.name)")
+        print(" Locking shared vault: \(vault.name)")
         
         guard let session = sharedSessions[vault.id] else {
-            print("   ℹ️ Vault already locked")
+            print("    Vault already locked")
             return
         }
         
         // Remove session
         sharedSessions.removeValue(forKey: vault.id)
         
-        print("✅ Shared session closed for: \(vault.name)")
+        print(" Shared session closed for: \(vault.name)")
         print("   Locked by: \(user.fullName)")
         
         // Notify ALL vault members
@@ -126,7 +126,7 @@ final class SharedVaultSessionService: ObservableObject {
         
         sharedSessions[vault.id] = session
         
-        print("   ⏱️ Session extended for \(vault.name)")
+        print("    Session extended for \(vault.name)")
         print("   Activity: \(activity)")
         print("   New expiry: \(session.expiresAt.formatted(date: .omitted, time: .shortened))")
     }

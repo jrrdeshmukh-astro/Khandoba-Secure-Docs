@@ -65,7 +65,7 @@ final class LlamaMediaDescriptionService: ObservableObject {
         let unifiedFeed = unifiedDescriptions.joined(separator: "\n\n")
         
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("✅ UNIFIED DESCRIPTION COMPLETE")
+        print(" UNIFIED DESCRIPTION COMPLETE")
         
         return unifiedFeed
     }

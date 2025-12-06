@@ -39,17 +39,17 @@ final class StoryNarrativeGenerator: ObservableObject {
         isGenerating = true
         defer { isGenerating = false }
         
-        print("🎬 Analyzing \(documents.count) documents for story...")
+        print(" Analyzing \(documents.count) documents for story...")
         
         // Step 1: Analyze all media content
         generationProgress = 0.1
         let mediaInsights = await analyzeAllMedia(documents)
-        print("✅ Step 1: Media analysis complete (\(mediaInsights.count) insights)")
+        print(" Step 1: Media analysis complete (\(mediaInsights.count) insights)")
         
         // Step 2: Extract story elements
         generationProgress = 0.3
         let storyElements = await extractStoryElements(from: mediaInsights, documents: documents)
-        print("✅ Step 2: Story elements extracted")
+        print(" Step 2: Story elements extracted")
         print("   Characters: \(storyElements.characters.count)")
         print("   Settings: \(storyElements.settings.count)")
         print("   Events: \(storyElements.events.count)")
@@ -57,12 +57,12 @@ final class StoryNarrativeGenerator: ObservableObject {
         // Step 3: Build chronological timeline
         generationProgress = 0.5
         let timeline = buildTimeline(from: storyElements.events)
-        print("✅ Step 3: Timeline built (\(timeline.count) events)")
+        print(" Step 3: Timeline built (\(timeline.count) events)")
         
         // Step 4: Identify narrative arc
         generationProgress = 0.7
         let narrativeArc = identifyNarrativeArc(timeline: timeline, elements: storyElements)
-        print("✅ Step 4: Narrative arc identified")
+        print(" Step 4: Narrative arc identified")
         
         // Step 5: Generate cinematic narrative
         generationProgress = 0.9
@@ -71,12 +71,12 @@ final class StoryNarrativeGenerator: ObservableObject {
             elements: storyElements,
             timeline: timeline
         )
-        print("✅ Step 5: Cinematic narrative generated")
+        print(" Step 5: Cinematic narrative generated")
         print("   Length: \(narrative.count) characters")
         
         generationProgress = 1.0
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("🎬 Story narrative generation complete!")
+        print(" Story narrative generation complete!")
         
         return narrative
     }
@@ -159,7 +159,7 @@ final class StoryNarrativeGenerator: ObservableObject {
         
         print("   📸 Image analyzed: \(insight.scenes.joined(separator: ", "))")
         if insight.faceCount > 0 {
-            print("      👥 Faces: \(insight.faceCount)")
+            print("       Faces: \(insight.faceCount)")
         }
         if let text = insight.extractedText, !text.isEmpty {
             print("      📝 OCR: \(text.prefix(50))...")
@@ -171,7 +171,7 @@ final class StoryNarrativeGenerator: ObservableObject {
     /// Analyze video using Vision + Speech
     private func analyzeVideo(data: Data, document: Document) async -> MediaInsight? {
         guard data.count < 50 * 1024 * 1024 else {  // Skip videos > 50MB
-            print("   🎥 Video too large, skipping deep analysis")
+            print("    Video too large, skipping deep analysis")
             return nil
         }
         
@@ -205,7 +205,7 @@ final class StoryNarrativeGenerator: ObservableObject {
                     insight.scenes = results.map { $0.identifier }
                 }
             } catch {
-                print("   ⚠️ Failed to extract video frame: \(error.localizedDescription)")
+                print("    Failed to extract video frame: \(error.localizedDescription)")
             }
             
             // Transcribe audio from video
@@ -217,13 +217,13 @@ final class StoryNarrativeGenerator: ObservableObject {
             // Cleanup
             try? FileManager.default.removeItem(at: tempURL)
             
-            print("   🎥 Video analyzed: \(insight.scenes.joined(separator: ", "))")
+            print("   Video analyzed: \(insight.scenes.joined(separator: ", "))")
             if let text = insight.extractedText {
-                print("      🗣️ Transcription: \(text.prefix(50))...")
+                print("      Transcription: \(text.prefix(50))...")
             }
             
         } catch {
-            print("   ❌ Video analysis error: \(error)")
+            print("   Video analysis error: \(error)")
         }
         
         return insight
@@ -254,13 +254,13 @@ final class StoryNarrativeGenerator: ObservableObject {
             // Cleanup
             try? FileManager.default.removeItem(at: tempURL)
             
-            print("   🎤 Audio analyzed")
+            print("    Audio analyzed")
             if let text = insight.extractedText {
-                print("      🗣️ Transcription: \(text.prefix(50))...")
+                print("      Transcription: \(text.prefix(50))...")
             }
             
         } catch {
-            print("   ❌ Audio analysis error: \(error)")
+            print("   Audio analysis error: \(error)")
         }
         
         return insight
@@ -269,13 +269,13 @@ final class StoryNarrativeGenerator: ObservableObject {
     /// Transcribe audio using Speech framework
     private func transcribeAudio(url: URL) async -> String? {
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
-            print("      ⚠️ Speech recognition not authorized")
+            print("       Speech recognition not authorized")
             return nil
         }
         
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
         guard recognizer?.isAvailable == true else {
-            print("      ⚠️ Speech recognizer not available")
+            print("       Speech recognizer not available")
             return nil
         }
         
@@ -285,7 +285,7 @@ final class StoryNarrativeGenerator: ObservableObject {
         return try? await withCheckedThrowingContinuation { continuation in
             recognizer?.recognitionTask(with: request) { result, error in
                 if let error = error {
-                    print("      ❌ Transcription error: \(error.localizedDescription)")
+                    print("       Transcription error: \(error.localizedDescription)")
                     continuation.resume(returning: nil)
                 } else if let result = result, result.isFinal {
                     continuation.resume(returning: result.bestTranscription.formattedString)

@@ -424,7 +424,7 @@ final class AutomaticTriageService: ObservableObject {
             }
         }
         try modelContext.save()
-        print("🔒 All vaults closed due to security threat")
+        print(" All vaults closed due to security threat")
     }
     
     private func lockVault(_ vaultID: UUID) async throws {
@@ -440,7 +440,7 @@ final class AutomaticTriageService: ObservableObject {
                 }
             }
             try modelContext.save()
-            print("🔒 Vault '\(vault.name)' locked due to security threat")
+            print(" Vault '\(vault.name)' locked due to security threat")
         }
     }
     
@@ -458,7 +458,7 @@ final class AutomaticTriageService: ObservableObject {
             nominee.status = "inactive"
         }
         try modelContext.save()
-        print("🚫 Revoked \(nominees.count) compromised nominee(s)")
+        print(" Revoked \(nominees.count) compromised nominee(s)")
     }
     
     private func revokeAllNominees() async throws {
@@ -473,7 +473,7 @@ final class AutomaticTriageService: ObservableObject {
             }
         }
         try modelContext.save()
-        print("🚫 Revoked all nominees due to security threat")
+        print(" Revoked all nominees due to security threat")
     }
     
     private func revokeAllSessions() async throws {
@@ -488,7 +488,7 @@ final class AutomaticTriageService: ObservableObject {
             }
         }
         try modelContext.save()
-        print("🔒 Revoked all active sessions")
+        print(" Revoked all active sessions")
     }
     
     private func redactDocuments(_ documentIDs: [UUID]) async throws {
@@ -523,7 +523,7 @@ final class AutomaticTriageService: ObservableObject {
             document.status = "archived" // Archive to restrict access
         }
         try modelContext.save()
-        print("🔒 Restricted access to \(documents.count) document(s)")
+        print(" Restricted access to \(documents.count) document(s)")
     }
     
     private func enableDualKeyProtection() async throws {
@@ -534,7 +534,7 @@ final class AutomaticTriageService: ObservableObject {
             vault.keyType = "dual"
         }
         try modelContext.save()
-        print("🔐 Enabled dual-key protection for all vaults")
+        print(" Enabled dual-key protection for all vaults")
     }
     
     private func recordMonitoringIP(_ ip: String) async {

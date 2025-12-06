@@ -18,7 +18,7 @@ final class ErrorHandler: ObservableObject {
     private init() {}
     
     func handle(_ error: Error, context: String = "") {
-        print("❌ Error in \(context): \(error.localizedDescription)")
+        print(" Error in \(context): \(error.localizedDescription)")
         
         // Convert to AppError
         if let appError = error as? AppError {
