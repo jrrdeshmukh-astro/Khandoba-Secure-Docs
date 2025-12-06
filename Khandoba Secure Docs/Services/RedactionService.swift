@@ -273,7 +273,7 @@ final class RedactionService {
 // MARK: - Models
 
 public struct PHIMatch: Identifiable {
-    public let id = UUID()
+    public let id: UUID
     public let type: String
     public let value: String
     public let range: NSRange?
