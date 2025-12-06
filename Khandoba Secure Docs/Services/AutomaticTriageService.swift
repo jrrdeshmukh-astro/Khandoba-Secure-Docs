@@ -102,7 +102,7 @@ final class AutomaticTriageService: ObservableObject {
                 recommendedActions: [
                     .closeAllVaults,
                     .recordMonitoringIP(monitoringIP ?? "Unknown"),
-                    .revokeAllActiveSessions,
+                    .revokeAllSessions,
                     .changeAllPasswords
                 ],
                 autoActions: [.closeAllVaults, .recordMonitoringIP(monitoringIP ?? "Unknown")]
@@ -191,7 +191,7 @@ final class AutomaticTriageService: ObservableObject {
                 ],
                 recommendedActions: [
                     .lockVault(vault.id),
-                    .reviewAllAccessLogs,
+                    .reviewAccessLogs,
                     .revokeAllNominees,
                     .enableEnhancedMonitoring,
                     .changeVaultPassword
@@ -311,6 +311,7 @@ final class AutomaticTriageService: ObservableObject {
             triageResult: result,
             currentStep: 0,
             answers: [:],
+            recommendedActions: result.recommendedActions,
             completedActions: []
         )
         

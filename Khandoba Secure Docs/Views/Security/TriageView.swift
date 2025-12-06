@@ -1159,30 +1159,6 @@ struct RemediationRow: View {
                 .font(theme.typography.caption)
                 .foregroundColor(colors.textSecondary)
                 .lineLimit(2)
-        }
-    }
-    
-    private func priorityLabel(for priority: RemediationPriority) -> String {
-        switch priority {
-        case .low: return "Low"
-        case .medium: return "Medium"
-        case .high: return "High"
-        case .immediate: return "Immediate"
-        }
-    }
-    
-    private func priorityColor(for priority: RemediationPriority, colors: UnifiedTheme.ColorSet) -> Color {
-        switch priority {
-        case .low: return colors.success
-        case .medium: return colors.warning
-        case .high: return colors.warning
-        case .immediate: return colors.error
-        }
-    }
-            
-            Text(remediation.description)
-                .font(theme.typography.caption)
-                .foregroundColor(colors.textSecondary)
             
             VStack(alignment: .leading, spacing: 4) {
                 Text("Steps:")
@@ -1208,6 +1184,24 @@ struct RemediationRow: View {
         .padding()
         .background(colors.surface.opacity(0.5))
         .cornerRadius(UnifiedTheme.CornerRadius.md)
+    }
+    
+    private func priorityLabel(for priority: RemediationPriority) -> String {
+        switch priority {
+        case .low: return "Low"
+        case .medium: return "Medium"
+        case .high: return "High"
+        case .immediate: return "Immediate"
+        }
+    }
+    
+    private func priorityColor(for priority: RemediationPriority, colors: UnifiedTheme.ColorSet) -> Color {
+        switch priority {
+        case .low: return colors.success
+        case .medium: return colors.warning
+        case .high: return colors.warning
+        case .immediate: return colors.error
+        }
     }
 }
 
