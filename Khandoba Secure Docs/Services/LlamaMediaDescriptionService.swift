@@ -265,7 +265,8 @@ final class LlamaMediaDescriptionService: ObservableObject {
             description += "\n"
         } else if document.documentType == "pdf" {
             // Extract PDF text
-            if let pdfText = PDFTextExtractor.extractFromPDF(data: data) {
+            let pdfText = PDFTextExtractor.extractFromPDF(data: data)
+            if !pdfText.isEmpty {
                 let preview = pdfText.prefix(1000)
                 description += "PDF content: \(preview)"
                 if pdfText.count > 1000 {
