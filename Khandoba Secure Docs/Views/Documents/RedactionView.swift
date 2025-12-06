@@ -18,10 +18,12 @@ struct RedactionView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var authService: AuthenticationService
     
     @State private var redactionAreas: [CGRect] = []
     @State private var showSaveConfirm = false
     @State private var autoDetectedPHI: [PHIMatch] = []
+    @StateObject private var locationService = LocationService()
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -248,6 +250,29 @@ struct RedactionView: View {
                 
                 // Clear extracted text (may contain PHI)
                 document.extractedText = nil
+                
+                // Log redaction event
+                if let vault = document.vault {
+                    await locationService.requestLocationPermission()
+                    let location = await locationService.getCurrentLocation()
+                    
+                    let accessLog = VaultAccessLog(
+                        accessType: "redacted",
+                        userID: authService.currentUser?.id,
+                        userName: authService.currentUser?.fullName
+                    )
+                    accessLog.vault = vault
+                    accessLog.documentID = document.id
+                    accessLog.documentName = document.name
+                    accessLog.deviceInfo = "Redacted \(redactionAreas.count) areas, \(autoDetectedPHI.count) PHI matches"
+                    
+                    if let location = location {
+                        accessLog.locationLatitude = location.coordinate.latitude
+                        accessLog.locationLongitude = location.coordinate.longitude
+                    }
+                    
+                    modelContext.insert(accessLog)
+                }
                 
                 try modelContext.save()
                 

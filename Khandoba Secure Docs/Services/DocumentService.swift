@@ -233,9 +233,36 @@ final class DocumentService: ObservableObject {
     func renameDocument(_ document: Document, newName: String) async throws {
         guard let modelContext = modelContext else { return }
         
+        let oldName = document.name
         document.name = newName
         document.lastModifiedAt = Date()
+        
+        // Log rename/edit event
+        if let vault = document.vault {
+            let locationService = LocationService()
+            await locationService.requestLocationPermission()
+            let location = await locationService.getCurrentLocation()
+            
+            let accessLog = VaultAccessLog(
+                accessType: "renamed",
+                userID: currentUserID,
+                userName: currentUser?.fullName
+            )
+            accessLog.vault = vault
+            accessLog.documentID = document.id
+            accessLog.documentName = newName
+            accessLog.deviceInfo = "Renamed from '\(oldName)' to '\(newName)'"
+            
+            if let location = location {
+                accessLog.locationLatitude = location.coordinate.latitude
+                accessLog.locationLongitude = location.coordinate.longitude
+            }
+            
+            modelContext.insert(accessLog)
+        }
+        
         try modelContext.save()
+        print("✏️ Document rename logged: \(oldName) → \(newName)")
     }
     
     func searchDocuments(query: String, in vaults: [Vault]) -> [Document] {

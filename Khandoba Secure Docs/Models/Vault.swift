@@ -109,13 +109,15 @@ final class VaultSession {
 final class VaultAccessLog {
     var id: UUID = UUID()
     var timestamp: Date = Date()
-    var accessType: String = "viewed" // "opened", "closed", "viewed", "modified", "deleted"
+    var accessType: String = "viewed" // "opened", "closed", "viewed", "modified", "deleted", "previewed", "edited", "renamed", "redacted"
     var userID: UUID?
     var userName: String?
     var deviceInfo: String?
     var locationLatitude: Double?
     var locationLongitude: Double?
     var ipAddress: String?
+    var documentID: UUID? // Track which document was accessed
+    var documentName: String? // Document name for easier reference
     
     var vault: Vault?
     

@@ -247,7 +247,17 @@ struct AccessMapView: View {
         if eventTypeFilter == .all {
             return annotations
         }
-        return annotations.filter { $0.eventCategory == eventTypeFilter.rawValue }
+        // Map filter to event categories
+        let category: String
+        switch eventTypeFilter {
+        case .access: category = "Access"
+        case .document: category = "Document"
+        case .dualKey: category = "Dual-Key"
+        case .upload: category = "Upload"
+        case .report: category = "Report"
+        default: category = eventTypeFilter.rawValue
+        }
+        return annotations.filter { $0.eventCategory == category }
     }
     
     private func countForFilter(_ filter: EventFilter) -> Int {
@@ -320,7 +330,30 @@ struct AccessMapView: View {
         allAnnotations.append(contentsOf: requestAnnotations)
         print("   ✅ Loaded \(requestAnnotations.count) dual-key requests")
         
-        // 3. DOCUMENT UPLOADS
+        // 3. DOCUMENT ACTIONS (preview, edit, rename, redact)
+        var documentActionAnnotations: [AccessAnnotation] = []
+        for log in recentLogs {
+            if let documentID = log.documentID,
+               let lat = log.locationLatitude,
+               let lon = log.locationLongitude,
+               (log.accessType == "previewed" || log.accessType == "edited" || 
+                log.accessType == "renamed" || log.accessType == "redacted") {
+                
+                let annotation = AccessAnnotation(
+                    id: log.id,
+                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                    accessType: log.accessType,
+                    timestamp: log.timestamp,
+                    eventCategory: "Document",
+                    details: log.documentName ?? "Document"
+                )
+                documentActionAnnotations.append(annotation)
+            }
+        }
+        allAnnotations.append(contentsOf: documentActionAnnotations)
+        print("MAP: Loaded \(documentActionAnnotations.count) document action events")
+        
+        // 4. DOCUMENT UPLOADS
         // OPTIMIZATION: Only show recent uploads
         let documents: [Document] = vault.documents ?? []
         let recentDocuments = documents.sorted { $0.uploadedAt > $1.uploadedAt }.prefix(20)
@@ -348,7 +381,7 @@ struct AccessMapView: View {
         allAnnotations.append(contentsOf: uploadAnnotations)
         print("MAP: Loaded \(uploadAnnotations.count) upload events")
         
-        // 4. REPORT GENERATION EVENTS
+        // 5. REPORT GENERATION EVENTS
         // Track when intel reports are generated (stored in vault access logs)
         var reportAnnotations: [AccessAnnotation] = []
         for log in logs where log.accessType == "report_generated" {
@@ -372,6 +405,7 @@ struct AccessMapView: View {
         
         print("MAP SUMMARY: Total events on map: \(annotations.count)")
         print("   Access: \(logAnnotations.count)")
+        print("   Document Actions: \(documentActionAnnotations.count)")
         print("   Dual-Key: \(requestAnnotations.count)")
         print("   Uploads: \(uploadAnnotations.count)")
         print("   Reports: \(reportAnnotations.count)")
@@ -435,6 +469,12 @@ struct AccessMapView: View {
         case "modified": return "pencil.circle.fill"
         case "deleted": return "trash.fill"
         
+        // Document actions
+        case "previewed": return "eye.circle.fill"
+        case "edited": return "pencil.and.outline"
+        case "renamed": return "textformat"
+        case "redacted": return "eye.slash.fill"
+        
         // Dual-key events
         case "dual_key_approved": return "checkmark.shield.fill"
         case "dual_key_denied": return "xmark.shield.fill"
@@ -460,6 +500,12 @@ struct AccessMapView: View {
         case "modified": return colors.warning
         case "deleted": return colors.error
         
+        // Document actions
+        case "previewed": return colors.info
+        case "edited": return colors.warning
+        case "renamed": return colors.secondary
+        case "redacted": return colors.error
+        
         // Dual-key events
         case "dual_key_approved": return colors.success
         case "dual_key_denied": return colors.error
@@ -471,7 +517,7 @@ struct AccessMapView: View {
         // Report events
         case "report_generated": return Color.purple
         
-                default: return colors.textTertiary
+        default: return colors.textTertiary
         }
     }
     
@@ -526,6 +572,7 @@ struct MetadataItem: View {
 enum EventFilter: String, CaseIterable {
     case all = "All"
     case access = "Access"
+    case document = "Document"
     case dualKey = "Dual-Key"
     case upload = "Upload"
     case report = "Report"
@@ -534,6 +581,7 @@ enum EventFilter: String, CaseIterable {
         switch self {
         case .all: return "circle.grid.3x3.fill"
         case .access: return "lock.open.fill"
+        case .document: return "doc.fill"
         case .dualKey: return "key.fill"
         case .upload: return "arrow.up.doc.fill"
         case .report: return "chart.bar.doc.horizontal.fill"

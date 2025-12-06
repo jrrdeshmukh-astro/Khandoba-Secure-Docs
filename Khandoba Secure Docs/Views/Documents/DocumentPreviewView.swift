@@ -15,11 +15,14 @@ struct DocumentPreviewView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var documentService: DocumentService
+    @EnvironmentObject var authService: AuthenticationService
     
     @State private var showActions = false
     @State private var showDeleteConfirm = false
     @State private var showRenameSheet = false
+    @StateObject private var locationService = LocationService()
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -94,6 +97,38 @@ struct DocumentPreviewView: View {
         } message: {
             Text("This action cannot be undone")
         }
+        .task {
+            // Log document preview
+            await logDocumentPreview()
+        }
+    }
+    
+    private func logDocumentPreview() async {
+        guard let vault = document.vault else { return }
+        
+        // Get current location
+        await locationService.requestLocationPermission()
+        let location = await locationService.getCurrentLocation()
+        
+        // Create access log entry
+        let accessLog = VaultAccessLog(
+            accessType: "previewed",
+            userID: authService.currentUser?.id,
+            userName: authService.currentUser?.fullName
+        )
+        accessLog.vault = vault
+        accessLog.documentID = document.id
+        accessLog.documentName = document.name
+        
+        if let location = location {
+            accessLog.locationLatitude = location.coordinate.latitude
+            accessLog.locationLongitude = location.coordinate.longitude
+        }
+        
+        modelContext.insert(accessLog)
+        try? modelContext.save()
+        
+        print("📄 Document preview logged: \(document.name)")
     }
     
     private func deleteDocument() {

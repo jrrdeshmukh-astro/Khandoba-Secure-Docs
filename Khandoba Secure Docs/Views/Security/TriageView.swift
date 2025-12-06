@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import Charts
+import UIKit
 
 struct TriageView: View {
     @Environment(\.unifiedTheme) var theme
@@ -18,13 +19,17 @@ struct TriageView: View {
     @StateObject private var threatService = ThreatMonitoringService()
     @StateObject private var mlService = MLThreatAnalysisService()
     @StateObject private var vaultService = VaultService()
+    @StateObject private var autoTriageService = AutomaticTriageService()
     
     @State private var allThreats: [ThreatItem] = []
     @State private var dataLeaks: [DataLeak] = []
     @State private var isAnalyzing = false
     @State private var selectedThreat: ThreatItem?
     @State private var showRemediation = false
+    @State private var showGuidedRemediation = false
     @State private var refreshTimer: Timer?
+    @State private var screenMonitoringTimer: Timer?
+    @State private var isScreenCaptured = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -73,8 +78,21 @@ struct TriageView: View {
                             .padding(.horizontal)
                         }
                         
+                        // Automatic Triage Results
+                        if !autoTriageService.triageResults.isEmpty {
+                            AutomaticTriageResultsSection(
+                                results: autoTriageService.triageResults,
+                                onStartRemediation: { result in
+                                    Task {
+                                        await autoTriageService.startGuidedRemediation(for: result)
+                                    }
+                                }
+                            )
+                            .padding(.horizontal)
+                        }
+                        
                         // Empty State
-                        if allThreats.isEmpty && dataLeaks.isEmpty {
+                        if allThreats.isEmpty && dataLeaks.isEmpty && autoTriageService.triageResults.isEmpty {
                             EmptyTriageState()
                                 .padding()
                         }
@@ -115,9 +133,36 @@ struct TriageView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showGuidedRemediation) {
+                GuidedRemediationWizard(triageService: autoTriageService) {
+                    showGuidedRemediation = false
+                    Task {
+                        await autoTriageService.performAutomaticTriage()
+                        await analyzeAllThreats()
+                    }
+                }
+            }
+            .onChange(of: autoTriageService.currentRemediationFlow) { oldValue, newValue in
+                // Auto-show guided remediation when flow starts
+                if newValue != nil && oldValue == nil {
+                    showGuidedRemediation = true
+                }
+            }
             .task {
+                // Configure automatic triage service
+                if let userID = authService.currentUser?.id {
+                    autoTriageService.configure(modelContext: modelContext, userID: userID)
+                }
+                
+                // Run automatic triage first
+                await autoTriageService.performAutomaticTriage()
+                
+                // Then run traditional analysis
                 await analyzeAllThreats()
                 startRealTimeMonitoring()
+                
+                // Execute auto-actions for critical threats
+                await executeAutoActions()
             }
             .onDisappear {
                 stopRealTimeMonitoring()
@@ -333,13 +378,47 @@ struct TriageView: View {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { _ in
             Task {
                 await analyzeAllThreats()
+                await autoTriageService.performAutomaticTriage()
             }
+        }
+        
+        // Monitor screen capture continuously
+        screenMonitoringTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            checkScreenCapture()
+        }
+        
+        // Listen for screen capture notifications
+        NotificationCenter.default.addObserver(
+            forName: UIScreen.capturedDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            checkScreenCapture()
         }
     }
     
     private func stopRealTimeMonitoring() {
         refreshTimer?.invalidate()
         refreshTimer = nil
+        screenMonitoringTimer?.invalidate()
+        screenMonitoringTimer = nil
+        NotificationCenter.default.removeObserver(self, name: UIScreen.capturedDidChangeNotification, object: nil)
+    }
+    
+    private func checkScreenCapture() {
+        let captured = UIScreen.main.isCaptured
+        
+        if captured && !isScreenCaptured {
+            // Screen capture just started - trigger automatic triage
+            print("🚨 Screen monitoring detected - triggering automatic triage")
+            Task {
+                await autoTriageService.performAutomaticTriage()
+                // Auto-execute critical actions
+                await executeAutoActions()
+            }
+        }
+        
+        isScreenCaptured = captured
     }
     
     // MARK: - Alert System
@@ -363,6 +442,62 @@ struct TriageView: View {
                 body: leak.title,
                 threatType: leak.type.rawValue
             )
+        }
+    }
+    
+    // MARK: - Auto Actions
+    
+    private func executeAutoActions() async {
+        // Execute automatic actions for critical threats
+        for result in autoTriageService.triageResults where result.severity == .critical {
+            // Create a temporary flow for auto-actions if one doesn't exist
+            var flow = autoTriageService.currentRemediationFlow
+            if flow == nil {
+                flow = RemediationFlow(
+                    id: UUID(),
+                    triageResult: result,
+                    currentStep: 0,
+                    answers: [:],
+                    recommendedActions: result.recommendedActions,
+                    completedActions: []
+                )
+                autoTriageService.currentRemediationFlow = flow
+            }
+            
+            guard let flow = flow else { continue }
+            
+            for action in result.autoActions {
+                do {
+                    try await autoTriageService.executeAction(action, in: flow)
+                    print("✅ Auto-executed action: \(actionTitle(action))")
+                } catch {
+                    print("❌ Failed to execute auto-action: \(error.localizedDescription)")
+                }
+            }
+            
+            // If screen monitoring detected, start guided remediation
+            if result.type == .screenMonitoring {
+                await autoTriageService.startGuidedRemediation(for: result)
+            }
+        }
+    }
+    
+    private func actionTitle(_ action: RemediationAction) -> String {
+        switch action {
+        case .closeAllVaults: return "Close All Vaults"
+        case .lockVault: return "Lock Vault"
+        case .revokeNominees: return "Revoke Nominees"
+        case .revokeAllNominees: return "Revoke All Nominees"
+        case .revokeAllSessions: return "Revoke All Sessions"
+        case .redactDocuments: return "Redact Documents"
+        case .restrictDocumentAccess: return "Restrict Document Access"
+        case .changeVaultPassword: return "Change Vault Password"
+        case .changeAllPasswords: return "Change All Passwords"
+        case .recordMonitoringIP: return "Record Monitoring IP"
+        case .reviewAccessLogs: return "Review Access Logs"
+        case .reviewDocumentSharing: return "Review Document Sharing"
+        case .enableDualKeyProtection: return "Enable Dual-Key Protection"
+        case .enableEnhancedMonitoring: return "Enable Enhanced Monitoring"
         }
     }
     
@@ -1336,6 +1471,127 @@ struct RemediationStepsCard: View {
                     "Report to support"
                 ]
             }
+        }
+    }
+}
+
+// MARK: - Automatic Triage Results Section
+
+struct AutomaticTriageResultsSection: View {
+    let results: [TriageResult]
+    let onStartRemediation: (TriageResult) -> Void
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+            HStack {
+                Image(systemName: "brain.head.profile")
+                    .foregroundColor(colors.primary)
+                
+                Text("Automatic Triage Results")
+                    .font(theme.typography.headline)
+                    .foregroundColor(colors.textPrimary)
+                
+                Spacer()
+                
+                Text("\(results.count)")
+                    .font(theme.typography.subheadline)
+                    .foregroundColor(colors.primary)
+            }
+            .padding(.horizontal)
+            
+            ForEach(results) { result in
+                AutomaticTriageResultRow(
+                    result: result,
+                    onStartRemediation: { onStartRemediation(result) }
+                )
+            }
+        }
+    }
+}
+
+struct AutomaticTriageResultRow: View {
+    let result: TriageResult
+    let onStartRemediation: () -> Void
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        StandardCard {
+            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                HStack {
+                    Image(systemName: iconForType(result.type))
+                        .foregroundColor(result.severity.color)
+                        .font(.title3)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(result.title)
+                                .font(theme.typography.subheadline)
+                                .foregroundColor(colors.textPrimary)
+                                .fontWeight(.semibold)
+                            
+                            Spacer()
+                            
+                            Text(result.severity.rawValue)
+                                .font(theme.typography.caption)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(result.severity.color)
+                                .cornerRadius(4)
+                        }
+                        
+                        Text(result.description)
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textSecondary)
+                            .lineLimit(2)
+                        
+                        if let entities = result.affectedEntities, !entities.isEmpty {
+                            Text("Affected: \(entities.joined(separator: ", "))")
+                                .font(theme.typography.caption2)
+                                .foregroundColor(colors.error)
+                        }
+                    }
+                }
+                
+                Divider()
+                
+                HStack {
+                    Label(result.vaultName, systemImage: "lock.shield.fill")
+                        .font(theme.typography.caption2)
+                        .foregroundColor(colors.textTertiary)
+                    
+                    Spacer()
+                    
+                    Button {
+                        onStartRemediation()
+                    } label: {
+                        Label("Start Remediation", systemImage: "arrow.right.circle.fill")
+                            .font(theme.typography.caption)
+                    }
+                    .foregroundColor(colors.primary)
+                }
+            }
+        }
+    }
+    
+    private func iconForType(_ type: TriageResultType) -> String {
+        switch type {
+        case .screenMonitoring: return "eye.slash.fill"
+        case .compromisedNominee: return "person.crop.circle.badge.xmark"
+        case .sensitiveDocuments: return "doc.text.fill"
+        case .dataLeak: return "arrow.up.doc.fill"
+        case .bruteForce: return "bolt.shield.fill"
+        case .unauthorizedAccess: return "lock.triangle.fill"
+        case .suspiciousActivity: return "exclamationmark.triangle.fill"
         }
     }
 }
