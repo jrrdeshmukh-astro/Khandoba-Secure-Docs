@@ -15,12 +15,19 @@ struct ContentView: View {
     // Use @AppStorage to observe permissions changes
     @AppStorage("permissions_setup_complete") private var permissionsComplete = false
     
+    // Deep link handling for nominee invitations
+    @State private var pendingInviteToken: String?
+    @State private var showInvitationView = false
+    
     var body: some View {
         Group {
             if authService.isLoading {
                 LoadingView("Initializing...")
             } else if !authService.isAuthenticated {
                 WelcomeView()
+                    .onOpenURL { url in
+                        handleDeepLink(url)
+                    }
             } else if needsPermissionsSetup {
                 // PERMISSIONS FIRST - right after signin
                 PermissionsSetupView()
@@ -33,6 +40,43 @@ struct ContentView: View {
             } else {
                 // Main App - Single role, autopilot mode
                 ClientMainView()
+                    .onOpenURL { url in
+                        handleDeepLink(url)
+                    }
+                    .sheet(isPresented: $showInvitationView) {
+                        if let token = pendingInviteToken {
+                            AcceptNomineeInvitationView(inviteToken: token)
+                        }
+                    }
+            }
+        }
+        .onAppear {
+            // Check for pending invitation token from previous launch
+            if let token = UserDefaults.standard.string(forKey: "pending_invite_token") {
+                pendingInviteToken = token
+                UserDefaults.standard.removeObject(forKey: "pending_invite_token")
+                if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+                    showInvitationView = true
+                }
+            }
+        }
+    }
+    
+    private func handleDeepLink(_ url: URL) {
+        // Handle nominee invitation deep links
+        // Format: khandoba://invite?token=UUID
+        if url.scheme == "khandoba" && url.host == "invite" {
+            if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+               let token = components.queryItems?.first(where: { $0.name == "token" })?.value {
+                pendingInviteToken = token
+                
+                // If user is authenticated and setup is complete, show invitation view
+                if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+                    showInvitationView = true
+                } else {
+                    // Store token for later (after authentication/setup)
+                    UserDefaults.standard.set(token, forKey: "pending_invite_token")
+                }
             }
         }
     }

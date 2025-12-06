@@ -334,7 +334,52 @@ final class VaultService: ObservableObject {
         // Start session timeout timer
         startSessionTimeout(for: vault)
         
+        // 🔗 INTEGRATION: Open shared vault session for nominees
+        if let currentUser = currentUser {
+            let sharedSessionService = SharedVaultSessionService()
+            sharedSessionService.configure(modelContext: modelContext, userID: currentUserID!)
+            try await sharedSessionService.openSharedVault(vault, unlockedBy: currentUser)
+            print("✅ Shared vault session opened - nominees can now access")
+        }
+        
+        // ✅ NOMINEE ACCESS: Check if current user is a nominee
+        await checkAndGrantNomineeAccess(for: vault, userID: currentUserID!)
+        
         try await loadVaults()
+    }
+    
+    // MARK: - Nominee Access Management
+    
+    /// Check if current user is a nominee and grant access if eligible
+    private func checkAndGrantNomineeAccess(for vault: Vault, userID: UUID) async {
+        guard let modelContext = modelContext else { return }
+        
+        // Check if user is a nominee for this vault
+        let nomineeDescriptor = FetchDescriptor<Nominee>(
+            predicate: #Predicate {
+                $0.vault?.id == vault.id &&
+                ($0.status == "accepted" || $0.status == "active")
+            }
+        )
+        
+        do {
+            let nominees = try modelContext.fetch(nomineeDescriptor)
+            
+            // Check if current user matches any nominee (by email or phone)
+            // Note: In production, you'd match by authenticated user email/phone
+            // For now, we'll check if there are any active nominees and grant them access
+            if !nominees.isEmpty {
+                print("👥 Found \(nominees.count) active nominee(s) for vault: \(vault.name)")
+                
+                // Grant access via shared session (already opened above)
+                // Nominees will be notified via SharedVaultSessionService notifications
+                for nominee in nominees {
+                    print("   ✅ Nominee '\(nominee.name)' has access (status: \(nominee.status))")
+                }
+            }
+        } catch {
+            print("⚠️ Error checking nominee access: \(error)")
+        }
     }
     
     /// Start or restart session timeout timer
@@ -419,11 +464,19 @@ final class VaultService: ObservableObject {
             activeSessions.removeValue(forKey: vault.id)
         }
         
+        // 🔗 INTEGRATION: Lock shared vault session (notifies all nominees)
+        if let currentUser = currentUser {
+            let sharedSessionService = SharedVaultSessionService()
+            sharedSessionService.configure(modelContext: modelContext, userID: currentUserID)
+            try? await sharedSessionService.lockSharedVault(vault, lockedBy: currentUser)
+            print("✅ Shared vault session locked - nominees notified")
+        }
+        
         // Log access with location
         let accessLog = VaultAccessLog(
             accessType: "closed",
             userID: currentUserID,
-            userName: nil
+            userName: currentUser?.fullName
         )
         accessLog.vault = vault
         

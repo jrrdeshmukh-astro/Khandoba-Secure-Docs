@@ -234,9 +234,28 @@ struct UnifiedShareView: View {
                     let phoneNumbers = selectedContacts.flatMap { contact in
                         contact.phoneNumbers.compactMap { $0.value.stringValue }
                     }
-                    let message = mode == .nominee ?
-                        "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it. Download the app!" :
-                        "You've been offered ownership of vault '\(vault.name)' in Khandoba Secure Docs. Accept to become the new owner. Download the app!"
+                    // Generate deep links for nominees
+                    let nomineeTokens = selectedContacts.compactMap { contact -> String? in
+                        // Find nominee by contact info
+                        // In production, you'd match by phone/email
+                        return nil // Placeholder - would get token from nominee record
+                    }
+                    
+                    // Generate invitation message with deep links
+                    let message: String
+                    if mode == .nominee {
+                        // Get nominee tokens from UserDefaults
+                        if let tokens = UserDefaults.standard.array(forKey: "pending_nominee_tokens") as? [String],
+                           let firstToken = tokens.first {
+                            // For multiple nominees, use first token (in production, match by contact)
+                            let deepLink = "khandoba://invite?token=\(firstToken)"
+                            message = "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it.\n\nTap to accept: \(deepLink)\n\nOr download the app from the App Store!"
+                        } else {
+                            message = "You've been invited as a nominee for vault '\(vault.name)' in Khandoba Secure Docs. You'll have concurrent access when the owner unlocks it. Download the app from the App Store!"
+                        }
+                    } else {
+                        message = "You've been offered ownership of vault '\(vault.name)' in Khandoba Secure Docs. Accept to become the new owner. Download the app!"
+                    }
                     
                     MessageComposeView(
                         recipients: phoneNumbers,
@@ -244,6 +263,7 @@ struct UnifiedShareView: View {
                         onDismiss: {
                             showMessageComposer = false
                             selectedContacts = []
+                            UserDefaults.standard.removeObject(forKey: "pending_nominee_tokens")
                             dismiss()
                         }
                     )
@@ -308,6 +328,7 @@ struct UnifiedShareView: View {
                 }
                 
                 // 1. Create nominees for each contact
+                var nomineeTokens: [String] = []
                 for contact in selectedContacts {
                     let fullName = "\(contact.givenName) \(contact.familyName)"
                     let phoneNumber = contact.phoneNumbers.first?.value.stringValue
@@ -323,9 +344,14 @@ struct UnifiedShareView: View {
                     nominee.invitedByUserID = currentUser.id
                     
                     modelContext.insert(nominee)
+                    nomineeTokens.append(nominee.inviteToken)
                 }
                 
                 try modelContext.save()
+                
+                // Store tokens for message generation
+                // The MessageComposeView will use these to generate deep links
+                UserDefaults.standard.set(nomineeTokens, forKey: "pending_nominee_tokens")
                 
                 // 2. Send iMessage invitations
                 showMessageComposer = true

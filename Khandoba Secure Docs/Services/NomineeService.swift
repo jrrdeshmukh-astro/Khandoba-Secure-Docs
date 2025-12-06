@@ -98,26 +98,29 @@ final class NomineeService: ObservableObject {
     }
     
     private func sendInvitation(to nominee: Nominee) async {
-        // Generate invitation details
+        // Generate invitation details with deep link
+        let deepLink = "khandoba://invite?token=\(nominee.inviteToken)"
         let invitationMessage = """
         You've been invited to co-manage a vault in Khandoba Secure Docs!
         
         Vault: \(nominee.vault?.name ?? "Unknown")
         Invited by: Vault Owner
-        Role: Dual-key approval required
         
-        Download Khandoba Secure Docs from the App Store to accept.
+        Tap to accept: \(deepLink)
+        
+        Or download Khandoba Secure Docs from the App Store and use this token:
+        \(nominee.inviteToken)
         """
         
-        // In a production app with MessageUI:
-        // - Use MFMessageComposeViewController to send SMS/iMessage
-        // - Include deep link to app
-        // - Track delivery status
+        // Note: UnifiedShareView uses MessageComposeView to actually send the message
+        // This method is kept for backwards compatibility but the message
+        // should be sent via UnifiedShareView's MessageComposeView
         
-        // For now, copy to clipboard for manual sharing
+        // Copy to clipboard as fallback
         UIPasteboard.general.string = invitationMessage
         
         print("✅ Invitation generated for: \(nominee.name)")
+        print("   Deep link: \(deepLink)")
         print("   Message copied to clipboard for sharing")
     }
 }
