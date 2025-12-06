@@ -122,8 +122,8 @@ final class NomineeService: ObservableObject {
             print("   📱 Push notification will be sent to: \(phoneNumber)")
         }
         
-        // Note: Message sending is now handled by the view (MessageComposeView)
-        // The view will show the Messages app composer after nominee creation
+        // Send invitation (placeholder - would use MessageUI in production)
+        await sendInvitation(to: nominee)
         
         // Reload nominees to refresh the list
         print("🔄 Reloading nominees list...")
