@@ -37,9 +37,14 @@ final class PushNotificationService: NSObject, ObservableObject {
         }
         
         if granted {
-            await MainActor.run {
-                UIApplication.shared.registerForRemoteNotifications()
+            // Only register for remote notifications in main app, not in extensions
+            #if !targetEnvironment(macCatalyst)
+            if !ProcessInfo.processInfo.isAppExtension {
+                await MainActor.run {
+                    UIApplication.shared.registerForRemoteNotifications()
+                }
             }
+            #endif
             print(" Push notification authorization granted")
         } else {
             print(" Push notification authorization denied")
