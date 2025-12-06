@@ -45,8 +45,8 @@ struct GuidedRemediationWizard: View {
                     .ignoresSafeArea()
                 
                 ScrollView {
-                    if let flow = currentFlow {
-                        VStack(spacing: UnifiedTheme.Spacing.lg) {
+                    VStack(spacing: UnifiedTheme.Spacing.lg) {
+                        if let flow = currentFlow {
                             // Threat Summary
                             ThreatSummaryCard(result: flow.triageResult)
                                 .padding(.horizontal)
@@ -86,11 +86,11 @@ struct GuidedRemediationWizard: View {
                                 CompletedActionsCard(actions: flow.completedActions)
                                     .padding(.horizontal)
                             }
+                        } else {
+                            Text("No active remediation flow")
+                                .foregroundColor(theme.colors(for: colorScheme).textSecondary)
+                                .padding()
                         }
-                    } else {
-                        Text("No active remediation flow")
-                            .foregroundColor(theme.colors(for: colorScheme).textSecondary)
-                            .padding()
                     }
                     .padding(.vertical)
                 }
@@ -136,13 +136,7 @@ struct GuidedRemediationWizard: View {
         Task {
             await triageService.answerQuestion(question, answer: currentAnswer, in: flow)
             currentAnswer = ""
-            
-            // Update local flow state
-            if let updatedFlow = triageService.currentRemediationFlow {
-                await MainActor.run {
-                    self.flow = updatedFlow
-                }
-            }
+            // Flow is automatically updated via @ObservedObject
         }
     }
     
@@ -154,13 +148,9 @@ struct GuidedRemediationWizard: View {
         Task {
             do {
                 try await triageService.executeAction(action, in: flow)
-                
-                // Update local flow state
-                if let updatedFlow = triageService.currentRemediationFlow {
-                    await MainActor.run {
-                        self.flow = updatedFlow
-                        isExecutingAction = false
-                    }
+                // Flow is automatically updated via @ObservedObject
+                await MainActor.run {
+                    isExecutingAction = false
                 }
             } catch {
                 print("❌ Failed to execute action: \(error.localizedDescription)")
