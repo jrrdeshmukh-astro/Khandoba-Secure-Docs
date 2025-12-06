@@ -20,7 +20,6 @@ final class Nominee {
     var acceptedAt: Date?
     var inviteToken: String = UUID().uuidString  // Token for CloudKit sync (uniqueness enforced in app logic)
     
-    @Relationship(inverse: \Vault.nomineeList)
     var vault: Vault?
     var invitedByUserID: UUID?
     
