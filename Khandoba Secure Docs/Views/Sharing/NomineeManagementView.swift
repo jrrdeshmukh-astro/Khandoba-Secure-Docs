@@ -7,7 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import Messages
 
 struct NomineeManagementView: View {
     let vault: Vault
@@ -314,24 +313,12 @@ struct AddNomineeView: View {
                 print("   Nominee Token: \(nominee.inviteToken)")
                 print("   Vault: \(vault.name)")
                 
-                // Use Messages framework to send invitation
+                // Copy invitation link to clipboard
                 await MainActor.run {
-                    if MessageInvitationService.shared.canSendMessages() {
-                        // Open Messages app with invitation
-                        MessageInvitationService.shared.openMessagesWithInvitation(
-                            inviteToken: nominee.inviteToken,
-                            vaultName: vault.name,
-                            nomineeName: nominee.name,
-                            phoneNumber: nominee.phoneNumber
-                        )
-                        print("✅ Opened Messages app with invitation")
-                    } else {
-                        // Fallback: Copy invitation link to clipboard
-                        let invitationURL = "khandoba://nominee/invite?token=\(nominee.inviteToken)"
-                        UIPasteboard.general.string = invitationURL
-                        print("✅ Invitation created and link copied to clipboard")
-                        print("   📋 Link: \(invitationURL)")
-                    }
+                    let invitationURL = "khandoba://nominee/invite?token=\(nominee.inviteToken)"
+                    UIPasteboard.general.string = invitationURL
+                    print("✅ Invitation created and link copied to clipboard")
+                    print("   📋 Link: \(invitationURL)")
                     
                     dismiss()
                 }
