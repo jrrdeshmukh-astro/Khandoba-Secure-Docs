@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 struct AppConfig {
     // PRODUCTION MODE - Real Apple Sign In required

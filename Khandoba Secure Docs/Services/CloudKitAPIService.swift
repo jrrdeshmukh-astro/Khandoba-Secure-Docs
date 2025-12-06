@@ -9,7 +9,7 @@
 
 import Foundation
 import CloudKit
-import CryptoKit
+import Combine
 
 @MainActor
 final class CloudKitAPIService: ObservableObject {
@@ -28,7 +28,6 @@ final class CloudKitAPIService: ObservableObject {
     private let containerIdentifier = AppConfig.cloudKitContainer
     private let keyID = AppConfig.cloudKitKeyID
     private let teamID: String
-    private let environment: CKEnvironment
     
     private var container: CKContainer?
     
@@ -36,13 +35,8 @@ final class CloudKitAPIService: ObservableObject {
         // Get team ID from AppConfig
         self.teamID = AppConfig.cloudKitTeamID
         
-        // Use development for TestFlight, production for App Store
-        #if DEBUG
-        self.environment = .development
-        #else
-        self.environment = .production
-        #endif
-        
+        // CloudKit container automatically uses correct environment
+        // Development for TestFlight, Production for App Store
         self.container = CKContainer(identifier: containerIdentifier)
     }
     
@@ -262,17 +256,7 @@ struct SyncHealthReport {
     }
 }
 
-// MARK: - CloudKit Environment Extension
+// MARK: - Helper Extensions
 
-extension CKEnvironment {
-    var displayName: String {
-        switch self {
-        case .development:
-            return "Development"
-        case .production:
-            return "Production"
-        @unknown default:
-            return "Unknown"
-        }
-    }
-}
+// Note: CloudKit environment is determined automatically by the container
+// Development environment for TestFlight, Production for App Store
