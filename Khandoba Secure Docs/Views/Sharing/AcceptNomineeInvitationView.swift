@@ -233,7 +233,8 @@ struct AcceptNomineeInvitationView: View {
         isLoading = true
         Task {
             do {
-                let loadedNominee = try await nomineeService.acceptInvite(token: inviteToken)
+                // Load the invitation without accepting it yet
+                let loadedNominee = try await nomineeService.loadInvite(token: inviteToken)
                 await MainActor.run {
                     nominee = loadedNominee
                     isLoading = false
@@ -254,11 +255,8 @@ struct AcceptNomineeInvitationView: View {
         isLoading = true
         Task {
             do {
-                // Update nominee status to accepted
-                nominee.status = "accepted"
-                nominee.acceptedAt = Date()
-                
-                try modelContext.save()
+                // Use service method to accept invitation
+                _ = try await nomineeService.acceptInvite(token: inviteToken)
                 
                 await MainActor.run {
                     showSuccess = true

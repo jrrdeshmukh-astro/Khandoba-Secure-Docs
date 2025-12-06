@@ -266,8 +266,9 @@ struct BulkUploadView: View {
             // Upload files
             for (index, url) in selectedFiles.enumerated() {
                 do {
+                    let fileName = url.lastPathComponent
+                    
                     if let data = try? Data(contentsOf: url) {
-                        let fileName = url.lastPathComponent
                         let fileExtension = url.pathExtension.lowercased()
                         
                         // Determine MIME type

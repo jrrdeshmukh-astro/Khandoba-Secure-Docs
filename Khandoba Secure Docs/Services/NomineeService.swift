@@ -77,6 +77,22 @@ final class NomineeService: ObservableObject {
         }
     }
     
+    func loadInvite(token: String) async throws -> Nominee? {
+        guard let modelContext = modelContext else {
+            throw NomineeError.contextNotAvailable
+        }
+        
+        let descriptor = FetchDescriptor<Nominee>(
+            predicate: #Predicate { $0.inviteToken == token }
+        )
+        
+        guard let nominee = try modelContext.fetch(descriptor).first else {
+            throw NomineeError.invalidToken
+        }
+        
+        return nominee
+    }
+    
     func acceptInvite(token: String) async throws -> Nominee? {
         guard let modelContext = modelContext else {
             throw NomineeError.contextNotAvailable
