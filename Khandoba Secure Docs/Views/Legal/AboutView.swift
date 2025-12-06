@@ -32,7 +32,7 @@ struct AboutView: View {
                             .foregroundColor(colors.textPrimary)
                         
                         // Version
-                        Text("Version 1.0 (Build 1)")
+                        Text("Version 1.0 (Build \(AppConfig.appBuildNumber))")
                             .font(theme.typography.caption)
                             .foregroundColor(colors.textSecondary)
                         
