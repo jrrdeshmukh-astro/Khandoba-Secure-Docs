@@ -211,6 +211,34 @@ final class PushNotificationService: NSObject, ObservableObject {
         UNUserNotificationCenter.current().add(request)
     }
     
+    /// Send security alert notification
+    func sendSecurityAlertNotification(title: String, body: String, threatType: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.badge = 1
+        content.userInfo = [
+            "type": "security_alert",
+            "threatType": threatType
+        ]
+        
+        // Request critical alert permission for high-priority threats
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to send security alert: \(error.localizedDescription)")
+            } else {
+                print("✅ Security alert sent: \(title)")
+            }
+        }
+    }
+    
     // MARK: - Status
     
     private func checkAuthorizationStatus() {

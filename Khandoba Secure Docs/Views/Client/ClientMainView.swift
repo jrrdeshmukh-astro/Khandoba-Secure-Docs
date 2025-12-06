@@ -46,10 +46,10 @@ struct ClientMainView: View {
                 }
                 .tag(2)
             
-            // Premium
-            StoreView()
+            // Triage
+            TriageView()
                 .tabItem {
-                    Label("Premium", systemImage: "star.fill")
+                    Label("Triage", systemImage: "cross.case.fill")
                 }
                 .tag(3)
             
