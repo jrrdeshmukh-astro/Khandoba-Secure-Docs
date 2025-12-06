@@ -40,17 +40,27 @@ echo ""
 
 # Check if there are changes to commit
 if [ -n "$(git status --porcelain)" ]; then
-    echo "📦 Staging all changes..."
+    echo "📦 Staging all changes (including new files)..."
     git add -A
     
+    # Show what will be committed
+    echo ""
+    echo "📋 Files to be committed:"
+    git status --short
+    echo ""
+    
     echo "💾 Committing changes..."
-    COMMIT_MESSAGE="feat: HIPAA compliance improvements, redaction fix, and Llama unified media description
+    COMMIT_MESSAGE="feat: CloudKit sync, push notifications, and file upload improvements
 
-- Add comprehensive HIPAA compliance assessment
-- Fix redaction to actually remove PHI from PDFs and images
-- Remove second layer of summarization from intelligence services
-- Add LlamaMediaDescriptionService for unified media descriptions
-- Update RedactionView to use new RedactionService"
+- Enable CloudKit sync for nominee invitations and cross-device sync
+- Add CloudKitAPIService for sync monitoring and token verification
+- Implement PushNotificationService for nominee invitations and vault alerts
+- Add manual token entry for TestFlight nominee invitation testing
+- Expand bulk upload to support all file types (PDFs, DOCX, XLSX, etc.)
+- Fix document upload to show correct user name in access history
+- Update PermissionsSetupView to request notification permissions
+- Add comprehensive CloudKit and push notification documentation
+- Fix compiler errors in BulkOperationsView and UnifiedShareView"
     
     git commit -m "$COMMIT_MESSAGE"
     
