@@ -356,14 +356,14 @@ struct UnifiedShareView: View {
                 
                 // 2. Send iMessage invitations
                 await MainActor.run {
-                    showMessageComposer = true
-                    isProcessing = false
+                showMessageComposer = true
+                isProcessing = false
                 }
             } catch {
                 await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    showError = true
-                    isProcessing = false
+                errorMessage = error.localizedDescription
+                showError = true
+                isProcessing = false
                 }
             }
         }

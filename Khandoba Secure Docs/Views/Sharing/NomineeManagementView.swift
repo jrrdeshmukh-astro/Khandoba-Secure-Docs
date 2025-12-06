@@ -293,7 +293,7 @@ struct AddNomineeView: View {
             .onAppear {
                 // Configure service if not already configured
                 if !hasConfiguredService {
-                    nomineeService.configure(modelContext: modelContext)
+                nomineeService.configure(modelContext: modelContext)
                     hasConfiguredService = true
                 }
             }
