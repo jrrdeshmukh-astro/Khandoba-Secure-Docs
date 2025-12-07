@@ -345,42 +345,14 @@ struct ThreatLevelIndicator: View {
     }
 }
 
-// MARK: - Vault Opening Animation
+// MARK: - Vault Opening Animation (Enhanced with 3D)
 
 struct VaultDoorView: View {
     @Binding var isOpen: Bool
     let colors: UnifiedTheme.Colors
     
     var body: some View {
-        ZStack {
-            // Vault door (left half)
-            RoundedRectangle(cornerRadius: 12)
-                .fill(colors.surface)
-                .frame(width: 100, height: 150)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(colors.primary, lineWidth: 3)
-                )
-                .overlay(
-                    Circle()
-                        .fill(colors.primary)
-                        .frame(width: 30, height: 30)
-                        .offset(x: 25)
-                )
-                .rotation3DEffect(
-                    .degrees(isOpen ? -90 : 0),
-                    axis: (x: 0, y: 1, z: 0),
-                    anchor: .leading
-                )
-            
-            // Lock icon
-            Image(systemName: isOpen ? "lock.open.fill" : "lock.fill")
-                .font(.system(size: 40))
-                .foregroundColor(colors.primary)
-                .scaleEffect(isOpen ? 1.2 : 1.0)
-                .opacity(isOpen ? 0 : 1)
-        }
-        .animation(.spring(response: 0.6, dampingFraction: 0.7), value: isOpen)
+        VaultDoor3D(isOpen: $isOpen, colors: colors)
     }
 }
 

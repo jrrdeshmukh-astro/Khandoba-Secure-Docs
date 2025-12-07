@@ -81,7 +81,7 @@ struct ClientDashboardView: View {
                         .padding(.horizontal)
                         
                         
-                        // Stats Grid
+                        // Stats Grid with 3D effects
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: UnifiedTheme.Spacing.md) {
                             StatCard(
                                 title: "Vaults",
@@ -89,6 +89,8 @@ struct ClientDashboardView: View {
                                 icon: "lock.shield.fill",
                                 color: colors.primary
                             )
+                            .floating3D(intensity: 8, duration: 2.5)
+                            .depth3D(depth: 15, shadowIntensity: 0.2)
                             
                             StatCard(
                                 title: "Documents",
@@ -96,6 +98,8 @@ struct ClientDashboardView: View {
                                 icon: "doc.fill",
                                 color: colors.secondary
                             )
+                            .floating3D(intensity: 8, duration: 2.7)
+                            .depth3D(depth: 15, shadowIntensity: 0.2)
                             
                             StatCard(
                                 title: "Active Sessions",
