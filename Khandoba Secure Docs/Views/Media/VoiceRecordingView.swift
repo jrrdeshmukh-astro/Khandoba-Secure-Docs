@@ -15,18 +15,12 @@ struct VoiceRecordingView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) var modelContext
     @EnvironmentObject var documentService: DocumentService
     
     @StateObject private var recorder = AudioRecorder()
-    @StateObject private var hipaaService = HIPAAVoiceMemoService()
     @State private var recordingDuration: TimeInterval = 0
     @State private var timer: Timer?
     @State private var showSaveConfirm = false
-    @State private var showHIPAASettings = false
-    @State private var containsPHI = false
-    @State private var retentionDays: Int? = nil
-    @State private var isSaving = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -110,27 +104,10 @@ struct VoiceRecordingView: View {
                     .padding(.top)
                 }
                 
-                // HIPAA Compliance Badge
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.shield.fill")
-                        .foregroundColor(colors.success)
-                    Text("HIPAA Compliant")
-                        .font(theme.typography.caption)
-                        .foregroundColor(colors.textSecondary)
-                }
-                
-                // HIPAA Settings Button
-                Button {
-                    showHIPAASettings = true
-                } label: {
-                    HStack {
-                        Image(systemName: "lock.shield.fill")
-                        Text("HIPAA Settings")
-                    }
+                // Cost Info
+                Text("Voice Memo Recording")
                     .font(theme.typography.caption)
-                    .foregroundColor(colors.primary)
-                }
-                .padding(.top, 4)
+                    .foregroundColor(colors.textSecondary)
                 
                 Spacer()
             }
@@ -145,24 +122,13 @@ struct VoiceRecordingView: View {
                 .foregroundColor(colors.primary)
             }
         }
-        .onAppear {
-            // Configure HIPAA service with modelContext
-            // UserID will be loaded from DocumentService's currentUserID if available
-            hipaaService.configure(modelContext: modelContext, userID: nil)
-        }
         .confirmationDialog("Save Recording", isPresented: $showSaveConfirm) {
             Button("Save") {
                 saveRecording()
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Save this voice recording to the vault with HIPAA compliance?")
-        }
-        .sheet(isPresented: $showHIPAASettings) {
-            HIPAAVoiceMemoSettingsView(
-                containsPHI: $containsPHI,
-                retentionDays: $retentionDays
-            )
+            Text("Save this voice recording to the vault?")
         }
     }
     
@@ -188,34 +154,25 @@ struct VoiceRecordingView: View {
     private func saveRecording() {
         guard let recordingURL = recorder.recordingURL else { return }
         
-        isSaving = true
-        
         Task {
             do {
                 let data = try Data(contentsOf: recordingURL)
-                let timestamp = Date()
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd_HHmmss"
-                let fileName = "voice_memo_\(formatter.string(from: timestamp)).m4a"
+                let fileName = "voice_\(Date().timeIntervalSince1970).m4a"
                 
-                // Use HIPAA-compliant service
-                _ = try await hipaaService.recordHIPAAVoiceMemo(
-                    audioData: data,
-                    vault: vault,
-                    title: fileName,
-                    containsPHI: containsPHI,
-                    retentionDays: retentionDays
+            // Premium subscription - unlimited voice recordings
+                
+                // Upload
+                _ = try await documentService.uploadDocument(
+                    data: data,
+                    name: fileName,
+                    mimeType: "audio/m4a",
+                    to: vault,
+                    uploadMethod: .voiceRecording
                 )
                 
-                await MainActor.run {
-                    isSaving = false
-                    dismiss()
-                }
+                dismiss()
             } catch {
-                await MainActor.run {
-                    isSaving = false
-                    print("Error saving HIPAA voice memo: \(error)")
-                }
+                print("Error saving recording: \(error)")
             }
         }
     }
