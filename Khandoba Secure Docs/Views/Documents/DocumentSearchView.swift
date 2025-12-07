@@ -81,11 +81,10 @@ struct DocumentSearchView: View {
                         )
                     } else {
                         ScrollView {
-                            if isSelectionMode {
-                                // List view for selection mode
-                                LazyVStack(spacing: UnifiedTheme.Spacing.sm) {
-                                    ForEach(filteredResults()) { document in
-                                        HStack(spacing: UnifiedTheme.Spacing.md) {
+                            LazyVStack(spacing: UnifiedTheme.Spacing.sm) {
+                                ForEach(filteredResults()) { document in
+                                    HStack(spacing: UnifiedTheme.Spacing.md) {
+                                        if isSelectionMode {
                                             Button {
                                                 toggleSelection(document.id)
                                             } label: {
@@ -96,43 +95,19 @@ struct DocumentSearchView: View {
                                                     .font(.title2)
                                             }
                                             .padding(.leading)
-                                            
-                                            NavigationLink {
-                                                DocumentPreviewView(document: document)
-                                            } label: {
-                                                DocumentRow(document: document)
-                                            }
-                                            .disabled(isSelectionMode)
                                         }
-                                        .padding(.horizontal, UnifiedTheme.Spacing.md)
-                                    }
-                                }
-                                .padding(.vertical)
-                            } else {
-                                // 3D Grid view for normal mode
-                                LazyVGrid(
-                                    columns: [
-                                        GridItem(.flexible(), spacing: UnifiedTheme.Spacing.md),
-                                        GridItem(.flexible(), spacing: UnifiedTheme.Spacing.md)
-                                    ],
-                                    spacing: UnifiedTheme.Spacing.lg
-                                ) {
-                                    ForEach(Array(filteredResults().enumerated()), id: \.element.id) { index, document in
+                                        
                                         NavigationLink {
                                             DocumentPreviewView(document: document)
                                         } label: {
-                                            DocumentCard3D(
-                                                document: document,
-                                                colors: colors,
-                                                theme: theme
-                                            )
-                                            .staggeredAppearance(index: index, total: filteredResults().count)
+                                            DocumentRow(document: document)
                                         }
-                                        .buttonStyle(PlainButtonStyle())
+                                        .disabled(isSelectionMode)
                                     }
+                                    .padding(.horizontal, isSelectionMode ? 0 : UnifiedTheme.Spacing.md)
                                 }
-                                .padding(UnifiedTheme.Spacing.md)
                             }
+                            .padding(.vertical)
                         }
                     }
                 }

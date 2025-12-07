@@ -43,31 +43,20 @@ struct VaultListView: View {
                         showCreateVault = true
                     }
                 } else {
-                    ScrollView {
-                        LazyVGrid(
-                            columns: [
-                                GridItem(.flexible(), spacing: UnifiedTheme.Spacing.md),
-                                GridItem(.flexible(), spacing: UnifiedTheme.Spacing.md)
-                            ],
-                            spacing: UnifiedTheme.Spacing.lg
-                        ) {
-                            ForEach(Array(userVaults.enumerated()), id: \.element.id) { index, vault in
-                                NavigationLink {
-                                    VaultDetailView(vault: vault)
-                                } label: {
-                                    VaultCard3D(
-                                        vault: vault,
-                                        hasActiveSession: vaultService.hasActiveSession(for: vault.id),
-                                        colors: colors,
-                                        theme: theme
-                                    )
-                                    .staggeredAppearance(index: index, total: userVaults.count)
-                                }
-                                .buttonStyle(PlainButtonStyle())
+                    List {
+                        ForEach(userVaults) { vault in
+                            NavigationLink {
+                                VaultDetailView(vault: vault)
+                            } label: {
+                                VaultRow(vault: vault)
                             }
+                            .listRowBackground(colors.surface)
                         }
-                        .padding(UnifiedTheme.Spacing.md)
                     }
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
+                    .background(colors.background)
+                    .tint(colors.primary) // Override iOS default tint
                 }
             }
             .navigationTitle("Vaults")
