@@ -132,6 +132,8 @@ class ShareExtensionViewController: UIViewController {
             }
             
             // Handle all standard file types FIRST (prioritize files over URLs)
+            // Photos approach: Try loading directly without checking type identifiers first
+            // This is more permissive and catches cases where WhatsApp doesn't report correct types
             for attachment in attachments {
                 // Skip URL type if we have file attachments (files take priority)
                 if hasFileAttachment && attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
@@ -139,7 +141,11 @@ class ShareExtensionViewController: UIViewController {
                     continue
                 }
                 
-                // Images - try multiple type identifiers (WhatsApp may use specific formats)
+                // Try image loading first (Photos approach - try even if type isn't reported)
+                // Check if it might be an image OR just try loading as generic data
+                var triedAsImage = false
+                
+                // First, try image-specific type identifiers if reported
                 if attachment.hasItemConformingToTypeIdentifier(UTType.image.identifier) ||
                    attachment.hasItemConformingToTypeIdentifier("public.jpeg") ||
                    attachment.hasItemConformingToTypeIdentifier("public.png") ||
@@ -147,17 +153,39 @@ class ShareExtensionViewController: UIViewController {
                    attachment.hasItemConformingToTypeIdentifier("com.compuserve.gif") ||
                    attachment.hasItemConformingToTypeIdentifier("public.tiff") ||
                    attachment.hasItemConformingToTypeIdentifier("public.webp") ||
-                   // WhatsApp dynamic type identifiers
                    attachment.hasItemConformingToTypeIdentifier("dyn.ah62d4rv4ge80k5p2") ||
                    attachment.hasItemConformingToTypeIdentifier("dyn.ah62d4rv4ge80k5p3") {
+                    triedAsImage = true
                     group.enter()
                     print("   📷 Found image attachment - loading...")
                     loadImage(from: attachment) { item in
                         if let item = item {
                             print("   ✅ Successfully loaded image: \(item.name)")
                             sharedItems.append(item)
+                            group.leave()
                         } else {
-                            print("   ⚠️ Failed to load image")
+                            print("   ⚠️ Failed to load image with image types, trying generic data...")
+                            // If image-specific loading failed, try as generic data
+                            // Don't leave the group yet - tryLoadAsGenericData will handle it
+                            // But we need to leave the current group entry first
+                            group.leave()
+                            // Now try as generic data (it will enter/leave its own group)
+                            tryLoadAsGenericData(attachment: attachment, group: group) { item in
+                                if let item = item {
+                                    sharedItems.append(item)
+                                }
+                            }
+                        }
+                    }
+                }
+                // If not reported as image, still try loading as generic data and check if it's an image
+                // This is the "Photos approach" - be permissive and try everything
+                else if !triedAsImage {
+                    group.enter()
+                    print("   📦 Trying attachment as generic data (Photos-style permissive approach)...")
+                    tryLoadAsGenericData(attachment: attachment, group: group) { item in
+                        if let item = item {
+                            sharedItems.append(item)
                         }
                         group.leave()
                     }
@@ -186,24 +214,7 @@ class ShareExtensionViewController: UIViewController {
                         group.leave()
                     }
                 }
-                // Generic files (fallback - try to detect if it's actually an image)
-                else if attachment.hasItemConformingToTypeIdentifier(UTType.data.identifier) {
-                    group.enter()
-                    print("   📦 Found generic data attachment - checking if it's an image...")
-                    loadFile(from: attachment) { item in
-                        if let item = item {
-                            // Check if the data is actually an image
-                            if item.mimeType.hasPrefix("image/") || UIImage(data: item.data) != nil {
-                                print("   ✅ Generic data is actually an image: \(item.name)")
-                                sharedItems.append(item)
-                            } else {
-                                print("   ℹ️ Generic data is not an image: \(item.name)")
-                                sharedItems.append(item)
-                            }
-                        }
-                        group.leave()
-                    }
-                }
+                // Note: Generic data loading is now handled above in the permissive approach
                 // Plain text
                 else if attachment.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
                     group.enter()
@@ -296,12 +307,12 @@ class ShareExtensionViewController: UIViewController {
                         fallbackGroup.enter()
                         attachment.loadItem(forTypeIdentifier: UTType.data.identifier, options: nil) { data, error in
                             defer { fallbackGroup.leave() }
-                            
-                            if let error = error {
+                        
+                        if let error = error {
                                 print("   ⚠️ Fallback load error: \(error.localizedDescription)")
-                                return
-                            }
-                            
+                            return
+                        }
+                        
                             if let url = data as? URL, url.isFileURL {
                                 // It's a file URL - try to load it
                                 if let fileData = try? Data(contentsOf: url) {
@@ -355,6 +366,87 @@ class ShareExtensionViewController: UIViewController {
     }
     
     // MARK: - File Type Loaders
+    
+    /// Try loading attachment as generic data and detect if it's an image (Photos-style approach)
+    private func tryLoadAsGenericData(attachment: NSItemProvider, group: DispatchGroup, completion: @escaping (SharedItem?) -> Void) {
+        group.enter()
+        attachment.loadItem(forTypeIdentifier: UTType.data.identifier, options: nil) { data, error in
+            defer { group.leave() }
+            
+            if let error = error {
+                print("   ⚠️ Generic data load error: \(error.localizedDescription)")
+                completion(nil)
+                return
+            }
+            
+            if let url = data as? URL, url.isFileURL {
+                print("   📄 Generic data provided as file URL: \(url.path)")
+                if let fileData = try? Data(contentsOf: url) {
+                    // Check if it's an image
+                    if UIImage(data: fileData) != nil {
+                        let mimeType = url.mimeType() ?? "image/jpeg"
+                        let fileName = url.lastPathComponent.isEmpty ? "image_\(Date().timeIntervalSince1970).jpg" : url.lastPathComponent
+                        print("   ✅ Generic data is actually an image: \(fileName)")
+                        completion(SharedItem(
+                            data: fileData,
+                            mimeType: mimeType,
+                            name: fileName,
+                            sourceURL: url
+                        ))
+                    } else {
+                        // Not an image, but still a file
+                        completion(SharedItem(
+                            data: fileData,
+                            mimeType: url.mimeType() ?? "application/octet-stream",
+                            name: url.lastPathComponent,
+                            sourceURL: url
+                        ))
+                    }
+                } else {
+                    completion(nil)
+                }
+            } else if let data = data as? Data {
+                print("   📦 Generic data provided as Data (\(data.count) bytes)")
+                // Check if it's an image by trying to create UIImage
+                if UIImage(data: data) != nil {
+                    // Detect format from data signature
+                    var mimeType = "image/jpeg"
+                    var fileExt = "jpg"
+                    
+                    if data.count > 8 && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 {
+                        mimeType = "image/png"
+                        fileExt = "png"
+                    } else if data.count > 2 && data[0] == 0xFF && data[1] == 0xD8 {
+                        mimeType = "image/jpeg"
+                        fileExt = "jpg"
+                    } else if data.count > 12 {
+                        let header = String(data: data.prefix(12), encoding: .ascii) ?? ""
+                        if header.contains("ftyp") && (header.contains("heic") || header.contains("heif")) {
+                            mimeType = "image/heic"
+                            fileExt = "heic"
+                        }
+                    }
+                    
+                    let fileName = "image_\(Date().timeIntervalSince1970).\(fileExt)"
+                    print("   ✅ Generic data is actually an image: \(fileName) (\(mimeType))")
+                    completion(SharedItem(
+                        data: data,
+                        mimeType: mimeType,
+                        name: fileName
+                    ))
+                } else {
+                    // Not an image, but still data
+                    completion(SharedItem(
+                        data: data,
+                        mimeType: "application/octet-stream",
+                        name: "file_\(Date().timeIntervalSince1970)"
+                    ))
+                }
+            } else {
+                completion(nil)
+            }
+        }
+    }
     
     private func loadImage(from attachment: NSItemProvider, completion: @escaping (SharedItem?) -> Void) {
         // Try to find the best type identifier for this image
@@ -719,23 +811,23 @@ struct ShareExtensionView: View {
         let colors = theme.colors(for: colorScheme)
         
         return VStack(spacing: UnifiedTheme.Spacing.md) {
-            ProgressView()
+                        ProgressView()
                 .tint(colors.primary)
-            Text("Loading vaults...")
+                        Text("Loading vaults...")
                 .font(theme.typography.subheadline)
                 .foregroundColor(colors.textSecondary)
-        }
+                    }
     }
     
     private var uploadingView: some View {
         let colors = theme.colors(for: colorScheme)
         
         return VStack(spacing: UnifiedTheme.Spacing.lg) {
-            ProgressView(value: uploadProgress)
+                        ProgressView(value: uploadProgress)
                 .progressViewStyle(.linear)
                 .tint(colors.primary)
             
-            Text("Uploading \(uploadedCount) of \(sharedItems.count) items...")
+                        Text("Uploading \(uploadedCount) of \(sharedItems.count) items...")
                 .font(theme.typography.headline)
                 .foregroundColor(colors.textPrimary)
             
@@ -743,7 +835,7 @@ struct ShareExtensionView: View {
                 .font(theme.typography.title2)
                 .fontWeight(.semibold)
                 .foregroundColor(colors.primary)
-        }
+                    }
         .padding(UnifiedTheme.Spacing.md)
     }
     
@@ -771,22 +863,22 @@ struct ShareExtensionView: View {
                         .font(theme.typography.headline)
                         .foregroundColor(colors.textPrimary)
                 }
-                
+                                
                 ForEach(sharedItems.prefix(3)) { item in
-                    HStack {
-                        Image(systemName: iconForMimeType(item.mimeType))
+                                    HStack {
+                                        Image(systemName: iconForMimeType(item.mimeType))
                             .foregroundColor(colors.textSecondary)
                             .frame(width: 24)
-                        Text(item.name)
+                                            Text(item.name)
                             .font(theme.typography.subheadline)
                             .foregroundColor(colors.textPrimary)
-                            .lineLimit(1)
-                        Spacer()
-                        Text(ByteCountFormatter.string(fromByteCount: Int64(item.data.count), countStyle: .file))
+                                                .lineLimit(1)
+                                        Spacer()
+                                            Text(ByteCountFormatter.string(fromByteCount: Int64(item.data.count), countStyle: .file))
                             .font(theme.typography.caption)
                             .foregroundColor(colors.textSecondary)
-                    }
-                }
+                                    }
+                                }
                 
                 if sharedItems.count > 3 {
                     Text("+ \(sharedItems.count - 3) more")
@@ -807,15 +899,15 @@ struct ShareExtensionView: View {
                     Image(systemName: "lock.shield.fill")
                         .foregroundColor(colors.primary)
                         .font(.title3)
-                    Text("Select Vault")
+                                Text("Select Vault")
                         .font(theme.typography.headline)
                         .foregroundColor(colors.textPrimary)
                 }
-                
-                if vaults.isEmpty {
+                                
+                                if vaults.isEmpty {
                     emptyVaultsView
-                } else {
-                    ForEach(vaults) { vault in
+                                } else {
+                                ForEach(vaults) { vault in
                         vaultRow(vault: vault)
                     }
                 }
@@ -894,20 +986,20 @@ struct ShareExtensionView: View {
         let colors = theme.colors(for: colorScheme)
         
         return Button {
-            uploadItems()
-        } label: {
+                                uploadItems()
+                                } label: {
             HStack {
                 Image(systemName: "arrow.up.circle.fill")
                 Text("Save to Vault")
             }
             .font(theme.typography.headline)
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
             .padding(UnifiedTheme.Spacing.md)
             .background(selectedVault != nil ? colors.primary : colors.surface)
             .cornerRadius(UnifiedTheme.CornerRadius.lg)
-        }
-        .disabled(selectedVault == nil || isUploading)
+                                }
+                            .disabled(selectedVault == nil || isUploading)
     }
     
     // MARK: - Helper Functions
