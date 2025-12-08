@@ -46,6 +46,7 @@ struct VaultDetailView: View {
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
+        // Use @State to prevent recalculation glitches - cache the session state
         let hasActiveSession = vaultService.hasActiveSession(for: vault.id)
         let hasPendingRequest = hasPendingDualKeyRequest
         
@@ -135,12 +136,18 @@ struct VaultDetailView: View {
                                     openVault()
                                 } label: {
                                     HStack {
-                                        Image(systemName: "lock.open.fill")
-                                        Text("Unlock Vault")
+                                        if isLoading {
+                                            ProgressView()
+                                                .tint(.white)
+                                        } else {
+                                            Image(systemName: "lock.open.fill")
+                                        }
+                                        Text(isLoading ? "Unlocking..." : "Unlock Vault")
                                     }
                                     .frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(PrimaryButtonStyle())
+                                .disabled(isLoading)
                             } else {
                                 // Lock button - always visible when vault is unlocked
                                 Button {
@@ -423,10 +430,19 @@ struct VaultDetailView: View {
     }
     
     private func openVault() {
+        // Prevent multiple simultaneous unlock attempts
+        guard !isLoading else {
+            print("⚠️ Vault unlock already in progress, ignoring duplicate tap")
+            return
+        }
+        
         isLoading = true
-        Task {
+        
+        Task { @MainActor in
             do {
                 try await vaultService.openVault(vault)
+                // Small delay to ensure UI updates smoothly
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
             } catch VaultError.awaitingApproval {
                 errorMessage = "Dual-key approval requested. ML is analyzing..."
                 showError = true
@@ -434,6 +450,7 @@ struct VaultDetailView: View {
                 errorMessage = error.localizedDescription
                 showError = true
             }
+            
             isLoading = false
         }
     }
