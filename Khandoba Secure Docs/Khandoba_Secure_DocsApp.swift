@@ -33,8 +33,13 @@ struct Khandoba_Secure_DocsApp: App {
             VaultTransferRequest.self,
             EmergencyAccessRequest.self
         ])
+        // Use App Group for shared storage with extensions
+        let appGroupIdentifier = "group.com.khandoba.securedocs"
+        let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
+        
         let modelConfiguration = ModelConfiguration(
             schema: schema,
+            url: appGroupURL?.appendingPathComponent("KhandobaSecureDocs.store"),
             isStoredInMemoryOnly: false,
             cloudKitDatabase: .automatic  // Enable CloudKit sync for nominee invitations and cross-device sync
         )
@@ -50,8 +55,12 @@ struct Khandoba_Secure_DocsApp: App {
             print(" Falling back to local-only storage (CloudKit sync disabled)")
             // Try local-only fallback (no CloudKit)
             do {
+                let appGroupIdentifier = "group.com.khandoba.securedocs"
+                let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
+                
                 let localConfig = ModelConfiguration(
                     schema: schema,
+                    url: appGroupURL?.appendingPathComponent("KhandobaSecureDocs.store"),
                     isStoredInMemoryOnly: false,
                     cloudKitDatabase: .none
                 )

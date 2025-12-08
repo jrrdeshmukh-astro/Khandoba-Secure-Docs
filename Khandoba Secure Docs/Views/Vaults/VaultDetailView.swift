@@ -231,7 +231,7 @@ struct VaultDetailView: View {
                                 }
                                 
                                 NavigationLink {
-                                    NomineeManagementView(vault: vault)
+                                    UnifiedNomineeManagementView(vault: vault)
                                 } label: {
                                     SecurityActionRow(
                                         icon: "person.badge.plus.fill",

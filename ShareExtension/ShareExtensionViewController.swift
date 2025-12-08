@@ -261,9 +261,15 @@ struct ShareExtensionView: View {
                                     .font(.headline)
                                 
                                 if vaults.isEmpty {
-                                    Text("No vaults available")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
+                                    VStack(spacing: 8) {
+                                        Text("No vaults available")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                        
+                                        Text("Create a vault in the main app first")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
                                 } else {
                                 ForEach(vaults) { vault in
                                     Button {
@@ -343,42 +349,73 @@ struct ShareExtensionView: View {
         
         Task {
             do {
-                // Create ModelContainer for ShareExtension
+                // Create ModelContainer for ShareExtension with same schema as main app
+                // Use App Group to share data with main app
                 let schema = Schema([
                     User.self,
+                    UserRole.self,
                     Vault.self,
-                    Document.self
+                    VaultSession.self,
+                    VaultAccessLog.self,
+                    DualKeyRequest.self,
+                    Document.self,
+                    DocumentVersion.self,
+                    ChatMessage.self,
+                    Nominee.self,
+                    VaultTransferRequest.self,
+                    EmergencyAccessRequest.self
                 ])
+                
+                // Use App Group URL for shared storage
+                let appGroupIdentifier = "group.com.khandoba.securedocs"
+                let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
                 
                 let modelConfiguration = ModelConfiguration(
                     schema: schema,
-                    isStoredInMemoryOnly: false,
+                    url: appGroupURL?.appendingPathComponent("KhandobaSecureDocs.store"),
                     cloudKitDatabase: .automatic
                 )
                 
                 let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
                 let context = container.mainContext
                 
-                // Fetch vaults
+                print("📦 ShareExtension: ModelContainer created")
+                print("   App Group: \(appGroupIdentifier)")
+                print("   Store URL: \(appGroupURL?.appendingPathComponent("KhandobaSecureDocs.store").path ?? "nil")")
+                
+                // Fetch vaults with a small delay to allow CloudKit sync
+                // CloudKit might need a moment to sync vaults from main app
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                
                 let descriptor = FetchDescriptor<Vault>(
                     sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
                 )
                 
                 let fetchedVaults = try context.fetch(descriptor)
                 
+                print("📦 ShareExtension: Found \(fetchedVaults.count) vault(s)")
+                
                 await MainActor.run {
                     vaults = fetchedVaults.filter { !$0.isSystemVault }
                     isLoading = false
                     
+                    print("📦 ShareExtension: \(vaults.count) non-system vault(s) available")
+                    
                     // Auto-select first vault if available
                     if selectedVault == nil, let firstVault = vaults.first {
                         selectedVault = firstVault
+                        print("📦 ShareExtension: Auto-selected vault: \(firstVault.name)")
+                    }
+                    
+                    if vaults.isEmpty {
+                        print("⚠️ ShareExtension: No vaults available - user may need to create vaults in main app first")
                     }
                 }
             } catch {
+                print("❌ ShareExtension: Failed to load vaults: \(error.localizedDescription)")
                 await MainActor.run {
                     isLoading = false
-                    errorMessage = "Failed to load vaults: \(error.localizedDescription)"
+                    errorMessage = "Failed to load vaults. Please ensure you have created at least one vault in the main app. Error: \(error.localizedDescription)"
                     showError = true
                 }
             }
@@ -393,17 +430,29 @@ struct ShareExtensionView: View {
         
         Task {
             do {
-                // Create ModelContainer
+                // Create ModelContainer with same configuration as loadVaults
                 let schema = Schema([
                     User.self,
+                    UserRole.self,
                     Vault.self,
+                    VaultSession.self,
+                    VaultAccessLog.self,
+                    DualKeyRequest.self,
                     Document.self,
-                    DocumentVersion.self
+                    DocumentVersion.self,
+                    ChatMessage.self,
+                    Nominee.self,
+                    VaultTransferRequest.self,
+                    EmergencyAccessRequest.self
                 ])
+                
+                // Use App Group URL for shared storage
+                let appGroupIdentifier = "group.com.khandoba.securedocs"
+                let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
                 
                 let modelConfiguration = ModelConfiguration(
                     schema: schema,
-                    isStoredInMemoryOnly: false,
+                    url: appGroupURL?.appendingPathComponent("KhandobaSecureDocs.store"),
                     cloudKitDatabase: .automatic
                 )
                 

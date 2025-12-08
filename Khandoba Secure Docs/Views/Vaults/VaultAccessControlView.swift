@@ -16,11 +16,9 @@ struct VaultAccessControlView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     
-    @State private var showAddNominee = false
     @State private var showAccessHistory = false
     @State private var showRevokeConfirm = false
     @State private var nomineeToRevoke: Nominee?
-    @State private var shareMode: ShareMode = .nominee
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -71,51 +69,33 @@ struct VaultAccessControlView: View {
                     }
                     .padding(.horizontal)
                     
-                    // Nominees Section
-                    if let nomineeList = vault.nomineeList, !nomineeList.isEmpty {
-                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                    // Nominees Section - Redirect to unified management
+                    NavigationLink {
+                        UnifiedNomineeManagementView(vault: vault)
+                    } label: {
+                        StandardCard {
                             HStack {
-                                Text("NOMINEES (\(nomineeList.count))")
-                                    .font(theme.typography.caption)
-                                    .foregroundColor(colors.textSecondary)
+                                Image(systemName: "person.3.fill")
+                                    .foregroundColor(colors.primary)
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Manage Nominees")
+                                        .font(theme.typography.subheadline)
+                                        .foregroundColor(colors.textPrimary)
+                                    
+                                    Text("Invite, manage, and view access history")
+                                        .font(theme.typography.caption)
+                                        .foregroundColor(colors.textSecondary)
+                                }
                                 
                                 Spacer()
                                 
-                                Button {
-                                    showAddNominee = true
-                                } label: {
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(colors.primary)
-                                }
-                            }
-                            .padding(.horizontal)
-                            
-                            StandardCard {
-                                VStack(spacing: 0) {
-                                    ForEach(Array(nomineeList.enumerated()), id: \.element.id) { index, nominee in
-                                        AccessUserRow(
-                                            name: nominee.name,
-                                            role: "Nominee",
-                                            status: nominee.status.capitalized,
-                                            isYou: false,
-                                            canRevoke: true,
-                                            colors: colors,
-                                            theme: theme,
-                                            onRevoke: {
-                                                nomineeToRevoke = nominee
-                                                showRevokeConfirm = true
-                                            }
-                                        )
-                                        
-                                        if index < nomineeList.count - 1 {
-                                            Divider()
-                                        }
-                                    }
-                                }
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(colors.textTertiary)
                             }
                         }
-                        .padding(.horizontal)
                     }
+                    .padding(.horizontal)
                     
                     // Emergency Access Requests
                     if let emergencyRequests = vault.emergencyRequests?.filter({ $0.status == "approved" }), !emergencyRequests.isEmpty {
@@ -174,31 +154,12 @@ struct VaultAccessControlView: View {
                         }
                     }
                     .padding(.horizontal)
-                    
-                    // Add Nominee Button
-                    if vault.nomineeList?.isEmpty ?? true {
-                        Button {
-                            showAddNominee = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "person.badge.plus")
-                                Text("Invite Nominee")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .padding(.horizontal)
-                    }
                 }
                 .padding(.vertical)
             }
         }
         .navigationTitle("Access Control")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showAddNominee) {
-            UnifiedShareView(vault: vault, mode: .nominee)
-        }
         .sheet(isPresented: $showAccessHistory) {
             VaultAccessHistoryView(vault: vault)
         }

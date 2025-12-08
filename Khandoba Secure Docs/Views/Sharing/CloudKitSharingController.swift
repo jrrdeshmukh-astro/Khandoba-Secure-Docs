@@ -13,38 +13,56 @@ import SwiftData
 
 struct CloudKitSharingView: UIViewControllerRepresentable {
     let vault: Vault
+    let share: CKShare?
     let container: CKContainer
     @Binding var isPresented: Bool
     @Environment(\.modelContext) private var modelContext
     
+    init(vault: Vault, share: CKShare? = nil, container: CKContainer, isPresented: Binding<Bool>) {
+        self.vault = vault
+        self.share = share
+        self.container = container
+        self._isPresented = isPresented
+    }
+    
     func makeUIViewController(context: Context) -> UIViewController {
-        // Use preparation handler to fetch the CloudKit record and create share
+        // If we have a share, use it directly
+        if let share = share {
+            let controller = UICloudSharingController(share: share, container: container)
+            controller.delegate = context.coordinator
+            controller.availablePermissions = [.allowReadWrite, .allowPrivate]
+            
+            // Configure for iPad popover if needed
+            if let popover = controller.popoverPresentationController {
+                popover.permittedArrowDirections = .any
+            }
+            
+            return controller
+        }
+        
+        // Otherwise, use preparation handler to create share
         let controller = UICloudSharingController { controller, completionHandler in
             Task {
                 do {
                     // Get CloudKit record using the sharing service
-                    // We'll use a workaround: create share without pre-fetching the record
                     let sharingService = CloudKitSharingService()
                     sharingService.configure(modelContext: modelContext)
                     
                     // Try to get or create share
-                    // Since querying CloudKit is unreliable, we'll let UICloudSharingController handle it
-                    if let share = try? await sharingService.getOrCreateShare(for: vault) {
+                    if let share = try await sharingService.getOrCreateShare(for: vault) {
                         print("   ✅ Using existing or newly created share")
                         completionHandler(share, container, nil)
                     } else {
-                        // UICloudSharingController needs a root record or share
-                        // Since we can't reliably get the CloudKit record, we'll use a workaround:
-                        // Create a temporary share that will be completed by the controller
-                        // Or, better yet, use the container's ability to work with SwiftData
+                        // Use SwiftData's PersistentIdentifier to get the CloudKit record
+                        // UICloudSharingController can work with SwiftData models directly
+                        // by using the model's persistent identifier
                         print("   ℹ️ Letting UICloudSharingController handle share creation automatically")
                         // Provide nil - UICloudSharingController will handle finding the record
-                        // This may not work perfectly, but it's better than failing
+                        // using SwiftData's CloudKit integration
                         completionHandler(nil, container, nil)
                     }
                 } catch {
                     print("   ❌ Error in preparation handler: \(error.localizedDescription)")
-                    // Even on error, provide nil to let the controller try to handle it
                     completionHandler(nil, container, error)
                 }
             }

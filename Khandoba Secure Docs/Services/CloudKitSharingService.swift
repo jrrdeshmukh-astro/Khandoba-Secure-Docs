@@ -80,17 +80,60 @@ final class CloudKitSharingService: ObservableObject {
     // MARK: - Get Vault Record ID
     
     /// Get the CloudKit record ID for a SwiftData Vault model
-    /// NOTE: This method is disabled because CloudKit queries require queryable fields
-    /// and SwiftData doesn't expose field names reliably. Use UICloudSharingController
-    /// preparation handler instead, which handles record lookup automatically.
+    /// Uses the vault's UUID to construct the CloudKit record ID
+    /// Returns nil if record not found, allowing UICloudSharingController to handle it automatically
     private func getVaultRecordID(_ vault: Vault) async throws -> CKRecord.ID? {
-        // Disabled: Querying CloudKit with NSPredicate(value: true) causes
-        // "Field 'recordName' is not marked queryable" error
-        // SwiftData manages CloudKit records internally and doesn't expose
-        // reliable ways to query them directly
+        guard let modelContext = modelContext else {
+            print("   ❌ ModelContext not configured")
+            return nil
+        }
         
-        // Return nil to indicate we should use UICloudSharingController's
-        // automatic record resolution instead
+        let database = container.privateCloudDatabase
+        let zoneID = CKRecordZone.default().zoneID
+        
+        // SwiftData with CloudKit uses different naming conventions depending on configuration
+        // Try multiple possible formats
+        
+        // Format 1: CD_<EntityName>_<UUID> (most common)
+        let recordName1 = "CD_Vault_\(vault.id.uuidString)"
+        let recordID1 = CKRecord.ID(recordName: recordName1, zoneID: zoneID)
+        
+        // Format 2: Just the UUID (some configurations)
+        let recordName2 = vault.id.uuidString
+        let recordID2 = CKRecord.ID(recordName: recordName2, zoneID: zoneID)
+        
+        // Format 3: Try with lowercase entity name
+        let recordName3 = "CD_vault_\(vault.id.uuidString)"
+        let recordID3 = CKRecord.ID(recordName: recordName3, zoneID: zoneID)
+        
+        // Try to fetch using each format
+        let recordIDsToTry = [recordID1, recordID2, recordID3]
+        
+        for recordID in recordIDsToTry {
+            do {
+                let fetchResult = try await database.records(for: [recordID])
+                if case .success(let record) = fetchResult[recordID] {
+                    print("   ✅ Found CloudKit record: \(recordID.recordName)")
+                    return recordID
+                }
+            } catch {
+                // Continue to next format
+                print("   ⚠️ Record not found with format: \(recordID.recordName) - \(error.localizedDescription)")
+            }
+        }
+        
+        // If all formats fail, the record might not be synced to CloudKit yet
+        // or SwiftData is using a different naming convention
+        // This is OK - we'll let UICloudSharingController handle it automatically
+        // Note: The vault must be saved to SwiftData first for CloudKit sync to occur
+        print("   ℹ️ Could not find CloudKit record with any known format")
+        print("   ℹ️ Vault ID: \(vault.id.uuidString)")
+        print("   ℹ️ Vault Name: \(vault.name)")
+        print("   ℹ️ This may mean:")
+        print("      - Record hasn't synced to CloudKit yet (wait a few seconds and try again)")
+        print("      - SwiftData is using a different naming convention")
+        print("      - CloudKit sync is disabled or not configured")
+        print("   ℹ️ Falling back to token-based sharing or letting UICloudSharingController handle it")
         return nil
     }
     
@@ -320,10 +363,13 @@ final class CloudKitSharingService: ObservableObject {
     func getOrCreateShare(for vault: Vault) async throws -> CKShare? {
         print("🔗 Getting or creating CloudKit share for vault: \(vault.name)")
         
-        // Try to get the CloudKit record ID (may fail due to query limitations)
+        // Try to get the CloudKit record ID (may fail if record hasn't synced yet)
         // If it fails, return nil to let UICloudSharingController handle it
+        // Note: This is expected behavior - the fallback will use token-based sharing
         guard let vaultRecordID = try? await getVaultRecordID(vault) else {
-            print("   ⚠️ Could not get CloudKit record ID - UICloudSharingController will handle it")
+            print("   ℹ️ Could not get CloudKit record ID (this is OK - using fallback)")
+            print("   ℹ️ The vault may not be synced to CloudKit yet, or using different naming")
+            print("   ℹ️ Token-based sharing will be used as fallback")
             return nil
         }
         
@@ -354,13 +400,14 @@ final class CloudKitSharingService: ObservableObject {
                 return savedShareRecord
             }
         } catch {
-            print("   ⚠️ Failed to create share: \(error.localizedDescription)")
-            // Return nil to let UICloudSharingController handle it
+            print("   ℹ️ Failed to create share programmatically: \(error.localizedDescription)")
+            print("   ℹ️ This is OK - token-based sharing will be used as fallback")
+            // Return nil to let UICloudSharingController handle it or use token fallback
         }
         
         // If we can't create the share, return nil
-        // UICloudSharingController will handle share creation automatically
-        print("   ℹ️ Returning nil - UICloudSharingController will handle share creation")
+        // The calling code will use token-based sharing as fallback
+        print("   ℹ️ Returning nil - token-based sharing will be used")
         return nil
     }
     

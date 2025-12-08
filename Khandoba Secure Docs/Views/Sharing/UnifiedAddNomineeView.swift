@@ -1,17 +1,16 @@
 //
-//  TransferOwnershipView.swift
+//  UnifiedAddNomineeView.swift
 //  Khandoba Secure Docs
 //
-//  Modern transfer ownership view with iOS native sharing
+//  Unified view for adding nominees with CloudKit sharing support
 //
 
 import SwiftUI
 import SwiftData
-import Contacts
-import UIKit
 import CloudKit
+import Contacts
 
-struct TransferOwnershipView: View {
+struct UnifiedAddNomineeView: View {
     let vault: Vault
     
     @Environment(\.unifiedTheme) var theme
@@ -20,26 +19,23 @@ struct TransferOwnershipView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     
+    @StateObject private var nomineeService = NomineeService()
+    @StateObject private var cloudKitSharing = CloudKitSharingService()
+    
     // Form fields
-    @State private var newOwnerName = ""
+    @State private var nomineeName = ""
     @State private var phoneNumber = ""
     @State private var email = ""
-    @State private var reason = ""
+    @State private var accessLevel: NomineeAccessLevel = .view
     
     // State
     @State private var isCreating = false
-    @State private var createdRequest: VaultTransferRequest?
+    @State private var createdNominee: Nominee?
     @State private var showError = false
     @State private var errorMessage = ""
-    @State private var showCopiedAlert = false
-    @State private var showContactPicker = false
-    @State private var selectedContact: CNContact?
-    @State private var showShareSheet = false
-    @State private var shareItems: [Any] = []
     @State private var showCloudKitSharing = false
     @State private var cloudKitShare: CKShare?
-    
-    @StateObject private var cloudKitSharing = CloudKitSharingService()
+    @State private var showContactPicker = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -51,18 +47,18 @@ struct TransferOwnershipView: View {
                 
                 ScrollView {
                     VStack(spacing: UnifiedTheme.Spacing.lg) {
-                        if let request = createdRequest {
-                            // Success state - show transfer link
-                            transferLinkView(request: request, colors: colors)
+                        if let nominee = createdNominee {
+                            // Success state - show sharing options
+                            inviteSuccessView(nominee: nominee, colors: colors)
                         } else {
-                            // Form state - enter new owner details
-                            transferFormView(colors: colors)
+                            // Form state - enter nominee details
+                            nomineeFormView(colors: colors)
                         }
                     }
                     .padding()
                 }
             }
-            .navigationTitle("Transfer Ownership")
+            .navigationTitle("Invite Nominee")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -76,14 +72,6 @@ struct TransferOwnershipView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage)
-            }
-            .alert("Copied!", isPresented: $showCopiedAlert) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Transfer link copied to clipboard")
-            }
-            .sheet(isPresented: $showShareSheet) {
-                ShareSheet(activityItems: shareItems)
             }
             .sheet(isPresented: $showCloudKitSharing) {
                 if let share = cloudKitShare {
@@ -100,8 +88,7 @@ struct TransferOwnershipView: View {
                     vault: vault,
                     onContactsSelected: { contacts in
                         if let contact = contacts.first {
-                            selectedContact = contact
-                            newOwnerName = "\(contact.givenName) \(contact.familyName)"
+                            nomineeName = "\(contact.givenName) \(contact.familyName)"
                             phoneNumber = contact.phoneNumbers.first?.value.stringValue ?? ""
                             email = contact.emailAddresses.first?.value as String? ?? ""
                         }
@@ -112,47 +99,33 @@ struct TransferOwnershipView: View {
                     }
                 )
             }
+            .onAppear {
+                nomineeService.configure(modelContext: modelContext)
+                cloudKitSharing.configure(modelContext: modelContext)
+            }
         }
     }
     
-    // MARK: - Transfer Form
+    // MARK: - Nominee Form
     
-    private func transferFormView(colors: UnifiedTheme.Colors) -> some View {
+    private func nomineeFormView(colors: UnifiedTheme.Colors) -> some View {
         VStack(spacing: UnifiedTheme.Spacing.lg) {
-            // Warning Header
+            // Header
             VStack(spacing: UnifiedTheme.Spacing.sm) {
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(systemName: "person.badge.plus")
                     .font(.system(size: 50))
-                    .foregroundColor(colors.warning)
+                    .foregroundColor(colors.primary)
                 
-                Text("Transfer Ownership")
+                Text("Add Nominee")
                     .font(theme.typography.title)
                     .foregroundColor(colors.textPrimary)
                 
-                Text("You will lose all access to this vault")
+                Text("Enter the nominee's details to generate an invitation")
                     .font(theme.typography.body)
-                    .foregroundColor(colors.warning)
+                    .foregroundColor(colors.textSecondary)
                     .multilineTextAlignment(.center)
             }
             .padding(.top)
-            
-            // Warning Card
-            StandardCard {
-                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(colors.warning)
-                        Text("Important")
-                            .font(theme.typography.subheadline)
-                            .foregroundColor(colors.textPrimary)
-                            .fontWeight(.semibold)
-                    }
-                    
-                    Text("Transferring ownership is permanent and cannot be undone. The new owner will have complete control over this vault and all its documents. You will no longer be able to access this vault.")
-                        .font(theme.typography.caption)
-                        .foregroundColor(colors.textSecondary)
-                }
-            }
             
             // Vault Info
             StandardCard {
@@ -192,12 +165,12 @@ struct TransferOwnershipView: View {
                 // Name Field
                 StandardCard {
                     VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                        Text("New Owner Name *")
+                        Text("Full Name *")
                             .font(theme.typography.subheadline)
                             .foregroundColor(colors.textPrimary)
                             .fontWeight(.semibold)
                         
-                        TextField("Enter new owner's name", text: $newOwnerName)
+                        TextField("Enter nominee's name", text: $nomineeName)
                             .font(theme.typography.body)
                             .textInputAutocapitalization(.words)
                             .padding(UnifiedTheme.Spacing.md)
@@ -231,7 +204,7 @@ struct TransferOwnershipView: View {
                             .foregroundColor(colors.textPrimary)
                             .fontWeight(.semibold)
                         
-                        TextField("newowner@example.com", text: $email)
+                        TextField("nominee@example.com", text: $email)
                             .font(theme.typography.body)
                             .keyboardType(.emailAddress)
                             .textInputAutocapitalization(.never)
@@ -241,41 +214,61 @@ struct TransferOwnershipView: View {
                             .cornerRadius(UnifiedTheme.CornerRadius.md)
                     }
                 }
-                
-                // Reason Field
-                StandardCard {
-                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                        Text("Reason (Optional)")
-                            .font(theme.typography.subheadline)
-                            .foregroundColor(colors.textPrimary)
-                            .fontWeight(.semibold)
-                        
-                        TextField("Why are you transferring this vault?", text: $reason, axis: .vertical)
-                            .font(theme.typography.body)
-                            .lineLimit(3...6)
-                            .padding(UnifiedTheme.Spacing.md)
-                            .background(colors.surface)
-                            .cornerRadius(UnifiedTheme.CornerRadius.md)
+            }
+            
+            // Access Level Selection
+            StandardCard {
+                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                    Text("Access Level")
+                        .font(theme.typography.headline)
+                        .foregroundColor(colors.textPrimary)
+                    
+                    ForEach(NomineeAccessLevel.allCases, id: \.self) { level in
+                        AccessLevelRow(
+                            level: level,
+                            isSelected: accessLevel == level,
+                            action: {
+                                accessLevel = level
+                            }
+                        )
                     }
                 }
             }
             
-            // Create Transfer Request Button
+            // Info Card
+            StandardCard {
+                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                    HStack {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundColor(colors.info)
+                        Text("How it works")
+                            .font(theme.typography.subheadline)
+                            .foregroundColor(colors.textPrimary)
+                            .fontWeight(.semibold)
+                    }
+                    
+                    Text("Nominees get real-time concurrent access when you unlock the vault. When you open the vault, they can access it too. No documents are copied - they see the same vault synchronized in real-time.")
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textSecondary)
+                }
+            }
+            
+            // Create Button
             Button {
-                createTransferRequest()
+                createNominee()
             } label: {
                 HStack {
                     if isCreating {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                        Text("Create Transfer Request")
+                        Image(systemName: "person.badge.plus.fill")
+                        Text("Create Nominee & Share")
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(canCreate ? colors.warning : colors.surface)
+                .background(canCreate ? colors.primary : colors.surface)
                 .foregroundColor(canCreate ? .white : colors.textTertiary)
                 .cornerRadius(UnifiedTheme.CornerRadius.lg)
             }
@@ -283,9 +276,9 @@ struct TransferOwnershipView: View {
         }
     }
     
-    // MARK: - Transfer Link View
+    // MARK: - Invite Success View
     
-    private func transferLinkView(request: VaultTransferRequest, colors: UnifiedTheme.Colors) -> some View {
+    private func inviteSuccessView(nominee: Nominee, colors: UnifiedTheme.Colors) -> some View {
         VStack(spacing: UnifiedTheme.Spacing.lg) {
             // Success Header
             VStack(spacing: UnifiedTheme.Spacing.sm) {
@@ -293,89 +286,45 @@ struct TransferOwnershipView: View {
                     .font(.system(size: 60))
                     .foregroundColor(colors.success)
                 
-                Text("Transfer Request Created!")
+                Text("Nominee Created!")
                     .font(theme.typography.title)
                     .foregroundColor(colors.textPrimary)
                 
-                Text("Share the transfer link with the new owner")
+                Text("Share the invitation using CloudKit")
                     .font(theme.typography.body)
                     .foregroundColor(colors.textSecondary)
             }
             .padding(.top)
             
-            // New Owner Info
+            // Nominee Info
             StandardCard {
                 VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                     HStack {
                         Image(systemName: "person.fill")
                             .foregroundColor(colors.primary)
-                        Text("New Owner Details")
+                        Text("Nominee Details")
                             .font(theme.typography.subheadline)
                             .foregroundColor(colors.textPrimary)
                             .fontWeight(.semibold)
                     }
                     
-                    if let name = request.newOwnerName, !name.isEmpty {
-                        Text(name)
-                            .font(theme.typography.headline)
-                            .foregroundColor(colors.textPrimary)
-                    }
+                    Text(nominee.name)
+                        .font(theme.typography.headline)
+                        .foregroundColor(colors.textPrimary)
                     
-                    if let phone = request.newOwnerPhone, !phone.isEmpty {
+                    if let phone = nominee.phoneNumber, !phone.isEmpty {
                         Text(phone)
                             .font(theme.typography.caption)
                             .foregroundColor(colors.textSecondary)
                     }
                     
-                    if let email = request.newOwnerEmail, !email.isEmpty {
+                    if let email = nominee.email, !email.isEmpty {
                         Text(email)
                             .font(theme.typography.caption)
                             .foregroundColor(colors.textSecondary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            
-            // Transfer Link Card
-            StandardCard {
-                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
-                    HStack {
-                        Image(systemName: "link")
-                            .foregroundColor(colors.primary)
-                        Text("Transfer Link")
-                            .font(theme.typography.subheadline)
-                            .foregroundColor(colors.textPrimary)
-                            .fontWeight(.semibold)
-                    }
-                    
-                    // Deep Link
-                    let deepLink = "khandoba://transfer?token=\(request.transferToken)"
-                    
-                    Text(deepLink)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(colors.textPrimary)
-                        .padding(UnifiedTheme.Spacing.md)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(colors.surface)
-                        .cornerRadius(UnifiedTheme.CornerRadius.md)
-                        .textSelection(.enabled)
-                    
-                    // Token (for manual entry)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Or use this token:")
-                            .font(theme.typography.caption)
-                            .foregroundColor(colors.textSecondary)
-                        
-                        Text(request.transferToken)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundColor(colors.textPrimary)
-                            .padding(UnifiedTheme.Spacing.sm)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(colors.surface)
-                            .cornerRadius(UnifiedTheme.CornerRadius.sm)
-                            .textSelection(.enabled)
-                    }
-                }
             }
             
             // Action Buttons
@@ -399,11 +348,11 @@ struct TransferOwnershipView: View {
                 
                 // Copy Link Button (Fallback)
                 Button {
-                    copyTransferLink(request: request)
+                    copyInviteLink(nominee: nominee)
                 } label: {
                     HStack {
                         Image(systemName: "doc.on.doc.fill")
-                        Text("Copy Transfer Link")
+                        Text("Copy Invitation Link")
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
@@ -430,15 +379,15 @@ struct TransferOwnershipView: View {
     // MARK: - Computed Properties
     
     private var canCreate: Bool {
-        !newOwnerName.trimmingCharacters(in: .whitespaces).isEmpty
+        !nomineeName.trimmingCharacters(in: .whitespaces).isEmpty
     }
     
     // MARK: - Actions
     
-    private func createTransferRequest() {
+    private func createNominee() {
         guard canCreate else { return }
         guard let currentUser = authService.currentUser else {
-            errorMessage = "You must be logged in to transfer ownership"
+            errorMessage = "You must be logged in to create nominees"
             showError = true
             return
         }
@@ -447,21 +396,16 @@ struct TransferOwnershipView: View {
         
         Task {
             do {
-                let request = VaultTransferRequest(
-                    reason: reason.isEmpty ? nil : reason.trimmingCharacters(in: .whitespaces),
-                    newOwnerName: newOwnerName.trimmingCharacters(in: .whitespaces),
-                    newOwnerPhone: phoneNumber.isEmpty ? nil : phoneNumber.trimmingCharacters(in: .whitespaces),
-                    newOwnerEmail: email.isEmpty ? nil : email.trimmingCharacters(in: .whitespaces)
+                let nominee = try await nomineeService.inviteNominee(
+                    name: nomineeName.trimmingCharacters(in: .whitespaces),
+                    phoneNumber: phoneNumber.isEmpty ? nil : phoneNumber.trimmingCharacters(in: .whitespaces),
+                    email: email.isEmpty ? nil : email.trimmingCharacters(in: .whitespaces),
+                    to: vault,
+                    invitedByUserID: currentUser.id
                 )
                 
-                request.vault = vault
-                request.requestedByUserID = currentUser.id
-                
-                modelContext.insert(request)
-                try modelContext.save()
-                
                 await MainActor.run {
-                    createdRequest = request
+                    createdNominee = nominee
                     isCreating = false
                 }
             } catch {
@@ -474,75 +418,34 @@ struct TransferOwnershipView: View {
         }
     }
     
-    private func copyTransferLink(request: VaultTransferRequest) {
-        let message = generateTransferMessage(request: request)
-        UIPasteboard.general.string = message
-        showCopiedAlert = true
-    }
-    
-    private func openMessagesWithLink(request: VaultTransferRequest) {
-        #if !APP_EXTENSION
-        let message = generateTransferMessage(request: request)
+    private func copyInviteLink(nominee: Nominee) {
+        let deepLink = "khandoba://invite?token=\(nominee.inviteToken)"
+        let message = generateInvitationMessage(nominee: nominee, deepLink: deepLink)
         
-        // Copy to clipboard first
         UIPasteboard.general.string = message
-        
-        // Open Messages app
-        if let messagesURL = URL(string: "sms:") {
-            UIApplication.shared.open(messagesURL) { success in
-                if success {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        showCopiedAlert = true
-                    }
-                }
-            }
-        }
-        #endif
+        // Show toast or alert
     }
     
-    private func shareTransferLink(request: VaultTransferRequest) {
-        let message = generateTransferMessage(request: request)
-        shareItems = [message]
-        showShareSheet = true
-    }
-    
-    private func generateTransferURL(request: VaultTransferRequest) -> URL {
-        // Create a URL for ShareLink
-        let deepLink = "khandoba://transfer?token=\(request.transferToken)"
-        return URL(string: deepLink) ?? URL(string: "https://khandoba.app/transfer?token=\(request.transferToken)")!
-    }
-    
-    private func generateTransferMessage(request: VaultTransferRequest) -> String {
+    private func generateInvitationMessage(nominee: Nominee, deepLink: String) -> String {
         let vaultName = vault.name
-        let deepLink = "khandoba://transfer?token=\(request.transferToken)"
-        let ownerName = authService.currentUser?.fullName ?? "Vault Owner"
-        
-        var message = """
-        You've been offered ownership of a vault in Khandoba Secure Docs!
+        let message = """
+        You've been invited to access a vault in Khandoba Secure Docs!
         
         Vault: \(vaultName)
-        Transferred by: \(ownerName)
-        """
-        
-        if let reason = request.reason, !reason.isEmpty {
-            message += "\nReason: \(reason)"
-        }
-        
-        message += """
+        Invited by: \(authService.currentUser?.fullName ?? "Vault Owner")
         
         Tap to accept: \(deepLink)
         
         Or download Khandoba Secure Docs from the App Store and use this token:
-        \(request.transferToken)
+        \(nominee.inviteToken)
         """
-        
         return message
     }
     
     // MARK: - CloudKit Sharing
     
     private func presentCloudKitSharing() async {
-        print("📤 Presenting CloudKit sharing for transfer: \(vault.name)")
+        print("📤 Presenting CloudKit sharing for vault: \(vault.name)")
         
         do {
             if let share = try await cloudKitSharing.getOrCreateShare(for: vault) {
@@ -552,37 +455,19 @@ struct TransferOwnershipView: View {
                 }
                 print("   ✅ CloudKit sharing controller will be presented")
             } else {
-                print("   ⚠️ Could not create CloudKit share - using fallback")
+                print("   ⚠️ Could not create CloudKit share")
                 await MainActor.run {
-                    copyTransferLink(request: createdRequest!)
-                    showCopiedAlert = true
+                    errorMessage = "CloudKit sharing is currently unavailable. Please use the 'Copy Invitation Link' button instead."
+                    showError = true
                 }
             }
         } catch {
             print("   ❌ Failed to prepare CloudKit share: \(error.localizedDescription)")
             await MainActor.run {
-                copyTransferLink(request: createdRequest!)
-                showCopiedAlert = true
+                errorMessage = "CloudKit sharing is currently unavailable. Please use the 'Copy Invitation Link' button instead."
+                showError = true
             }
         }
-    }
-}
-
-// MARK: - Share Sheet (for iOS 15 fallback)
-
-struct ShareSheet: UIViewControllerRepresentable {
-    let activityItems: [Any]
-    
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        let controller = UIActivityViewController(
-            activityItems: activityItems,
-            applicationActivities: nil
-        )
-        return controller
-    }
-    
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
-        // No updates needed
     }
 }
 
