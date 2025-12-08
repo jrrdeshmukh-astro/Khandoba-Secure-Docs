@@ -84,18 +84,18 @@ struct VaultAccessControlView: View {
                                         .foregroundColor(colors.textPrimary)
                                     
                                     Text("Invite, manage, and view access history")
-                                        .font(theme.typography.caption)
-                                        .foregroundColor(colors.textSecondary)
+                                    .font(theme.typography.caption)
+                                    .foregroundColor(colors.textSecondary)
                                 }
                                 
                                 Spacer()
                                 
                                 Image(systemName: "chevron.right")
                                     .foregroundColor(colors.textTertiary)
+                                }
                             }
                         }
-                    }
-                    .padding(.horizontal)
+                        .padding(.horizontal)
                     
                     // Emergency Access Requests
                     if let emergencyRequests = vault.emergencyRequests?.filter({ $0.status == "approved" }), !emergencyRequests.isEmpty {

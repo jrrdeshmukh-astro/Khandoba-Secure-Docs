@@ -232,15 +232,15 @@ struct AcceptNomineeInvitationView: View {
                         dismiss()
                     }
                 } else {
-                    Button("OK") {
-                        dismiss()
+                Button("OK") {
+                    dismiss()
                     }
                 }
             } message: {
                 if let vault = acceptedVault {
                     Text("Invitation accepted! You now have access to '\(vault.name)'. Tap 'Open Vault' to view it now.")
                 } else {
-                    Text("Invitation accepted! You'll have access when the vault owner unlocks it.")
+                Text("Invitation accepted! You'll have access when the vault owner unlocks it.")
                 }
             }
             .onAppear {
@@ -298,10 +298,10 @@ struct AcceptNomineeInvitationView: View {
                         isLoading = false
                     }
                 } else {
-                    await MainActor.run {
+                await MainActor.run {
                         acceptedVault = acceptedNominee?.vault
-                        showSuccess = true
-                        isLoading = false
+                    showSuccess = true
+                    isLoading = false
                     }
                 }
             } catch {

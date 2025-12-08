@@ -141,8 +141,8 @@ struct VaultDetailView: View {
                                     .frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(PrimaryButtonStyle())
-                            } else if isOwner {
-                                // Lock button for owner only
+                            } else {
+                                // Lock button - always visible when vault is unlocked
                                 Button {
                                     lockVault()
                                 } label: {
@@ -302,6 +302,19 @@ struct VaultDetailView: View {
                                             title: "Bulk Upload",
                                             subtitle: "Upload multiple files",
                                             color: colors.primary
+                                        )
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    NavigationLink {
+                                        URLDownloadView(vault: vault)
+                                    } label: {
+                                        SecurityActionRow(
+                                            icon: "link.circle.fill",
+                                            title: "Download from URL",
+                                            subtitle: "Save assets from public links",
+                                            color: colors.info
                                         )
                                     }
                                 }

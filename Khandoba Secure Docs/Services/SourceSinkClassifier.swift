@@ -101,7 +101,7 @@ class SourceSinkClassifier {
         switch method {
         case .camera, .photos, .voiceRecording, .videoRecording:
             return "source"
-        case .files, .shareExtension, .import:
+        case .files, .shareExtension, .import, .urlDownload:
             return "sink"
         }
     }
@@ -115,5 +115,6 @@ enum UploadMethod {
     case videoRecording
     case shareExtension
     case `import`
+    case urlDownload // New: for assets downloaded from URLs
 }
 

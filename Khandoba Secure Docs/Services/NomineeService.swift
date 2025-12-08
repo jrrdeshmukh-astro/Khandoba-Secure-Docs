@@ -58,7 +58,7 @@ final class NomineeService: ObservableObject {
         } else {
             descriptor = FetchDescriptor<Nominee>(
                 predicate: #Predicate { nominee in
-                    nominee.vault?.id == vaultID && nominee.statusRaw != NomineeStatus.inactive.rawValue && nominee.statusRaw != NomineeStatus.revoked.rawValue
+                    nominee.vault?.id == vaultID && nominee.statusRaw != "inactive" && nominee.statusRaw != "revoked"
                 },
                 sortBy: [SortDescriptor(\.invitedAt, order: .reverse)]
             )
@@ -69,11 +69,13 @@ final class NomineeService: ObservableObject {
         // Sync CloudKit share participants to Nominee records (ENABLED - removes technical debt)
         if let sharingService = cloudKitSharing {
             do {
-                let participants = try await sharingService.getShareParticipants(for: vault)
+                // Get share and participants together
+                let (share, participants) = try await sharingService.getShareAndParticipants(for: vault)
                 
                 // Sync CloudKit participants with Nominee records
                 fetchedNominees = try await syncCloudKitParticipants(
                     participants: participants,
+                    shareRecordID: share?.recordID.recordName,
                     existingNominees: fetchedNominees,
                     vault: vault,
                     modelContext: modelContext
@@ -102,6 +104,7 @@ final class NomineeService: ObservableObject {
     
     private func syncCloudKitParticipants(
         participants: [CKShare.Participant],
+        shareRecordID: String?,
         existingNominees: [Nominee],
         vault: Vault,
         modelContext: ModelContext
@@ -137,7 +140,7 @@ final class NomineeService: ObservableObject {
             if let existing = existingNominee {
                 // Update existing nominee
                 existing.cloudKitParticipantID = participantID
-                existing.cloudKitShareRecordID = participant.share?.recordID.recordName
+                existing.cloudKitShareRecordID = shareRecordID
                 
                 // Update status based on CloudKit acceptance
                 if participant.acceptanceStatus == .accepted {
@@ -158,7 +161,7 @@ final class NomineeService: ObservableObject {
                 newNominee.vault = vault
                 newNominee.invitedAt = Date()
                 newNominee.cloudKitParticipantID = participantID
-                newNominee.cloudKitShareRecordID = participant.share?.recordID.recordName
+                newNominee.cloudKitShareRecordID = shareRecordID
                 
                 if participant.acceptanceStatus == .accepted {
                     newNominee.acceptedAt = Date()
@@ -256,7 +259,7 @@ final class NomineeService: ObservableObject {
                     nominee.cloudKitShareRecordID = share.recordID.recordName
                     try modelContext.save()
                     print("   🔗 CloudKit share created/retrieved: \(share.recordID.recordName)")
-                } else {
+        } else {
                     print("   ⚠️ CloudKit share not available - UICloudSharingController will handle it")
                 }
             } catch {
@@ -313,7 +316,7 @@ final class NomineeService: ObservableObject {
             nominee.status = .revoked
             nominee.vault?.nomineeList?.removeAll { $0.id == nominee.id }
             
-            try modelContext.save()
+        try modelContext.save()
             
             print("✅ Nominee revoked: \(nominee.name)")
         }
@@ -339,21 +342,12 @@ final class NomineeService: ObservableObject {
         
         var nominees = try modelContext.fetch(descriptor)
         
-        // If not found locally, verify with CloudKit API (for server-side validation)
-        if nominees.isEmpty, let cloudKitAPI = cloudKitAPI {
-            print("   🔄 Not found locally, verifying with CloudKit API...")
-            do {
-                let exists = try await cloudKitAPI.verifyNomineeToken(token)
-                if exists {
-                    print("    Token verified in CloudKit, waiting for SwiftData sync...")
-                    // Wait a moment for SwiftData to sync
+        // If not found locally, wait for CloudKit sync (SwiftData syncs automatically)
+        if nominees.isEmpty {
+            print("   🔄 Not found locally, waiting for CloudKit sync...")
+            // Wait a moment for SwiftData to sync from CloudKit
                     try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
                     nominees = try modelContext.fetch(descriptor)
-                }
-            } catch {
-                print("    CloudKit API verification failed: \(error.localizedDescription)")
-                // Continue with local-only search
-            }
         }
         
         if let nominee = nominees.first {

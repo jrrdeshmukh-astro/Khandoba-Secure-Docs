@@ -77,7 +77,7 @@ struct NomineeManagementView: View {
             if let userID = authService.currentUser?.id {
                 nomineeService.configure(modelContext: modelContext, currentUserID: userID)
             } else {
-                nomineeService.configure(modelContext: modelContext)
+            nomineeService.configure(modelContext: modelContext)
             }
             
             // Configure chat service

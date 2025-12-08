@@ -14,6 +14,19 @@ struct ContactPickerView: UIViewControllerRepresentable {
     let vault: Vault
     let onContactsSelected: ([CNContact]) -> Void
     let onDismiss: () -> Void
+    let contactDiscovery: ContactDiscoveryService?
+    
+    init(
+        vault: Vault,
+        onContactsSelected: @escaping ([CNContact]) -> Void,
+        onDismiss: @escaping () -> Void,
+        contactDiscovery: ContactDiscoveryService? = nil
+    ) {
+        self.vault = vault
+        self.onContactsSelected = onContactsSelected
+        self.onDismiss = onDismiss
+        self.contactDiscovery = contactDiscovery
+    }
     
     func makeUIViewController(context: Context) -> CNContactPickerViewController {
         let picker = CNContactPickerViewController()
@@ -73,6 +86,24 @@ struct ContactPickerView: UIViewControllerRepresentable {
                     print("⚠️ Failed to fetch full contact details: \(error.localizedDescription)")
                     // Fallback: use the contact as-is (may have limited properties)
                     fullContacts.append(contact)
+                }
+            }
+            
+            // Check which contacts are registered in Khandoba (on main actor)
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                if let discovery = self.parent.contactDiscovery {
+                    let registeredContacts = fullContacts.filter { contact in
+                        discovery.isContactRegistered(contact)
+                    }
+                    
+                    if !registeredContacts.isEmpty {
+                        print("✅ Found \(registeredContacts.count) contact(s) already on Khandoba:")
+                        for contact in registeredContacts {
+                            let name = "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces)
+                            print("   - \(name)")
+                        }
+                    }
                 }
             }
             

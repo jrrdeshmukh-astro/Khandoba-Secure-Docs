@@ -21,6 +21,7 @@ struct UnifiedAddNomineeView: View {
     
     @StateObject private var nomineeService = NomineeService()
     @StateObject private var cloudKitSharing = CloudKitSharingService()
+    @StateObject private var contactDiscovery = ContactDiscoveryService()
     
     // Form fields
     @State private var nomineeName = ""
@@ -37,6 +38,7 @@ struct UnifiedAddNomineeView: View {
     @State private var cloudKitShare: CKShare?
     @State private var showContactPicker = false
     @State private var showSuccess = false
+    @State private var selectedContactIsRegistered = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -99,6 +101,18 @@ struct UnifiedAddNomineeView: View {
                             phoneNumber = contact.phoneNumbers.first?.value.stringValue ?? ""
                             email = contact.emailAddresses.first?.value as String? ?? ""
                             
+                            // Check if contact is registered in Khandoba
+                            Task { @MainActor in
+                                let isRegistered = contactDiscovery.isContactRegistered(contact)
+                                selectedContactIsRegistered = isRegistered
+                                if isRegistered {
+                                    print("✅ Selected contact '\(nomineeName)' is already on Khandoba!")
+                                }
+                                
+                                // Also check using the entered values
+                                checkIfRegistered()
+                            }
+                            
                             if contacts.count > 1 {
                                 print("ℹ️ Multiple contacts selected (\(contacts.count)), using first contact. Future: support multiple nominees.")
                             }
@@ -111,7 +125,8 @@ struct UnifiedAddNomineeView: View {
                     onDismiss: {
                         // User cancelled contact picker - just dismiss it
                         showContactPicker = false
-                    }
+                    },
+                    contactDiscovery: contactDiscovery
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
@@ -120,6 +135,12 @@ struct UnifiedAddNomineeView: View {
             .onAppear {
                 nomineeService.configure(modelContext: modelContext)
                 cloudKitSharing.configure(modelContext: modelContext)
+                contactDiscovery.configure(modelContext: modelContext)
+                
+                // Start discovering registered contacts in the background
+                Task {
+                    await contactDiscovery.discoverRegisteredContacts()
+                }
             }
         }
     }
@@ -170,6 +191,31 @@ struct UnifiedAddNomineeView: View {
                 HStack {
                     Image(systemName: "person.crop.circle.badge.plus")
                     Text("Select from Contacts")
+                    
+                    Spacer()
+                    
+                    if contactDiscovery.isDiscovering {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                                .tint(.white)
+                            Text("Checking...")
+                                .font(theme.typography.caption)
+                        }
+                    } else if !contactDiscovery.registeredContacts.isEmpty {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.white)
+                                .font(.caption)
+                            Text("\(contactDiscovery.registeredContacts.count) on Khandoba")
+                                .font(theme.typography.caption)
+                                .fontWeight(.semibold)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.3))
+                        .cornerRadius(8)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -178,15 +224,57 @@ struct UnifiedAddNomineeView: View {
                 .cornerRadius(UnifiedTheme.CornerRadius.lg)
             }
             
+            // Discovery Status Card (always visible for feedback)
+            if contactDiscovery.isDiscovering || !contactDiscovery.registeredContacts.isEmpty {
+                StandardCard {
+                    HStack {
+                        if contactDiscovery.isDiscovering {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("Discovering contacts on Khandoba...")
+                                .font(theme.typography.caption)
+                                .foregroundColor(colors.textSecondary)
+                        } else {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(colors.success)
+                            Text("Found \(contactDiscovery.registeredContacts.count) contact(s) on Khandoba")
+                                .font(theme.typography.caption)
+                                .foregroundColor(colors.success)
+                        }
+                        Spacer()
+                    }
+                }
+            }
+            
             // Form Fields
             VStack(spacing: UnifiedTheme.Spacing.md) {
                 // Name Field
                 StandardCard {
                     VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                        Text("Full Name *")
-                            .font(theme.typography.subheadline)
-                            .foregroundColor(colors.textPrimary)
-                            .fontWeight(.semibold)
+                        HStack {
+                            Text("Full Name *")
+                                .font(theme.typography.subheadline)
+                                .foregroundColor(colors.textPrimary)
+                                .fontWeight(.semibold)
+                            
+                            Spacer()
+                            
+                            // Show indicator if contact is registered
+                            if selectedContactIsRegistered {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(colors.success)
+                                        .font(.caption)
+                                    Text("On Khandoba")
+                                        .font(theme.typography.caption)
+                                        .foregroundColor(colors.success)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(colors.success.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                        }
                         
                         TextField("Enter nominee's name", text: $nomineeName)
                             .font(theme.typography.body)
@@ -194,6 +282,9 @@ struct UnifiedAddNomineeView: View {
                             .padding(UnifiedTheme.Spacing.md)
                             .background(colors.surface)
                             .cornerRadius(UnifiedTheme.CornerRadius.md)
+                            .onChange(of: nomineeName) { oldValue, newValue in
+                                checkIfRegistered()
+                            }
                     }
                 }
                 
@@ -211,6 +302,9 @@ struct UnifiedAddNomineeView: View {
                             .padding(UnifiedTheme.Spacing.md)
                             .background(colors.surface)
                             .cornerRadius(UnifiedTheme.CornerRadius.md)
+                            .onChange(of: phoneNumber) { oldValue, newValue in
+                                checkIfRegistered()
+                            }
                     }
                 }
                 
@@ -230,6 +324,9 @@ struct UnifiedAddNomineeView: View {
                             .padding(UnifiedTheme.Spacing.md)
                             .background(colors.surface)
                             .cornerRadius(UnifiedTheme.CornerRadius.md)
+                            .onChange(of: email) { oldValue, newValue in
+                                checkIfRegistered()
+                            }
                     }
                 }
             }
@@ -464,6 +561,21 @@ struct UnifiedAddNomineeView: View {
         \(nominee.inviteToken)
         """
         return message
+    }
+    
+    // MARK: - Contact Registration Check
+    
+    /// Check if the currently entered contact information matches a registered Khandoba user
+    private func checkIfRegistered() {
+        // Check if email or phone matches registered contacts
+        let isEmailRegistered = !email.isEmpty && contactDiscovery.checkIfRegistered(email: email)
+        let isPhoneRegistered = !phoneNumber.isEmpty && contactDiscovery.checkIfRegistered(phone: phoneNumber)
+        
+        selectedContactIsRegistered = isEmailRegistered || isPhoneRegistered
+        
+        if selectedContactIsRegistered {
+            print("✅ Entered contact is registered on Khandoba!")
+        }
     }
     
     // MARK: - CloudKit Sharing

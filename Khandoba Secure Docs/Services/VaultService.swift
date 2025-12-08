@@ -377,7 +377,7 @@ final class VaultService: ObservableObject {
         let vaultID = vault.id
         let nomineeDescriptor = FetchDescriptor<Nominee>(
             predicate: #Predicate<Nominee> { nominee in
-                nominee.statusRaw == NomineeStatus.accepted.rawValue || nominee.statusRaw == NomineeStatus.active.rawValue
+                nominee.statusRaw == "accepted" || nominee.statusRaw == "active"
             }
         )
         

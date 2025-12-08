@@ -293,7 +293,7 @@ struct UnifiedShareView: View {
                     name: fullName,
                     phoneNumber: contact.phoneNumbers.first?.value.stringValue,
                     email: contact.emailAddresses.first?.value as String?,
-                    status: "transfer_pending"
+                    status: .pending
                 )
                 transferNominee.vault = vault
                 transferNominee.invitedByUserID = currentUser.id
