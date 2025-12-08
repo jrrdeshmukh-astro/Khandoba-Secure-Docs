@@ -36,6 +36,7 @@ struct UnifiedAddNomineeView: View {
     @State private var showCloudKitSharing = false
     @State private var cloudKitShare: CKShare?
     @State private var showContactPicker = false
+    @State private var showSuccess = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -47,7 +48,7 @@ struct UnifiedAddNomineeView: View {
                 
                 ScrollView {
                     VStack(spacing: UnifiedTheme.Spacing.lg) {
-                        if let nominee = createdNominee {
+                        if showSuccess, let nominee = createdNominee {
                             // Success state - show sharing options
                             inviteSuccessView(nominee: nominee, colors: colors)
                         } else {
@@ -337,7 +338,7 @@ struct UnifiedAddNomineeView: View {
                 } label: {
                     HStack {
                         Image(systemName: "square.and.arrow.up.fill")
-                        Text("Share via CloudKit")
+                        Text("Share Invitation")
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
@@ -352,7 +353,7 @@ struct UnifiedAddNomineeView: View {
                 } label: {
                     HStack {
                         Image(systemName: "doc.on.doc.fill")
-                        Text("Copy Invitation Link")
+                        Text("Copy Link")
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
@@ -407,6 +408,12 @@ struct UnifiedAddNomineeView: View {
                 await MainActor.run {
                     createdNominee = nominee
                     isCreating = false
+                    showSuccess = true
+                    
+                    // Automatically present CloudKit sharing if available
+                    Task {
+                        await presentCloudKitSharing()
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -455,18 +462,12 @@ struct UnifiedAddNomineeView: View {
                 }
                 print("   ✅ CloudKit sharing controller will be presented")
             } else {
-                print("   ⚠️ Could not create CloudKit share")
-                await MainActor.run {
-                    errorMessage = "CloudKit sharing is currently unavailable. Please use the 'Copy Invitation Link' button instead."
-                    showError = true
-                }
+                print("   ℹ️ CloudKit share not available - user can use fallback option")
+                // Don't show error - just let user use the copy link button
             }
         } catch {
-            print("   ❌ Failed to prepare CloudKit share: \(error.localizedDescription)")
-            await MainActor.run {
-                errorMessage = "CloudKit sharing is currently unavailable. Please use the 'Copy Invitation Link' button instead."
-                showError = true
-            }
+            print("   ℹ️ CloudKit sharing not available: \(error.localizedDescription)")
+            // Don't show error - just let user use the copy link button
         }
     }
 }

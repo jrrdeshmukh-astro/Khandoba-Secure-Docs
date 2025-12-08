@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var showTransferView = false
     @State private var showCloudKitShareSuccess = false
     @State private var cloudKitShareRootRecordID: String?
+    @State private var sharedVaultID: UUID? // For navigating to shared vault
     
     // CloudKit sharing service
     @StateObject private var cloudKitSharing = CloudKitSharingService()
@@ -74,7 +75,16 @@ struct ContentView: View {
                         }
                     }
                     .sheet(isPresented: $showCloudKitShareSuccess) {
-                        CloudKitShareSuccessView(rootRecordID: cloudKitShareRootRecordID)
+                        CloudKitShareSuccessView(
+                            rootRecordID: cloudKitShareRootRecordID,
+                            vaultID: sharedVaultID,
+                            onNavigateToVault: { vaultID in
+                                // Navigate to vaults tab and then to the specific vault
+                                // This will be handled by the navigation system
+                                sharedVaultID = vaultID
+                                showCloudKitShareSuccess = false
+                            }
+                        )
                     }
                     .sheet(isPresented: $showTransferView) {
                         if let token = pendingTransferToken {
@@ -235,11 +245,19 @@ struct ContentView: View {
                 }
                 
                 // After accepting share, wait a moment for SwiftData to sync
-                try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                try await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds for sync
+                
+                // Force refresh vaults to ensure shared vault appears
+                // This is done by posting a notification that VaultListView listens to
+                NotificationCenter.default.post(name: .cloudKitShareInvitationReceived, object: nil)
+                
+                // Try to find the shared vault
+                let vaultID = await findSharedVault(rootRecordID: rootRecordID)
                 
                 await MainActor.run {
                     // Show success view for CloudKit share
                     cloudKitShareRootRecordID = rootRecordID
+                    sharedVaultID = vaultID
                     showCloudKitShareSuccess = true
                 }
             } catch {
@@ -258,6 +276,38 @@ struct ContentView: View {
         }
     }
     
+    private func findSharedVault(rootRecordID: String?) async -> UUID? {
+        // Wait a bit more for SwiftData to sync
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 more second
+        
+        // Try to find the vault that was just shared
+        // Since we can't query by CloudKit record ID directly, we'll look for recently synced vaults
+        // that the current user doesn't own
+        guard let currentUser = authService.currentUser else { return nil }
+        
+        let descriptor = FetchDescriptor<Vault>(
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        
+        do {
+            let vaults = try modelContext.fetch(descriptor)
+            // Find vaults that are not owned by current user (shared vaults)
+            // and were created/synced recently (within last 5 minutes)
+            let recentTime = Date().addingTimeInterval(-300) // 5 minutes ago
+            if let sharedVault = vaults.first(where: { vault in
+                guard let owner = vault.owner else { return false }
+                return owner.id != currentUser.id && vault.createdAt >= recentTime
+            }) {
+                print("   ✅ Found shared vault: \(sharedVault.name) (ID: \(sharedVault.id))")
+                return sharedVault.id
+            }
+        } catch {
+            print("   ⚠️ Error finding shared vault: \(error.localizedDescription)")
+        }
+        
+        return nil
+    }
+    
     private func acceptCloudKitShare(metadata: CKShare.Metadata) {
         Task {
             do {
@@ -266,19 +316,28 @@ struct ContentView: View {
                 print("   ✅ CloudKit share processed successfully from metadata")
                 
                 // After processing share, wait a moment for SwiftData to sync
-                try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                try await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds for sync
+                
+                // Force refresh vaults to ensure shared vault appears
+                NotificationCenter.default.post(name: .cloudKitShareInvitationReceived, object: nil)
+                
+                // Try to find the shared vault
+                let vaultID = await findSharedVault(rootRecordID: metadata.rootRecordID.recordName)
                 
                 await MainActor.run {
                     // Show success view for CloudKit share (different from token-based invitation)
                     cloudKitShareRootRecordID = metadata.rootRecordID.recordName
+                    sharedVaultID = vaultID
                     showCloudKitShareSuccess = true
                 }
             } catch {
                 print("   ❌ Error processing CloudKit share from metadata: \(error.localizedDescription)")
                 // Even if processing fails, SwiftData might still sync
-                // Show success view anyway
+                // Try to find the vault anyway
+                let vaultID = await findSharedVault(rootRecordID: metadata.rootRecordID.recordName)
                 await MainActor.run {
                     cloudKitShareRootRecordID = metadata.rootRecordID.recordName
+                    sharedVaultID = vaultID
                     showCloudKitShareSuccess = true
                 }
             }

@@ -53,10 +53,25 @@ final class VaultService: ObservableObject {
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
         
-        vaults = try modelContext.fetch(descriptor)
+        var fetchedVaults = try modelContext.fetch(descriptor)
+        
+        // Log vault information for debugging
+        print("📦 VaultService: Loaded \(fetchedVaults.count) vault(s)")
+        for vault in fetchedVaults {
+            let ownerName = vault.owner?.fullName ?? "Unknown"
+            let isShared = currentUserID != nil && vault.owner?.id != currentUserID
+            print("   - \(vault.name) (Owner: \(ownerName), Shared: \(isShared), System: \(vault.isSystemVault))")
+        }
+        
+        vaults = fetchedVaults
         
         // Load active sessions
         await loadActiveSessions()
+    }
+    
+    /// Force refresh vaults (useful after accepting CloudKit shares)
+    func refreshVaults() async throws {
+        try await loadVaults()
     }
     
     /// One-time cleanup: Delete Intel Reports vault completely

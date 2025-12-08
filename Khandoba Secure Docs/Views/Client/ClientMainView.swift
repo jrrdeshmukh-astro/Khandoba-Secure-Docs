@@ -21,6 +21,7 @@ struct ClientMainView: View {
     @State private var selectedTab = 0
     @AppStorage("hasCompletedClientOnboarding") private var hasCompletedOnboarding = false
     @State private var showOnboarding = false
+    @State private var navigateToVaultID: UUID?
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -66,6 +67,24 @@ struct ClientMainView: View {
             configureServices()
             if !hasCompletedOnboarding {
                 showOnboarding = true
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToVault)) { notification in
+            if let vaultID = notification.userInfo?["vaultID"] as? UUID {
+                // Switch to vaults tab and navigate to the vault
+                selectedTab = 1 // Vaults tab
+                navigateToVaultID = vaultID
+            }
+        }
+        .onChange(of: navigateToVaultID) { oldValue, newValue in
+            if newValue != nil {
+                // Post notification to VaultListView to navigate
+                NotificationCenter.default.post(
+                    name: .navigateToVault,
+                    object: nil,
+                    userInfo: ["vaultID": newValue!]
+                )
+                navigateToVaultID = nil
             }
         }
         .environmentObject(vaultService)

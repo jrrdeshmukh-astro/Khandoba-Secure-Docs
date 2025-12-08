@@ -23,6 +23,7 @@ struct AcceptNomineeInvitationView: View {
     @State private var errorMessage = ""
     @State private var nominee: Nominee?
     @State private var showSuccess = false
+    @State private var acceptedVault: Vault?
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -216,11 +217,31 @@ struct AcceptNomineeInvitationView: View {
                 Text(errorMessage)
             }
             .alert("Success", isPresented: $showSuccess) {
-                Button("OK") {
-                    dismiss()
+                if let vault = acceptedVault {
+                    Button("Open Vault") {
+                        // Navigate to vault - this will be handled by the parent view
+                        dismiss()
+                        // Post notification to navigate to vault
+                        NotificationCenter.default.post(
+                            name: .navigateToVault,
+                            object: nil,
+                            userInfo: ["vaultID": vault.id]
+                        )
+                    }
+                    Button("Done") {
+                        dismiss()
+                    }
+                } else {
+                    Button("OK") {
+                        dismiss()
+                    }
                 }
             } message: {
-                Text("Invitation accepted! You'll have access when the vault owner unlocks it.")
+                if let vault = acceptedVault {
+                    Text("Invitation accepted! You now have access to '\(vault.name)'. Tap 'Open Vault' to view it now.")
+                } else {
+                    Text("Invitation accepted! You'll have access when the vault owner unlocks it.")
+                }
             }
             .onAppear {
                 nomineeService.configure(modelContext: modelContext)
@@ -267,11 +288,21 @@ struct AcceptNomineeInvitationView: View {
         Task {
             do {
                 // Use service method to accept invitation
-                _ = try await nomineeService.acceptInvite(token: inviteToken)
+                let acceptedNominee = try await nomineeService.acceptInvite(token: inviteToken)
                 
-                await MainActor.run {
-                    showSuccess = true
-                    isLoading = false
+                // Reload the nominee to get updated vault relationship
+                if let updatedNominee = try await nomineeService.loadInvite(token: inviteToken) {
+                    await MainActor.run {
+                        acceptedVault = updatedNominee.vault
+                        showSuccess = true
+                        isLoading = false
+                    }
+                } else {
+                    await MainActor.run {
+                        acceptedVault = acceptedNominee?.vault
+                        showSuccess = true
+                        isLoading = false
+                    }
                 }
             } catch {
                 await MainActor.run {

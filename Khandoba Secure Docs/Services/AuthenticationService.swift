@@ -205,32 +205,57 @@ final class AuthenticationService: ObservableObject {
     }
     
     private func createDefaultProfileImage(name: String) -> Data? {
-        // Create a simple colored circle as profile image
+        // Create a profile image with person icon
         let size = CGSize(width: 200, height: 200)
         let renderer = UIGraphicsImageRenderer(size: size)
         
         let image = renderer.image { context in
-            // Background circle
-            UIColor.systemBlue.setFill()
-            let circle = UIBezierPath(ovalIn: CGRect(origin: .zero, size: size))
-            circle.fill()
+            // Background circle with gradient-like effect
+            let colors = [UIColor.systemBlue.cgColor, UIColor.systemBlue.withAlphaComponent(0.7).cgColor]
+            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: [0.0, 1.0]) {
+                context.cgContext.drawLinearGradient(
+                    gradient,
+                    start: CGPoint(x: 0, y: 0),
+                    end: CGPoint(x: size.width, y: size.height),
+                    options: []
+                )
+            } else {
+                // Fallback to solid color
+                UIColor.systemBlue.setFill()
+                let circle = UIBezierPath(ovalIn: CGRect(origin: .zero, size: size))
+                circle.fill()
+            }
             
-            // Initial letter(s)
-            let initials = name.split(separator: " ").prefix(2).compactMap { $0.first }.map { String($0) }.joined()
-            let text = initials.isEmpty ? "?" : initials.uppercased()
-            
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 80, weight: .bold),
-                .foregroundColor: UIColor.white
-            ]
-            let textSize = text.size(withAttributes: attributes)
-            let textRect = CGRect(
-                x: (size.width - textSize.width) / 2,
-                y: (size.height - textSize.height) / 2,
-                width: textSize.width,
-                height: textSize.height
+            // Draw person icon in the center
+            let iconSize: CGFloat = 100
+            let iconRect = CGRect(
+                x: (size.width - iconSize) / 2,
+                y: (size.height - iconSize) / 2 - 10, // Slightly above center
+                width: iconSize,
+                height: iconSize
             )
-            text.draw(in: textRect, withAttributes: attributes)
+            
+            // Create person icon using SF Symbols style
+            UIColor.white.setFill()
+            let personPath = UIBezierPath()
+            
+            // Draw head (circle)
+            let headRadius: CGFloat = iconSize * 0.25
+            let headCenter = CGPoint(x: iconRect.midX, y: iconRect.minY + headRadius + 5)
+            let headCircle = UIBezierPath(arcCenter: headCenter, radius: headRadius, startAngle: 0, endAngle: .pi * 2, clockwise: true)
+            headCircle.fill()
+            
+            // Draw body (rounded rectangle/torso)
+            let bodyWidth: CGFloat = iconSize * 0.5
+            let bodyHeight: CGFloat = iconSize * 0.4
+            let bodyRect = CGRect(
+                x: iconRect.midX - bodyWidth / 2,
+                y: headCenter.y + headRadius + 5,
+                width: bodyWidth,
+                height: bodyHeight
+            )
+            let bodyPath = UIBezierPath(roundedRect: bodyRect, cornerRadius: bodyWidth / 4)
+            bodyPath.fill()
         }
         
         return image.pngData()

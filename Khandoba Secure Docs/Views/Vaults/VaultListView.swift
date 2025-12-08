@@ -11,9 +11,12 @@ struct VaultListView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var vaultService: VaultService
+    @Environment(\.modelContext) private var modelContext
     
     @State private var showCreateVault = false
     @State private var isLoading = false
+    @State private var selectedVaultID: UUID?
+    @State private var navigateToVaultID: UUID?
     
     // Filter out system vaults (Intel Reports, etc.)
     private var userVaults: [Vault] {
@@ -45,9 +48,11 @@ struct VaultListView: View {
                 } else {
                     List {
                         ForEach(userVaults) { vault in
-                            NavigationLink {
-                                VaultDetailView(vault: vault)
-                            } label: {
+                            NavigationLink(
+                                destination: VaultDetailView(vault: vault),
+                                tag: vault.id,
+                                selection: $selectedVaultID
+                            ) {
                                 VaultRow(vault: vault)
                             }
                             .listRowBackground(colors.surface)
@@ -81,6 +86,48 @@ struct VaultListView: View {
         }
         .task {
             await loadVaults()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToVault)) { notification in
+            if let vaultID = notification.userInfo?["vaultID"] as? UUID {
+                navigateToVault(vaultID: vaultID)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cloudKitShareInvitationReceived)) { _ in
+            // Refresh vaults when CloudKit share is received
+            Task {
+                await loadVaults()
+            }
+        }
+        .onChange(of: navigateToVaultID) { oldValue, newValue in
+            if let vaultID = newValue {
+                selectedVaultID = vaultID
+                navigateToVaultID = nil
+            }
+        }
+    }
+    
+    private func navigateToVault(vaultID: UUID) {
+        // Reload vaults first to ensure the vault is in the list
+        Task {
+            await loadVaults()
+            // Wait a moment for vaults to load
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            await MainActor.run {
+                // Check if vault exists in the list
+                if userVaults.contains(where: { $0.id == vaultID }) {
+                    selectedVaultID = vaultID
+                } else {
+                    // If vault not found, try again after a longer delay
+                    Task {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 more seconds
+                        await MainActor.run {
+                            if userVaults.contains(where: { $0.id == vaultID }) {
+                                selectedVaultID = vaultID
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     

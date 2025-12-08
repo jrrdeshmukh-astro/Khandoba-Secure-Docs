@@ -35,12 +35,11 @@ struct Khandoba_Secure_DocsApp: App {
         ])
         // Use App Group for shared storage with extensions
         let appGroupIdentifier = "group.com.khandoba.securedocs"
-        let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
         
         let modelConfiguration = ModelConfiguration(
             schema: schema,
-            url: appGroupURL?.appendingPathComponent("KhandobaSecureDocs.store"),
             isStoredInMemoryOnly: false,
+            groupContainer: .identifier(appGroupIdentifier),
             cloudKitDatabase: .automatic  // Enable CloudKit sync for nominee invitations and cross-device sync
         )
 
@@ -56,12 +55,11 @@ struct Khandoba_Secure_DocsApp: App {
             // Try local-only fallback (no CloudKit)
             do {
                 let appGroupIdentifier = "group.com.khandoba.securedocs"
-                let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
                 
                 let localConfig = ModelConfiguration(
                     schema: schema,
-                    url: appGroupURL?.appendingPathComponent("KhandobaSecureDocs.store"),
                     isStoredInMemoryOnly: false,
+                    groupContainer: .identifier(appGroupIdentifier),
                     cloudKitDatabase: .none
                 )
                 let container = try ModelContainer(for: schema, configurations: [localConfig])
@@ -182,4 +180,5 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 extension Notification.Name {
     static let cloudKitShareInvitationReceived = Notification.Name("cloudKitShareInvitationReceived")
+    static let navigateToVault = Notification.Name("navigateToVault")
 }

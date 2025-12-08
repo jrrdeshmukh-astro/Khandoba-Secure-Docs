@@ -215,102 +215,7 @@ struct ShareExtensionView: View {
                 Color(.systemGroupedBackground)
                     .ignoresSafeArea()
                 
-                if isLoading {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                        Text("Loading vaults...")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                } else if isUploading {
-                    VStack(spacing: 16) {
-                        ProgressView(value: uploadProgress)
-                        Text("Uploading \(uploadedCount) of \(sharedItems.count) items...")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding()
-                } else {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            // Items summary
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("\(sharedItems.count) item(s) to upload")
-                                    .font(.headline)
-                                
-                                ForEach(Array(sharedItems.enumerated()), id: \.offset) { index, item in
-                                    HStack {
-                                        Image(systemName: iconForMimeType(item.mimeType))
-                                            Text(item.name)
-                                                .font(.subheadline)
-                                                .lineLimit(1)
-                                        Spacer()
-                                            Text(ByteCountFormatter.string(fromByteCount: Int64(item.data.count), countStyle: .file))
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color(.systemBackground))
-                            .cornerRadius(12)
-                            
-                            // Vault selection
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Select Vault")
-                                    .font(.headline)
-                                
-                                if vaults.isEmpty {
-                                    VStack(spacing: 8) {
-                                        Text("No vaults available")
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                        
-                                        Text("Create a vault in the main app first")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                } else {
-                                ForEach(vaults) { vault in
-                                    Button {
-                                        selectedVault = vault
-                                    } label: {
-                                        HStack {
-                                            Image(systemName: selectedVault?.id == vault.id ? "checkmark.circle.fill" : "circle")
-                                                    .foregroundColor(selectedVault?.id == vault.id ? .blue : .gray)
-                                                Text(vault.name)
-                                                    .foregroundColor(.primary)
-                                            Spacer()
-                                        }
-                                        .padding()
-                                            .background(selectedVault?.id == vault.id ? Color.blue.opacity(0.1) : Color(.systemBackground))
-                                            .cornerRadius(8)
-                                        }
-                                    }
-                                }
-                                    }
-                            .padding()
-                            .background(Color(.systemBackground))
-                            .cornerRadius(12)
-                            
-                            // Upload button
-                                Button {
-                                uploadItems()
-                                } label: {
-                                Text("Upload to Vault")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(selectedVault != nil ? Color.blue : Color.gray)
-                                    .cornerRadius(12)
-                                }
-                            .disabled(selectedVault == nil || isUploading)
-                            .padding()
-                        }
-                        .padding()
-                    }
-                }
+                contentView
             }
             .navigationTitle("Khandoba")
             .navigationBarTitleDisplayMode(.inline)
@@ -327,7 +232,166 @@ struct ShareExtensionView: View {
             .onAppear {
                 loadVaults()
             }
+            .refreshable {
+                await loadVaultsAsync()
+            }
         }
+    }
+    
+    @ViewBuilder
+    private var contentView: some View {
+        if isLoading {
+            loadingView
+        } else if isUploading {
+            uploadingView
+        } else {
+            mainContentView
+        }
+    }
+    
+    private var loadingView: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+            Text("Loading vaults...")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    private var uploadingView: some View {
+        VStack(spacing: 16) {
+            ProgressView(value: uploadProgress)
+            Text("Uploading \(uploadedCount) of \(sharedItems.count) items...")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+    }
+    
+    private var mainContentView: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                itemsSummaryView
+                vaultSelectionView
+                uploadButtonView
+            }
+            .padding()
+        }
+    }
+    
+    private var itemsSummaryView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("\(sharedItems.count) item(s) to upload")
+                .font(.headline)
+            
+            ForEach(Array(sharedItems.enumerated()), id: \.offset) { index, item in
+                itemRowView(item: item)
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+    }
+    
+    private func itemRowView(item: SharedItem) -> some View {
+        HStack {
+            Image(systemName: iconForMimeType(item.mimeType))
+            Text(item.name)
+                .font(.subheadline)
+                .lineLimit(1)
+            Spacer()
+            Text(ByteCountFormatter.string(fromByteCount: Int64(item.data.count), countStyle: .file))
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    private var vaultSelectionView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Select Vault")
+                .font(.headline)
+            
+            if vaults.isEmpty {
+                emptyVaultsView
+            } else {
+                vaultsListView
+            }
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+    }
+    
+    private var emptyVaultsView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "tray")
+                .font(.largeTitle)
+                .foregroundColor(.secondary)
+            
+            Text("No vaults available")
+                .font(.headline)
+                .foregroundColor(.primary)
+            
+            Text("Create a vault in the main app first, then try again")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            
+            Button {
+                loadVaults()
+            } label: {
+                HStack {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Retry")
+                }
+                .font(.subheadline)
+                .foregroundColor(.blue)
+            }
+            .padding(.top, 8)
+        }
+        .padding()
+    }
+    
+    private var vaultsListView: some View {
+        ForEach(vaults, id: \.id) { vault in
+            vaultRowView(vault: vault)
+        }
+    }
+    
+    private func vaultRowView(vault: Vault) -> some View {
+        let isSelected = selectedVault?.id == vault.id
+        let vaultName = vault.name.isEmpty ? "Unnamed Vault" : vault.name
+        
+        return Button {
+            selectedVault = vault
+        } label: {
+            HStack {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? .blue : .gray)
+                Text(vaultName)
+                    .foregroundColor(.primary)
+                Spacer()
+            }
+            .padding()
+            .background(isSelected ? Color.blue.opacity(0.1) : Color(.systemBackground))
+            .cornerRadius(8)
+        }
+    }
+    
+    private var uploadButtonView: some View {
+        Button {
+            uploadItems()
+        } label: {
+            Text("Upload to Vault")
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(selectedVault != nil ? Color.blue : Color.gray)
+                .cornerRadius(12)
+        }
+        .disabled(selectedVault == nil || isUploading)
+        .padding()
     }
     
     private func iconForMimeType(_ mimeType: String) -> String {
@@ -345,79 +409,170 @@ struct ShareExtensionView: View {
     }
     
     private func loadVaults() {
-        isLoading = true
-        
         Task {
-            do {
-                // Create ModelContainer for ShareExtension with same schema as main app
-                // Use App Group to share data with main app
-                let schema = Schema([
-                    User.self,
-                    UserRole.self,
-                    Vault.self,
-                    VaultSession.self,
-                    VaultAccessLog.self,
-                    DualKeyRequest.self,
-                    Document.self,
-                    DocumentVersion.self,
-                    ChatMessage.self,
-                    Nominee.self,
-                    VaultTransferRequest.self,
-                    EmergencyAccessRequest.self
-                ])
-                
-                // Use App Group URL for shared storage
-                let appGroupIdentifier = "group.com.khandoba.securedocs"
-                let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
-                
-                let modelConfiguration = ModelConfiguration(
+            await loadVaultsAsync()
+        }
+    }
+    
+    private func loadVaultsAsync() async {
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        do {
+            // Create ModelContainer for ShareExtension with same schema as main app
+            // Use App Group to share data with main app
+            let schema = Schema([
+                User.self,
+                UserRole.self,
+                Vault.self,
+                VaultSession.self,
+                VaultAccessLog.self,
+                DualKeyRequest.self,
+                Document.self,
+                DocumentVersion.self,
+                ChatMessage.self,
+                Nominee.self,
+                VaultTransferRequest.self,
+                EmergencyAccessRequest.self
+            ])
+            
+            // Use App Group identifier for shared storage
+            let appGroupIdentifier = "group.com.khandoba.securedocs"
+            let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
+            
+            print("📦 ShareExtension: Setting up ModelContainer")
+            print("   App Group ID: \(appGroupIdentifier)")
+            print("   App Group URL: \(appGroupURL?.path ?? "nil - App Group not accessible")")
+            
+            // Check if App Group is accessible
+            if appGroupURL == nil {
+                print("⚠️ ShareExtension: App Group not accessible")
+                print("   This might mean:")
+                print("   1. App Group not configured in Xcode project settings")
+                print("   2. App Group identifier mismatch")
+                print("   3. Extension not signed with same team")
+                print("   Using CloudKit sync (may take longer)")
+            }
+            
+            // Create ModelConfiguration - use App Group identifier
+            // Try with App Group first, fallback to default if needed
+            let modelConfiguration: ModelConfiguration
+            if appGroupURL != nil {
+                // App Group is accessible, use it
+                modelConfiguration = ModelConfiguration(
                     schema: schema,
-                    url: appGroupURL?.appendingPathComponent("KhandobaSecureDocs.store"),
+                    isStoredInMemoryOnly: false,
+                    groupContainer: .identifier(appGroupIdentifier),
                     cloudKitDatabase: .automatic
                 )
-                
-                let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-                let context = container.mainContext
-                
-                print("📦 ShareExtension: ModelContainer created")
-                print("   App Group: \(appGroupIdentifier)")
-                print("   Store URL: \(appGroupURL?.appendingPathComponent("KhandobaSecureDocs.store").path ?? "nil")")
-                
-                // Fetch vaults with a small delay to allow CloudKit sync
-                // CloudKit might need a moment to sync vaults from main app
-                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                
-                let descriptor = FetchDescriptor<Vault>(
-                    sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            } else {
+                // App Group not accessible, use default configuration
+                print("⚠️ ShareExtension: Using default configuration (App Group not accessible)")
+                modelConfiguration = ModelConfiguration(
+                    schema: schema,
+                    isStoredInMemoryOnly: false,
+                    cloudKitDatabase: .automatic
                 )
-                
-                let fetchedVaults = try context.fetch(descriptor)
-                
-                print("📦 ShareExtension: Found \(fetchedVaults.count) vault(s)")
-                
-                await MainActor.run {
-                    vaults = fetchedVaults.filter { !$0.isSystemVault }
-                    isLoading = false
-                    
-                    print("📦 ShareExtension: \(vaults.count) non-system vault(s) available")
-                    
-                    // Auto-select first vault if available
-                    if selectedVault == nil, let firstVault = vaults.first {
-                        selectedVault = firstVault
-                        print("📦 ShareExtension: Auto-selected vault: \(firstVault.name)")
-                    }
-                    
-                    if vaults.isEmpty {
-                        print("⚠️ ShareExtension: No vaults available - user may need to create vaults in main app first")
-                    }
-                }
+            }
+            
+            let container: ModelContainer
+            do {
+                container = try ModelContainer(for: schema, configurations: [modelConfiguration])
             } catch {
-                print("❌ ShareExtension: Failed to load vaults: \(error.localizedDescription)")
-                await MainActor.run {
-                    isLoading = false
-                    errorMessage = "Failed to load vaults. Please ensure you have created at least one vault in the main app. Error: \(error.localizedDescription)"
-                    showError = true
+                print("❌ ShareExtension: Failed to create ModelContainer")
+                print("   Error: \(error.localizedDescription)")
+                // Try fallback without CloudKit
+                print("   Attempting fallback without CloudKit...")
+                let fallbackConfig = ModelConfiguration(
+                    schema: schema,
+                    isStoredInMemoryOnly: false
+                )
+                container = try ModelContainer(for: schema, configurations: [fallbackConfig])
+            }
+            let context = container.mainContext
+            
+            print("✅ ShareExtension: ModelContainer created successfully")
+            
+            // Fetch vaults with a delay to allow CloudKit sync
+            print("   Waiting for CloudKit sync...")
+            try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second for CloudKit sync
+            
+            let descriptor = FetchDescriptor<Vault>(
+                sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            )
+            
+            // Try fetching vaults with error handling
+            var fetchedVaults: [Vault] = []
+            do {
+                fetchedVaults = try context.fetch(descriptor)
+                print("📦 ShareExtension: Initial fetch found \(fetchedVaults.count) vault(s)")
+            } catch {
+                print("⚠️ ShareExtension: Error fetching vaults: \(error.localizedDescription)")
+                // Continue with empty array - will show "No vaults available"
+            }
+            
+            // If no vaults found, try waiting a bit longer for CloudKit sync
+            if fetchedVaults.isEmpty {
+                print("   No vaults found - waiting additional 2 seconds for CloudKit sync...")
+                try await Task.sleep(nanoseconds: 2_000_000_000) // 2 more seconds
+                
+                // Try fetching again
+                do {
+                    fetchedVaults = try context.fetch(descriptor)
+                    print("   After additional wait: Found \(fetchedVaults.count) vault(s)")
+                } catch {
+                    print("⚠️ ShareExtension: Error on retry fetch: \(error.localizedDescription)")
                 }
+            }
+            
+            // Log all vaults found (safely access properties)
+            for vault in fetchedVaults {
+                let vaultName = vault.name
+                let vaultID = vault.id.uuidString
+                let isSystem = vault.isSystemVault
+                print("   Vault: \(vaultName) (ID: \(vaultID), System: \(isSystem))")
+            }
+            
+            // Filter and update on main thread
+            // Filter out system vaults
+            let nonSystemVaults = fetchedVaults.filter { !$0.isSystemVault }
+            let firstVault = nonSystemVaults.first
+            
+            await MainActor.run {
+                self.vaults = nonSystemVaults
+                self.isLoading = false
+                
+                print("📦 ShareExtension: \(self.vaults.count) non-system vault(s) available")
+                
+                // Auto-select first vault if available
+                if self.selectedVault == nil, let firstVault = firstVault {
+                    self.selectedVault = firstVault
+                    let vaultName = firstVault.name.isEmpty ? "Unnamed Vault" : firstVault.name
+                    print("📦 ShareExtension: Auto-selected vault: \(vaultName)")
+                }
+                
+                if self.vaults.isEmpty {
+                    print("⚠️ ShareExtension: No vaults available")
+                    print("   Possible reasons:")
+                    print("   1. No vaults created in main app yet")
+                    print("   2. CloudKit sync not complete (wait a few seconds)")
+                    print("   3. App Group not properly configured")
+                    print("   4. User not signed into iCloud")
+                }
+            }
+        } catch {
+            print("❌ ShareExtension: Failed to load vaults: \(error.localizedDescription)")
+            print("   Error details: \(error)")
+            if let nsError = error as NSError? {
+                print("   Domain: \(nsError.domain)")
+                print("   Code: \(nsError.code)")
+                print("   UserInfo: \(nsError.userInfo)")
+            }
+            await MainActor.run {
+                self.isLoading = false
+                self.errorMessage = "Failed to load vaults. Please ensure you have created at least one vault in the main app. Error: \(error.localizedDescription)"
+                self.showError = true
             }
         }
     }
@@ -427,6 +582,9 @@ struct ShareExtensionView: View {
         
         isUploading = true
         uploadedCount = 0
+        
+        let itemsToUpload = sharedItems
+        let completion = onComplete
         
         Task {
             do {
@@ -446,13 +604,13 @@ struct ShareExtensionView: View {
                     EmergencyAccessRequest.self
                 ])
                 
-                // Use App Group URL for shared storage
+                // Use App Group identifier for shared storage
                 let appGroupIdentifier = "group.com.khandoba.securedocs"
-                let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
                 
                 let modelConfiguration = ModelConfiguration(
                     schema: schema,
-                    url: appGroupURL?.appendingPathComponent("KhandobaSecureDocs.store"),
+                    isStoredInMemoryOnly: false,
+                    groupContainer: .identifier(appGroupIdentifier),
                     cloudKitDatabase: .automatic
                 )
                 
@@ -462,7 +620,7 @@ struct ShareExtensionView: View {
                 // Reload vault from context
                 let vaultID = vault.id
                 let vaultDescriptor = FetchDescriptor<Vault>(
-                    predicate: #Predicate { vault in vault.id == vaultID }
+                    predicate: #Predicate { $0.id == vaultID }
                 )
                 
                 guard let vaultInContext = try context.fetch(vaultDescriptor).first else {
@@ -470,7 +628,7 @@ struct ShareExtensionView: View {
                 }
                 
                 // Upload each item
-                for (index, item) in sharedItems.enumerated() {
+                for (index, item) in itemsToUpload.enumerated() {
                     // Create document
                     let document = Document(
                         name: item.name,
@@ -494,13 +652,15 @@ struct ShareExtensionView: View {
                     context.insert(document)
                     try context.save()
                     
-                    uploadedCount = index + 1
-                    uploadProgress = Double(uploadedCount) / Double(sharedItems.count)
+                    await MainActor.run {
+                        uploadedCount = index + 1
+                        uploadProgress = Double(uploadedCount) / Double(itemsToUpload.count)
+                    }
                 }
                 
                 await MainActor.run {
                     isUploading = false
-                        onComplete()
+                    completion()
                 }
             } catch {
                 await MainActor.run {
@@ -525,8 +685,6 @@ struct ShareExtensionView: View {
             return "text"
         } else {
             return "file"
+        }
     }
 }
-}
-
-

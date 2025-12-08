@@ -48,10 +48,10 @@ struct ProfileView: View {
                                         .fill(roleColor.opacity(0.2))
                                         .frame(width: 60, height: 60)
                                     
-                                    Text(getInitials())
-                                        .font(theme.typography.title2)
+                                    // Show person/face icon
+                                    Image(systemName: "person.circle.fill")
+                                        .font(.system(size: 50))
                                         .foregroundColor(roleColor)
-                                        .fontWeight(.semibold)
                                 }
                             }
                             

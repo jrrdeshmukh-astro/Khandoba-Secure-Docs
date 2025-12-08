@@ -14,10 +14,16 @@ struct CloudKitShareSuccessView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var authService: AuthenticationService
     
     let rootRecordID: String?
+    let vaultID: UUID?
+    let onNavigateToVault: ((UUID) -> Void)?
+    
     @State private var vaultName: String = "the vault"
+    @State private var vault: Vault?
     @State private var isLoading = true
+    @State private var showVault = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -74,16 +80,37 @@ struct CloudKitShareSuccessView: View {
                             }
                             .padding(.horizontal)
                             
-                            // Done Button
-                            Button {
-                                dismiss()
-                            } label: {
-                                Text("Done")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(colors.primary)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(UnifiedTheme.CornerRadius.lg)
+                            // Action Buttons
+                            VStack(spacing: UnifiedTheme.Spacing.md) {
+                                // Open Vault Button (if vault found)
+                                if let vault = vault {
+                                    Button {
+                                        onNavigateToVault?(vault.id)
+                                        dismiss()
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "lock.open.fill")
+                                            Text("Open Vault")
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(colors.primary)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(UnifiedTheme.CornerRadius.lg)
+                                    }
+                                }
+                                
+                                // Done Button
+                                Button {
+                                    dismiss()
+                                } label: {
+                                    Text(vault != nil ? "Done" : "View Vaults")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(vault != nil ? colors.surface : colors.primary)
+                                        .foregroundColor(vault != nil ? colors.textPrimary : .white)
+                                        .cornerRadius(UnifiedTheme.CornerRadius.lg)
+                                }
                             }
                             .padding(.horizontal)
                             .padding(.bottom, UnifiedTheme.Spacing.xl)
@@ -100,9 +127,29 @@ struct CloudKitShareSuccessView: View {
     }
     
     private func loadVaultInfo() async {
-        // Try to find the vault by root record ID
-        // SwiftData should have synced it by now
-        guard let rootRecordID = rootRecordID else {
+        // Try to find the vault by vaultID (preferred) or root record ID
+        if let vaultID = vaultID {
+            // Find vault by ID
+            let descriptor = FetchDescriptor<Vault>(
+                predicate: #Predicate { $0.id == vaultID }
+            )
+            
+            do {
+                if let foundVault = try modelContext.fetch(descriptor).first {
+                    await MainActor.run {
+                        vault = foundVault
+                        vaultName = foundVault.name
+                        isLoading = false
+                    }
+                    return
+                }
+            } catch {
+                print("   ⚠️ Error finding vault by ID: \(error.localizedDescription)")
+            }
+        }
+        
+        // Fallback: Try to find recently shared vault
+        guard let currentUser = authService.currentUser else {
             await MainActor.run {
                 isLoading = false
             }
@@ -112,9 +159,31 @@ struct CloudKitShareSuccessView: View {
         // Wait a moment for SwiftData to sync
         try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
         
-        // Try to find the vault
-        // Note: We can't directly query by CloudKit record ID in SwiftData
-        // But the vault should appear in the vault list automatically
+        // Find vaults that are not owned by current user (shared vaults)
+        // and were created/synced recently (within last 5 minutes)
+        let descriptor = FetchDescriptor<Vault>(
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        
+        do {
+            let vaults = try modelContext.fetch(descriptor)
+            let recentTime = Date().addingTimeInterval(-300) // 5 minutes ago
+            
+            if let sharedVault = vaults.first(where: { vault in
+                guard let owner = vault.owner else { return false }
+                return owner.id != currentUser.id && vault.createdAt >= recentTime
+            }) {
+                await MainActor.run {
+                    vault = sharedVault
+                    vaultName = sharedVault.name
+                    isLoading = false
+                }
+                return
+            }
+        } catch {
+            print("   ⚠️ Error finding shared vault: \(error.localizedDescription)")
+        }
+        
         await MainActor.run {
             isLoading = false
         }
