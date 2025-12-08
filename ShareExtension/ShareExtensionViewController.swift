@@ -131,9 +131,9 @@ class ShareExtensionViewController: UIViewController {
                 }
             }
             
-            // Handle all standard file types FIRST (prioritize files over URLs)
-            // Photos approach: Try loading directly without checking type identifiers first
-            // This is more permissive and catches cases where WhatsApp doesn't report correct types
+            // AGGRESSIVE WhatsApp-compatible loading strategy
+            // Instead of checking type identifiers first, try loading with ALL registered types
+            // WhatsApp may not report correct type conformance but still provide data
             for attachment in attachments {
                 // Skip URL type if we have file attachments (files take priority)
                 if hasFileAttachment && attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
@@ -141,86 +141,79 @@ class ShareExtensionViewController: UIViewController {
                     continue
                 }
                 
-                // Try image loading first (Photos approach - try even if type isn't reported)
-                // Check if it might be an image OR just try loading as generic data
-                var triedAsImage = false
+                // Get ALL registered type identifiers for this attachment
+                let registeredTypes = attachment.registeredTypeIdentifiers
+                print("   🔍 Attachment has \(registeredTypes.count) registered type identifier(s)")
                 
-                // First, try image-specific type identifiers if reported
-                if attachment.hasItemConformingToTypeIdentifier(UTType.image.identifier) ||
-                   attachment.hasItemConformingToTypeIdentifier("public.jpeg") ||
-                   attachment.hasItemConformingToTypeIdentifier("public.png") ||
-                   attachment.hasItemConformingToTypeIdentifier("public.heic") ||
-                   attachment.hasItemConformingToTypeIdentifier("com.compuserve.gif") ||
-                   attachment.hasItemConformingToTypeIdentifier("public.tiff") ||
-                   attachment.hasItemConformingToTypeIdentifier("public.webp") ||
-                   attachment.hasItemConformingToTypeIdentifier("dyn.ah62d4rv4ge80k5p2") ||
-                   attachment.hasItemConformingToTypeIdentifier("dyn.ah62d4rv4ge80k5p3") {
-                    triedAsImage = true
-                    group.enter()
-                    print("   📷 Found image attachment - loading...")
-                    loadImage(from: attachment) { item in
-                        if let item = item {
-                            print("   ✅ Successfully loaded image: \(item.name)")
-                            sharedItems.append(item)
-                            group.leave()
-                        } else {
-                            print("   ⚠️ Failed to load image with image types, trying generic data...")
-                            // If image-specific loading failed, try as generic data
-                            // Don't leave the group yet - tryLoadAsGenericData will handle it
-                            // But we need to leave the current group entry first
-                            group.leave()
-                            // Now try as generic data (it will enter/leave its own group)
-                            tryLoadAsGenericData(attachment: attachment, group: group) { item in
-                                if let item = item {
-                                    sharedItems.append(item)
-                                }
+                // Try loading with ALL registered types (WhatsApp may use non-standard types)
+                // Use a shared flag to prevent duplicate loading
+                let attachmentID = UUID()
+                var triedTypes: Set<String> = []
+                
+                // Priority order: try image types first, then generic data
+                let priorityTypes: [String] = [
+                    UTType.image.identifier,
+                    "public.jpeg",
+                    "public.png",
+                    "public.heic",
+                    "com.compuserve.gif",
+                    "public.tiff",
+                    "public.webp",
+                    "dyn.ah62d4rv4ge80k5p2", // WhatsApp JPEG
+                    "dyn.ah62d4rv4ge80k5p3", // WhatsApp PNG
+                    UTType.movie.identifier,
+                    UTType.pdf.identifier,
+                    UTType.audio.identifier,
+                    UTType.data.identifier // Generic data as fallback
+                ]
+                
+                // Try priority types first
+                for typeID in priorityTypes {
+                    if triedTypes.contains(typeID) { continue }
+                    
+                    // Check if this type is registered OR try loading anyway (WhatsApp might not report it)
+                    if registeredTypes.contains(typeID) || typeID == UTType.data.identifier {
+                        triedTypes.insert(typeID)
+                        group.enter()
+                        print("   🔄 Trying to load with type: \(typeID)")
+                        
+                        attachment.loadItem(forTypeIdentifier: typeID, options: nil) { [weak self] data, error in
+                            defer { group.leave() }
+                            
+                            if let error = error {
+                                print("   ⚠️ Error loading with \(typeID): \(error.localizedDescription)")
+                                return
+                            }
+                            
+                            // Try to process the data
+                            if let item = self?.processLoadedData(data: data, typeID: typeID) {
+                                print("   ✅ Successfully loaded with type: \(typeID)")
+                                sharedItems.append(item)
                             }
                         }
                     }
                 }
-                // If not reported as image, still try loading as generic data and check if it's an image
-                // This is the "Photos approach" - be permissive and try everything
-                else if !triedAsImage {
+                
+                // Also try ALL registered types (in case WhatsApp uses something we don't know about)
+                for typeID in registeredTypes {
+                    if triedTypes.contains(typeID) { continue }
+                    
+                    triedTypes.insert(typeID)
                     group.enter()
-                    print("   📦 Trying attachment as generic data (Photos-style permissive approach)...")
-                    tryLoadAsGenericData(attachment: attachment, group: group) { item in
-                        if let item = item {
+                    print("   🔄 Trying registered type: \(typeID)")
+                    
+                    attachment.loadItem(forTypeIdentifier: typeID, options: nil) { [weak self] data, error in
+                        defer { group.leave() }
+                        
+                        if let error = error {
+                            print("   ⚠️ Error loading with \(typeID): \(error.localizedDescription)")
+                            return
+                        }
+                        
+                        if let item = self?.processLoadedData(data: data, typeID: typeID) {
+                            print("   ✅ Successfully loaded with registered type: \(typeID)")
                             sharedItems.append(item)
                         }
-                        group.leave()
-                    }
-                }
-                // Videos
-                else if attachment.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
-                    group.enter()
-                    loadVideo(from: attachment) { item in
-                        if let item = item { sharedItems.append(item) }
-                        group.leave()
-                    }
-                }
-                // PDFs
-                else if attachment.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) {
-                    group.enter()
-                    loadPDF(from: attachment) { item in
-                        if let item = item { sharedItems.append(item) }
-                        group.leave()
-                    }
-                }
-                // Audio
-                else if attachment.hasItemConformingToTypeIdentifier(UTType.audio.identifier) {
-                    group.enter()
-                    loadAudio(from: attachment) { item in
-                        if let item = item { sharedItems.append(item) }
-                        group.leave()
-                    }
-                }
-                // Note: Generic data loading is now handled above in the permissive approach
-                // Plain text
-                else if attachment.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
-                    group.enter()
-                    loadText(from: attachment) { item in
-                        if let item = item { sharedItems.append(item) }
-                        group.leave()
                     }
                 }
             }
@@ -366,6 +359,129 @@ class ShareExtensionViewController: UIViewController {
     }
     
     // MARK: - File Type Loaders
+    
+    /// Process loaded data and determine if it's a valid file (image, video, etc.)
+    private func processLoadedData(data: Any?, typeID: String) -> SharedItem? {
+        // Try URL first (most common for WhatsApp)
+        if let url = data as? URL {
+            print("   📄 Data provided as URL: \(url.path)")
+            
+            // Check if it's a file URL
+            if url.isFileURL {
+                if let fileData = try? Data(contentsOf: url) {
+                    // Check if it's an image
+                    if UIImage(data: fileData) != nil {
+                        let mimeType = url.mimeType() ?? "image/jpeg"
+                        let fileName = url.lastPathComponent.isEmpty ? "image_\(Date().timeIntervalSince1970).jpg" : url.lastPathComponent
+                        print("   ✅ Loaded image from file URL: \(fileName)")
+                        return SharedItem(
+                            data: fileData,
+                            mimeType: mimeType,
+                            name: fileName,
+                            sourceURL: url
+                        )
+                    } else {
+                        // Not an image, but still a file
+                        return SharedItem(
+                            data: fileData,
+                            mimeType: url.mimeType() ?? "application/octet-stream",
+                            name: url.lastPathComponent,
+                            sourceURL: url
+                        )
+                    }
+                }
+            } else {
+                // It's a web URL - save as text document
+                if let urlData = url.absoluteString.data(using: .utf8) {
+                    return SharedItem(
+                        data: urlData,
+                        mimeType: "text/plain",
+                        name: url.host ?? "Link",
+                        sourceURL: url
+                    )
+                }
+            }
+        }
+        
+        // Try UIImage directly
+        if let image = data as? UIImage {
+            print("   🖼️ Data provided as UIImage")
+            if let imageData = image.jpegData(compressionQuality: 0.9) {
+                let fileName = "image_\(Date().timeIntervalSince1970).jpg"
+                print("   ✅ Converted UIImage to JPEG: \(fileName)")
+                return SharedItem(
+                    data: imageData,
+                    mimeType: "image/jpeg",
+                    name: fileName
+                )
+            }
+        }
+        
+        // Try Data directly
+        if let data = data as? Data {
+            print("   📦 Data provided as Data (\(data.count) bytes)")
+            
+            // Check if it's an image by trying to create UIImage
+            if UIImage(data: data) != nil {
+                // Detect format from data signature
+                var mimeType = "image/jpeg"
+                var fileExt = "jpg"
+                
+                if data.count > 8 && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 {
+                    mimeType = "image/png"
+                    fileExt = "png"
+                } else if data.count > 2 && data[0] == 0xFF && data[1] == 0xD8 {
+                    mimeType = "image/jpeg"
+                    fileExt = "jpg"
+                } else if data.count > 12 {
+                    let header = String(data: data.prefix(12), encoding: .ascii) ?? ""
+                    if header.contains("ftyp") && (header.contains("heic") || header.contains("heif")) {
+                        mimeType = "image/heic"
+                        fileExt = "heic"
+                    }
+                }
+                
+                let fileName = "image_\(Date().timeIntervalSince1970).\(fileExt)"
+                print("   ✅ Data is actually an image: \(fileName) (\(mimeType))")
+                return SharedItem(
+                    data: data,
+                    mimeType: mimeType,
+                    name: fileName
+                )
+            } else {
+                // Not an image, but still data - determine MIME type from typeID
+                let mimeType = mimeTypeForTypeIdentifier(typeID)
+                return SharedItem(
+                    data: data,
+                    mimeType: mimeType,
+                    name: "file_\(Date().timeIntervalSince1970)"
+                )
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Get MIME type from type identifier
+    private func mimeTypeForTypeIdentifier(_ typeID: String) -> String {
+        if let utType = UTType(typeID) {
+            return utType.preferredMIMEType ?? "application/octet-stream"
+        }
+        
+        // Fallback mappings
+        switch typeID {
+        case "public.jpeg", "dyn.ah62d4rv4ge80k5p2": return "image/jpeg"
+        case "public.png", "dyn.ah62d4rv4ge80k5p3": return "image/png"
+        case "public.heic": return "image/heic"
+        case "com.compuserve.gif": return "image/gif"
+        case "public.tiff": return "image/tiff"
+        case "public.webp": return "image/webp"
+        case "public.mpeg-4", "public.movie": return "video/mp4"
+        case "public.pdf": return "application/pdf"
+        case "public.audio": return "audio/mpeg"
+        default: return "application/octet-stream"
+        }
+    }
     
     /// Try loading attachment as generic data and detect if it's an image (Photos-style approach)
     private func tryLoadAsGenericData(attachment: NSItemProvider, group: DispatchGroup, completion: @escaping (SharedItem?) -> Void) {
