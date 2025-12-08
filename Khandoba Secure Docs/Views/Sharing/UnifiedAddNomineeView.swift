@@ -88,17 +88,34 @@ struct UnifiedAddNomineeView: View {
                 ContactPickerView(
                     vault: vault,
                     onContactsSelected: { contacts in
+                        // Handle multiple contacts - for now, use first contact
+                        // TODO: Support multiple nominees in future
                         if let contact = contacts.first {
-                            nomineeName = "\(contact.givenName) \(contact.familyName)"
+                            let givenName = contact.givenName.trimmingCharacters(in: .whitespaces)
+                            let familyName = contact.familyName.trimmingCharacters(in: .whitespaces)
+                            let fullName = "\(givenName) \(familyName)".trimmingCharacters(in: .whitespaces)
+                            
+                            nomineeName = fullName.isEmpty ? contact.givenName : fullName
                             phoneNumber = contact.phoneNumbers.first?.value.stringValue ?? ""
                             email = contact.emailAddresses.first?.value as String? ?? ""
+                            
+                            if contacts.count > 1 {
+                                print("ℹ️ Multiple contacts selected (\(contacts.count)), using first contact. Future: support multiple nominees.")
+                            }
                         }
+                        
+                        // Dismiss only the contact picker, keep parent sheet open
+                        // No delay needed - just set the flag
                         showContactPicker = false
                     },
                     onDismiss: {
+                        // User cancelled contact picker - just dismiss it
                         showContactPicker = false
                     }
                 )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .interactiveDismissDisabled(false)
             }
             .onAppear {
                 nomineeService.configure(modelContext: modelContext)

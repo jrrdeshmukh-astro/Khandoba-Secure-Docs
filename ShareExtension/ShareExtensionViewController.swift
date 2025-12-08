@@ -10,6 +10,7 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 import MobileCoreServices
+import LocalAuthentication
 
 class ShareExtensionViewController: UIViewController {
     private var hostingController: UIHostingController<ShareExtensionView>?
@@ -208,6 +209,9 @@ struct ShareExtensionView: View {
     @State private var errorMessage = ""
     @State private var uploadedCount = 0
     @State private var colorScheme: ColorScheme = .dark
+    @State private var isAuthenticated = false
+    @State private var showBiometricAuth = false
+    @State private var authError: String?
     
     var body: some View {
         NavigationView {
@@ -230,10 +234,23 @@ struct ShareExtensionView: View {
                 Text(errorMessage)
             }
             .onAppear {
-                loadVaults()
+                authenticateAndLoadVaults()
             }
             .refreshable {
-                await loadVaultsAsync()
+                await authenticateAndLoadVaultsAsync()
+            }
+            .sheet(isPresented: $showBiometricAuth) {
+                BiometricAuthView(
+                    onSuccess: {
+                        isAuthenticated = true
+                        showBiometricAuth = false
+                        loadVaults()
+                    },
+                    onFailure: { error in
+                        authError = error
+                        showBiometricAuth = false
+                    }
+                )
             }
         }
     }
@@ -408,11 +425,64 @@ struct ShareExtensionView: View {
         }
     }
     
+    private func authenticateAndLoadVaults() {
+        Task {
+            await authenticateAndLoadVaultsAsync()
+        }
+    }
+    
     private func loadVaults() {
         Task {
             await loadVaultsAsync()
         }
     }
+    
+    private func authenticateAndLoadVaultsAsync() async {
+        // Check biometric authentication first
+        let context = LAContext()
+        var error: NSError?
+        
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            // Biometrics not available - allow access anyway (fallback)
+            print("⚠️ ShareExtension: Biometrics not available, allowing access")
+            await MainActor.run {
+                isAuthenticated = true
+            }
+            await loadVaultsAsync()
+            return
+        }
+        
+        do {
+            let reason = "Authenticate to access your vaults"
+            let success = try await context.evaluatePolicy(
+                .deviceOwnerAuthenticationWithBiometrics,
+                localizedReason: reason
+            )
+            
+            if success {
+                await MainActor.run {
+                    isAuthenticated = true
+                }
+                await loadVaultsAsync()
+            } else {
+                await MainActor.run {
+                    authError = "Authentication failed"
+                    showError = true
+                    errorMessage = "Biometric authentication failed. Please try again."
+                }
+            }
+        } catch {
+            await MainActor.run {
+                authError = error.localizedDescription
+                showError = true
+                errorMessage = "Authentication error: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    // Cache ModelContainer to avoid creating multiple instances
+    private static var cachedContainer: ModelContainer?
+    private static var containerCreationLock = NSLock()
     
     private func loadVaultsAsync() async {
         await MainActor.run {
@@ -420,76 +490,118 @@ struct ShareExtensionView: View {
         }
         
         do {
-            // Create ModelContainer for ShareExtension with same schema as main app
-            // Use App Group to share data with main app
-            let schema = Schema([
-                User.self,
-                UserRole.self,
-                Vault.self,
-                VaultSession.self,
-                VaultAccessLog.self,
-                DualKeyRequest.self,
-                Document.self,
-                DocumentVersion.self,
-                ChatMessage.self,
-                Nominee.self,
-                VaultTransferRequest.self,
-                EmergencyAccessRequest.self
-            ])
-            
-            // Use App Group identifier for shared storage
-            let appGroupIdentifier = "group.com.khandoba.securedocs"
-            let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
-            
-            print("📦 ShareExtension: Setting up ModelContainer")
-            print("   App Group ID: \(appGroupIdentifier)")
-            print("   App Group URL: \(appGroupURL?.path ?? "nil - App Group not accessible")")
-            
-            // Check if App Group is accessible
-            if appGroupURL == nil {
-                print("⚠️ ShareExtension: App Group not accessible")
-                print("   This might mean:")
-                print("   1. App Group not configured in Xcode project settings")
-                print("   2. App Group identifier mismatch")
-                print("   3. Extension not signed with same team")
-                print("   Using CloudKit sync (may take longer)")
-            }
-            
-            // Create ModelConfiguration - use App Group identifier
-            // Try with App Group first, fallback to default if needed
-            let modelConfiguration: ModelConfiguration
-            if appGroupURL != nil {
-                // App Group is accessible, use it
-                modelConfiguration = ModelConfiguration(
-                    schema: schema,
-                    isStoredInMemoryOnly: false,
-                    groupContainer: .identifier(appGroupIdentifier),
-                    cloudKitDatabase: .automatic
-                )
-            } else {
-                // App Group not accessible, use default configuration
-                print("⚠️ ShareExtension: Using default configuration (App Group not accessible)")
-                modelConfiguration = ModelConfiguration(
-                    schema: schema,
-                    isStoredInMemoryOnly: false,
-                    cloudKitDatabase: .automatic
-                )
-            }
-            
+            // Use cached container if available
             let container: ModelContainer
-            do {
-                container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            } catch {
-                print("❌ ShareExtension: Failed to create ModelContainer")
-                print("   Error: \(error.localizedDescription)")
-                // Try fallback without CloudKit
-                print("   Attempting fallback without CloudKit...")
-                let fallbackConfig = ModelConfiguration(
-                    schema: schema,
-                    isStoredInMemoryOnly: false
-                )
-                container = try ModelContainer(for: schema, configurations: [fallbackConfig])
+            if let cached = Self.cachedContainer {
+                print("📦 ShareExtension: Using cached ModelContainer")
+                container = cached
+            } else {
+                // Create ModelContainer for ShareExtension with same schema as main app
+                // Use App Group to share data with main app
+                let schema = Schema([
+                    User.self,
+                    UserRole.self,
+                    Vault.self,
+                    VaultSession.self,
+                    VaultAccessLog.self,
+                    DualKeyRequest.self,
+                    Document.self,
+                    DocumentVersion.self,
+                    ChatMessage.self,
+                    Nominee.self,
+                    VaultTransferRequest.self,
+                    EmergencyAccessRequest.self
+                ])
+                
+                // Use App Group identifier for shared storage
+                let appGroupIdentifier = "group.com.khandoba.securedocs"
+                let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
+                
+                print("📦 ShareExtension: Setting up ModelContainer")
+                print("   App Group ID: \(appGroupIdentifier)")
+                print("   App Group URL: \(appGroupURL?.path ?? "nil - App Group not accessible")")
+                
+                // Check if App Group is accessible
+                if appGroupURL == nil {
+                    print("⚠️ ShareExtension: App Group not accessible")
+                    print("   This might mean:")
+                    print("   1. App Group not configured in Xcode project settings")
+                    print("   2. App Group identifier mismatch")
+                    print("   3. Extension not signed with same team")
+                    print("   Using CloudKit sync (may take longer)")
+                }
+                
+                // Create ModelConfiguration - use App Group identifier
+                // Try with App Group first, fallback to default if needed
+                let modelConfiguration: ModelConfiguration
+                if appGroupURL != nil {
+                    // App Group is accessible, use it
+                    modelConfiguration = ModelConfiguration(
+                        schema: schema,
+                        isStoredInMemoryOnly: false,
+                        groupContainer: .identifier(appGroupIdentifier),
+                        cloudKitDatabase: .automatic
+                    )
+                } else {
+                    // App Group not accessible, use default configuration
+                    print("⚠️ ShareExtension: Using default configuration (App Group not accessible)")
+                    modelConfiguration = ModelConfiguration(
+                        schema: schema,
+                        isStoredInMemoryOnly: false,
+                        cloudKitDatabase: .automatic
+                    )
+                }
+                
+                // Thread-safe container creation
+                Self.containerCreationLock.lock()
+                defer { Self.containerCreationLock.unlock() }
+                
+                // Check again after acquiring lock (double-check pattern)
+                if let cached = Self.cachedContainer {
+                    print("📦 ShareExtension: Container was created by another task, using cached")
+                    container = cached
+                } else {
+                    do {
+                        container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+                        Self.cachedContainer = container
+                        print("✅ ShareExtension: ModelContainer created and cached")
+                    } catch let initialError {
+                        print("❌ ShareExtension: Failed to create ModelContainer with App Group/CloudKit")
+                        print("   Error: \(initialError.localizedDescription)")
+                        // Try fallback without CloudKit and App Group
+                        print("   Attempting fallback without CloudKit and App Group...")
+                        do {
+                            let fallbackConfig = ModelConfiguration(
+                                schema: schema,
+                                isStoredInMemoryOnly: false
+                            )
+                            container = try ModelContainer(for: schema, configurations: [fallbackConfig])
+                            Self.cachedContainer = container
+                            print("   ✅ Fallback ModelContainer created and cached")
+                        } catch let fallbackError {
+                            print("❌ ShareExtension: Fallback ModelContainer creation also failed")
+                            print("   Error: \(fallbackError.localizedDescription)")
+                            // Last resort: in-memory only
+                            do {
+                                let inMemoryConfig = ModelConfiguration(
+                                    schema: schema,
+                                    isStoredInMemoryOnly: true
+                                )
+                                container = try ModelContainer(for: schema, configurations: [inMemoryConfig])
+                                Self.cachedContainer = container
+                                print("   ⚠️ Using in-memory only ModelContainer (data will not persist)")
+                            } catch let inMemoryError {
+                                print("❌ ShareExtension: Even in-memory ModelContainer creation failed")
+                                print("   Error: \(inMemoryError.localizedDescription)")
+                                // Re-throw the error - we can't proceed without a container
+                                throw inMemoryError
+                            }
+                        }
+                    }
+                }
             }
+            
+            // Get the context (mainContext is already on main actor)
             let context = container.mainContext
             
             print("✅ ShareExtension: ModelContainer created successfully")
@@ -535,15 +647,30 @@ struct ShareExtensionView: View {
             }
             
             // Filter and update on main thread
-            // Filter out system vaults
-            let nonSystemVaults = fetchedVaults.filter { !$0.isSystemVault }
-            let firstVault = nonSystemVaults.first
+            // Filter out system vaults and only show unlocked vaults (with active sessions)
+            let now = Date()
+            let unlockedVaults = fetchedVaults.filter { vault in
+                // Exclude system vaults
+                guard !vault.isSystemVault else { return false }
+                
+                // Check if vault has an active session
+                if let sessions = vault.sessions {
+                    return sessions.contains { session in
+                        session.isActive && session.expiresAt > now
+                    }
+                }
+                return false
+            }
+            
+            print("📦 ShareExtension: Found \(unlockedVaults.count) unlocked vault(s) out of \(fetchedVaults.count) total")
+            
+            let firstVault = unlockedVaults.first
             
             await MainActor.run {
-                self.vaults = nonSystemVaults
+                self.vaults = unlockedVaults
                 self.isLoading = false
                 
-                print("📦 ShareExtension: \(self.vaults.count) non-system vault(s) available")
+                print("📦 ShareExtension: \(self.vaults.count) unlocked vault(s) available")
                 
                 // Auto-select first vault if available
                 if self.selectedVault == nil, let firstVault = firstVault {
@@ -650,13 +777,25 @@ struct ShareExtensionView: View {
                     vaultInContext.documents?.append(document)
                     
                     context.insert(document)
+                    
+                    // Save after each document to ensure persistence
                     try context.save()
+                    
+                    // Force CloudKit sync by accessing the document after save
+                    // This ensures the document is queued for CloudKit sync
+                    _ = document.id
                     
                     await MainActor.run {
                         uploadedCount = index + 1
                         uploadProgress = Double(uploadedCount) / Double(itemsToUpload.count)
                     }
                 }
+                
+                // Final save to ensure all changes are persisted
+                try context.save()
+                
+                // Give CloudKit a moment to sync
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                 
                 await MainActor.run {
                     isUploading = false

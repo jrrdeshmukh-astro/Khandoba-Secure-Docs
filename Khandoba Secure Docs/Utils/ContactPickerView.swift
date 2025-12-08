@@ -27,6 +27,8 @@ struct ContactPickerView: UIViewControllerRepresentable {
         ]
         // Allow contacts with either phone or email
         picker.predicateForEnablingContact = NSPredicate(format: "phoneNumbers.@count > 0 OR emailAddresses.@count > 0")
+        // Enable multiple selection
+        picker.predicateForSelectionOfContact = NSPredicate(value: true) // Allow all contacts to be selected
         return picker
     }
     
@@ -45,6 +47,9 @@ struct ContactPickerView: UIViewControllerRepresentable {
         
         func contactPicker(_ picker: CNContactPickerViewController, didSelect contacts: [CNContact]) {
             // The picker will dismiss itself automatically
+            // We need to delay the callback slightly to ensure the picker dismisses first
+            // but the parent sheet (UnifiedAddNomineeView) stays open
+            
             // Fetch full contact details for all selected contacts
             let store = CNContactStore()
             var fullContacts: [CNContact] = []
@@ -71,14 +76,16 @@ struct ContactPickerView: UIViewControllerRepresentable {
                 }
             }
             
-            // Call the callback on the main thread to ensure UI updates happen correctly
-            DispatchQueue.main.async { [weak self] in
+            // Delay callback slightly to let the contact picker dismiss first
+            // This prevents the parent sheet from also dismissing
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
                 self?.parent.onContactsSelected(fullContacts)
             }
         }
         
         func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
             // Handle single contact selection
+            // Delay callback slightly to let the contact picker dismiss first
             let store = CNContactStore()
             
             do {
@@ -95,13 +102,14 @@ struct ContactPickerView: UIViewControllerRepresentable {
                     keysToFetch: keysToFetch
                 )
                 
-                DispatchQueue.main.async { [weak self] in
+                // Delay callback to prevent parent sheet from dismissing
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
                     self?.parent.onContactsSelected([fullContact])
                 }
             } catch {
                 print("⚠️ Failed to fetch full contact details: \(error.localizedDescription)")
                 // Fallback: use the contact as-is
-                DispatchQueue.main.async { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
                     self?.parent.onContactsSelected([contact])
                 }
             }
