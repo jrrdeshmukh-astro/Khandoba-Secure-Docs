@@ -107,14 +107,20 @@ class ShareExtensionViewController: UIViewController {
             }
             
             // First, check if there are any file attachments (prioritize files over URLs)
+            // WhatsApp may use various type identifiers, so check all possibilities
             var hasFileAttachment = false
             for attachment in attachments {
-                // Check for image types (including specific formats WhatsApp might use)
+                // Check for image types (including WhatsApp-specific formats)
                 if attachment.hasItemConformingToTypeIdentifier(UTType.image.identifier) ||
                    attachment.hasItemConformingToTypeIdentifier("public.jpeg") ||
                    attachment.hasItemConformingToTypeIdentifier("public.png") ||
                    attachment.hasItemConformingToTypeIdentifier("public.heic") ||
                    attachment.hasItemConformingToTypeIdentifier("com.compuserve.gif") ||
+                   attachment.hasItemConformingToTypeIdentifier("public.tiff") ||
+                   attachment.hasItemConformingToTypeIdentifier("public.webp") ||
+                   // WhatsApp may also use these
+                   attachment.hasItemConformingToTypeIdentifier("dyn.ah62d4rv4ge80k5p2") || // JPEG
+                   attachment.hasItemConformingToTypeIdentifier("dyn.ah62d4rv4ge80k5p3") || // PNG
                    attachment.hasItemConformingToTypeIdentifier(UTType.movie.identifier) ||
                    attachment.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) ||
                    attachment.hasItemConformingToTypeIdentifier(UTType.audio.identifier) ||
@@ -138,8 +144,13 @@ class ShareExtensionViewController: UIViewController {
                    attachment.hasItemConformingToTypeIdentifier("public.jpeg") ||
                    attachment.hasItemConformingToTypeIdentifier("public.png") ||
                    attachment.hasItemConformingToTypeIdentifier("public.heic") ||
-                   attachment.hasItemConformingToTypeIdentifier("com.compuserve.gif") {
-                group.enter()
+                   attachment.hasItemConformingToTypeIdentifier("com.compuserve.gif") ||
+                   attachment.hasItemConformingToTypeIdentifier("public.tiff") ||
+                   attachment.hasItemConformingToTypeIdentifier("public.webp") ||
+                   // WhatsApp dynamic type identifiers
+                   attachment.hasItemConformingToTypeIdentifier("dyn.ah62d4rv4ge80k5p2") ||
+                   attachment.hasItemConformingToTypeIdentifier("dyn.ah62d4rv4ge80k5p3") {
+                    group.enter()
                     print("   📷 Found image attachment - loading...")
                     loadImage(from: attachment) { item in
                         if let item = item {
@@ -265,13 +276,81 @@ class ShareExtensionViewController: UIViewController {
         group.notify(queue: .main) {
             print("✅ ShareExtension: Finished loading \(sharedItems.count) shared item(s)")
             if sharedItems.isEmpty {
-                print("⚠️ ShareExtension: No items were successfully loaded")
-                print("   This might mean:")
-                print("   1. The shared content type is not supported")
-                print("   2. There was an error loading the items")
-                print("   3. The items are in an unexpected format")
+                print("⚠️ ShareExtension: No items were successfully loaded with standard methods")
+                print("   Attempting fallback: trying to load all attachments as generic data...")
+                
+                // Fallback: Try loading all attachments as generic data
+                // This catches cases where WhatsApp uses non-standard type identifiers
+                let fallbackGroup = DispatchGroup()
+                var fallbackItems: [SharedItem] = []
+                
+                for (index, item) in inputItems.enumerated() {
+                    guard let attachments = item.attachments else { continue }
+                    
+                    for attachment in attachments {
+                        // Skip if we already tried this as a specific type
+                        if attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+                            continue // Skip URLs in fallback
+                        }
+                        
+                        fallbackGroup.enter()
+                        attachment.loadItem(forTypeIdentifier: UTType.data.identifier, options: nil) { data, error in
+                            defer { fallbackGroup.leave() }
+                            
+                            if let error = error {
+                                print("   ⚠️ Fallback load error: \(error.localizedDescription)")
+                                return
+                            }
+                            
+                            if let url = data as? URL, url.isFileURL {
+                                // It's a file URL - try to load it
+                                if let fileData = try? Data(contentsOf: url) {
+                                    // Check if it's an image
+                                    if UIImage(data: fileData) != nil {
+                                        let mimeType = url.mimeType() ?? "image/jpeg"
+                                        let fileName = url.lastPathComponent.isEmpty ? "image_\(Date().timeIntervalSince1970).jpg" : url.lastPathComponent
+                                        print("   ✅ Fallback: Loaded image from file URL: \(fileName)")
+                                        fallbackItems.append(SharedItem(
+                                            data: fileData,
+                                            mimeType: mimeType,
+                                            name: fileName,
+                                            sourceURL: url
+                                        ))
+                                    }
+                                }
+                            } else if let data = data as? Data {
+                                // Check if it's an image
+                                if UIImage(data: data) != nil {
+                                    let fileName = "image_\(Date().timeIntervalSince1970).jpg"
+                                    print("   ✅ Fallback: Loaded image from Data: \(fileName)")
+                                    fallbackItems.append(SharedItem(
+                                        data: data,
+                                        mimeType: "image/jpeg",
+                                        name: fileName
+                                    ))
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                fallbackGroup.notify(queue: .main) {
+                    if !fallbackItems.isEmpty {
+                        print("✅ ShareExtension: Fallback loaded \(fallbackItems.count) item(s)")
+                        completion(fallbackItems)
+                    } else {
+                        print("⚠️ ShareExtension: No items were successfully loaded")
+                        print("   This might mean:")
+                        print("   1. The shared content type is not supported")
+                        print("   2. There was an error loading the items")
+                        print("   3. The items are in an unexpected format")
+                        print("   4. WhatsApp is using a type identifier we don't recognize")
+                        completion([])
+                    }
+                }
+            } else {
+                completion(sharedItems)
             }
-            completion(sharedItems)
         }
     }
     
@@ -279,13 +358,20 @@ class ShareExtensionViewController: UIViewController {
     
     private func loadImage(from attachment: NSItemProvider, completion: @escaping (SharedItem?) -> Void) {
         // Try to find the best type identifier for this image
+        // Include WhatsApp-specific type identifiers
         let typeIdentifiers = [
             UTType.image.identifier,
             "public.jpeg",
             "public.png",
             "public.heic",
             "com.compuserve.gif",
-            "public.tiff"
+            "public.tiff",
+            "public.webp",
+            // WhatsApp dynamic type identifiers
+            "dyn.ah62d4rv4ge80k5p2", // JPEG
+            "dyn.ah62d4rv4ge80k5p3", // PNG
+            // Generic data as last resort (will check if it's actually an image)
+            UTType.data.identifier
         ]
         
         var triedTypes: [String] = []

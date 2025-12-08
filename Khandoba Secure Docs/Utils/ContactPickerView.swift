@@ -63,29 +63,47 @@ struct ContactPickerView: UIViewControllerRepresentable {
             // We need to delay the callback slightly to ensure the picker dismisses first
             // but the parent sheet (UnifiedAddNomineeView) stays open
             
-            // Fetch full contact details for all selected contacts
-            let store = CNContactStore()
+            // Use the contacts directly from the picker - they already have the needed properties
+            // Only try to fetch full details if we're missing critical information
             var fullContacts: [CNContact] = []
+            let store = CNContactStore()
             
             for contact in contacts {
-                do {
-                    // Fetch the full contact with all needed properties
-                    let keysToFetch: [CNKeyDescriptor] = [
-                        CNContactGivenNameKey,
-                        CNContactFamilyNameKey,
-                        CNContactPhoneNumbersKey,
-                        CNContactEmailAddressesKey
-                    ] as [CNKeyDescriptor]
-                    
-                    let fullContact = try store.unifiedContact(
-                        withIdentifier: contact.identifier,
-                        keysToFetch: keysToFetch
-                    )
-                    fullContacts.append(fullContact)
-                } catch {
-                    print("⚠️ Failed to fetch full contact details: \(error.localizedDescription)")
-                    // Fallback: use the contact as-is (may have limited properties)
+                // Check if we already have the needed properties
+                let hasName = !contact.givenName.isEmpty || !contact.familyName.isEmpty
+                let hasPhoneOrEmail = !contact.phoneNumbers.isEmpty || !contact.emailAddresses.isEmpty
+                
+                if hasName && hasPhoneOrEmail {
+                    // We have enough info, use the contact as-is
                     fullContacts.append(contact)
+                } else {
+                    // Try to fetch full details, but don't fail if it doesn't work
+                    do {
+                        let keysToFetch: [CNKeyDescriptor] = [
+                            CNContactGivenNameKey,
+                            CNContactFamilyNameKey,
+                            CNContactPhoneNumbersKey,
+                            CNContactEmailAddressesKey
+                        ] as [CNKeyDescriptor]
+                        
+                        // Only fetch if we have a valid identifier
+                        if !contact.identifier.isEmpty {
+                            let fullContact = try store.unifiedContact(
+                                withIdentifier: contact.identifier,
+                                keysToFetch: keysToFetch
+                            )
+                            fullContacts.append(fullContact)
+                        } else {
+                            // No identifier, use contact as-is
+                            fullContacts.append(contact)
+                        }
+                    } catch {
+                        // Contact might have been deleted or identifier is invalid
+                        // Use the contact we have - it should still have basic info
+                        print("⚠️ Could not fetch full contact details (contact may have been deleted): \(error.localizedDescription)")
+                        print("   Using contact as-is with available properties")
+                        fullContacts.append(contact)
+                    }
                 }
             }
             
@@ -107,41 +125,48 @@ struct ContactPickerView: UIViewControllerRepresentable {
                 }
             }
             
-            // Delay callback slightly to let the contact picker dismiss first
-            // This prevents the parent sheet from also dismissing
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                self?.parent.onContactsSelected(fullContacts)
-            }
+            // Callback immediately - the contact picker dismisses itself
+            // The parent form (UnifiedAddNomineeView) will stay open with populated fields
+            // User can then click "Create Nominee & Share" button
+            self.parent.onContactsSelected(fullContacts)
         }
         
         func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
-            // Handle single contact selection
-            // Delay callback slightly to let the contact picker dismiss first
-            let store = CNContactStore()
+            // Handle single contact selection (legacy method - should use didSelect contacts instead)
+            // Use the contact directly - it should already have the needed properties
+            let hasName = !contact.givenName.isEmpty || !contact.familyName.isEmpty
+            let hasPhoneOrEmail = !contact.phoneNumbers.isEmpty || !contact.emailAddresses.isEmpty
             
-            do {
-                // Fetch the full contact with all needed properties
-                let keysToFetch: [CNKeyDescriptor] = [
-                    CNContactGivenNameKey,
-                    CNContactFamilyNameKey,
-                    CNContactPhoneNumbersKey,
-                    CNContactEmailAddressesKey
-                ] as [CNKeyDescriptor]
-                
-                let fullContact = try store.unifiedContact(
-                    withIdentifier: contact.identifier,
-                    keysToFetch: keysToFetch
-                )
-                
-                // Delay callback to prevent parent sheet from dismissing
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                    self?.parent.onContactsSelected([fullContact])
-                }
-            } catch {
-                print("⚠️ Failed to fetch full contact details: \(error.localizedDescription)")
-                // Fallback: use the contact as-is
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                    self?.parent.onContactsSelected([contact])
+            if hasName && hasPhoneOrEmail {
+                // We have enough info, use the contact as-is
+                self.parent.onContactsSelected([contact])
+            } else {
+                // Try to fetch full details only if needed
+                let store = CNContactStore()
+                do {
+                    let keysToFetch: [CNKeyDescriptor] = [
+                        CNContactGivenNameKey,
+                        CNContactFamilyNameKey,
+                        CNContactPhoneNumbersKey,
+                        CNContactEmailAddressesKey
+                    ] as [CNKeyDescriptor]
+                    
+                    // Only fetch if we have a valid identifier
+                    if !contact.identifier.isEmpty {
+                        let fullContact = try store.unifiedContact(
+                            withIdentifier: contact.identifier,
+                            keysToFetch: keysToFetch
+                        )
+                        self.parent.onContactsSelected([fullContact])
+                    } else {
+                        // No identifier, use contact as-is
+                        self.parent.onContactsSelected([contact])
+                    }
+                } catch {
+                    print("⚠️ Could not fetch full contact details (contact may have been deleted): \(error.localizedDescription)")
+                    print("   Using contact as-is with available properties")
+                    // Fallback: use the contact as-is
+                    self.parent.onContactsSelected([contact])
                 }
             }
         }

@@ -97,9 +97,30 @@ struct UnifiedAddNomineeView: View {
                             let familyName = contact.familyName.trimmingCharacters(in: .whitespaces)
                             let fullName = "\(givenName) \(familyName)".trimmingCharacters(in: .whitespaces)
                             
-                            nomineeName = fullName.isEmpty ? contact.givenName : fullName
-                            phoneNumber = contact.phoneNumbers.first?.value.stringValue ?? ""
-                            email = contact.emailAddresses.first?.value as String? ?? ""
+                            // Populate form fields - use fallback values if empty
+                            nomineeName = fullName.isEmpty ? (contact.givenName.isEmpty ? contact.familyName : contact.givenName) : fullName
+                            
+                            // Extract phone number safely
+                            if let phone = contact.phoneNumbers.first?.value {
+                                phoneNumber = phone.stringValue
+                            } else {
+                                phoneNumber = ""
+                            }
+                            
+                            // Extract email safely
+                            if let emailValue = contact.emailAddresses.first?.value {
+                                email = emailValue as String
+                            } else {
+                                email = ""
+                            }
+                            
+                            print("✅ Contact selected: \(nomineeName)")
+                            if !phoneNumber.isEmpty {
+                                print("   Phone: \(phoneNumber)")
+                            }
+                            if !email.isEmpty {
+                                print("   Email: \(email)")
+                            }
                             
                             // Check if contact is registered in Khandoba
                             Task { @MainActor in
@@ -116,14 +137,18 @@ struct UnifiedAddNomineeView: View {
                             if contacts.count > 1 {
                                 print("ℹ️ Multiple contacts selected (\(contacts.count)), using first contact. Future: support multiple nominees.")
                             }
+                        } else {
+                            print("⚠️ No contacts selected or contact data is empty")
                         }
                         
-                        // Dismiss only the contact picker, keep parent sheet open
-                        // No delay needed - just set the flag
+                        // Don't auto-dismiss - let the user see the populated form
+                        // The contact picker will dismiss itself, and the form will remain visible
+                        // User can then click "Create Nominee & Share" button
                         showContactPicker = false
                     },
                     onDismiss: {
                         // User cancelled contact picker - just dismiss it
+                        print("ℹ️ Contact picker cancelled")
                         showContactPicker = false
                     },
                     contactDiscovery: contactDiscovery
