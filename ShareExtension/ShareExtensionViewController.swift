@@ -1002,14 +1002,3 @@ struct ShareExtensionView: View {
         }
     }
 }
-
-// MARK: - URL Extension
-
-extension URL {
-    func mimeType() -> String? {
-        if let uti = UTType(filenameExtension: self.pathExtension) {
-            return uti.preferredMIMEType
-        }
-        return nil
-    }
-}

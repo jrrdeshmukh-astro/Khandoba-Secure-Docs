@@ -161,29 +161,6 @@ struct DocumentImportButton: View {
     }
 }
 
-// Helper extension to get MIME type
-extension URL {
-    func mimeType() -> String? {
-        if let typeID = try? resourceValues(forKeys: [.typeIdentifierKey]).typeIdentifier,
-           let utType = UTType(typeID) {
-            return utType.preferredMIMEType
-        }
-        // Fallback to file extension
-        let ext = pathExtension.lowercased()
-        switch ext {
-        case "jpg", "jpeg": return "image/jpeg"
-        case "png": return "image/png"
-        case "heic": return "image/heic"
-        case "gif": return "image/gif"
-        case "mp4": return "video/mp4"
-        case "mov": return "video/quicktime"
-        case "pdf": return "application/pdf"
-        case "txt": return "text/plain"
-        default: return "application/octet-stream"
-        }
-    }
-}
-
 enum DocumentImportError: Error, LocalizedError {
     case accessDenied
     case invalidData
