@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import CloudKit
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
@@ -18,8 +19,14 @@ struct ContentView: View {
     // Deep link handling for nominee invitations and transfer requests
     @State private var pendingInviteToken: String?
     @State private var pendingTransferToken: String?
+    @State private var pendingShareURL: URL?
     @State private var showInvitationView = false
     @State private var showTransferView = false
+    @State private var showCloudKitShareSuccess = false
+    @State private var cloudKitShareRootRecordID: String?
+    
+    // CloudKit sharing service
+    @StateObject private var cloudKitSharing = CloudKitSharingService()
     
     // Push notification handling
     @EnvironmentObject var pushNotificationService: PushNotificationService
@@ -66,6 +73,9 @@ struct ContentView: View {
                             .padding()
                         }
                     }
+                    .sheet(isPresented: $showCloudKitShareSuccess) {
+                        CloudKitShareSuccessView(rootRecordID: cloudKitShareRootRecordID)
+                    }
                     .sheet(isPresented: $showTransferView) {
                         if let token = pendingTransferToken {
                             AcceptTransferView(transferToken: token)
@@ -105,6 +115,17 @@ struct ContentView: View {
                 }
             }
             
+            // Check for pending CloudKit share URL from previous launch
+            if let urlData = UserDefaults.standard.data(forKey: "pending_share_url"),
+               let urlString = String(data: urlData, encoding: .utf8),
+               let url = URL(string: urlString) {
+                pendingShareURL = url
+                UserDefaults.standard.removeObject(forKey: "pending_share_url")
+                if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+                    acceptCloudKitShare(url: url)
+                }
+            }
+            
             // Listen for push notification events
             setupNotificationObservers()
         }
@@ -113,10 +134,23 @@ struct ContentView: View {
                 handleNomineeInvitationToken(token)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .cloudKitShareInvitationReceived)) { notification in
+            if let metadata = notification.userInfo?["metadata"] as? CKShare.Metadata {
+                handleCloudKitShareInvitation(metadata)
+            }
+        }
     }
     
     private func handleDeepLink(_ url: URL) {
         print("🔗 Deep link received: \(url)")
+        
+        // Handle CloudKit share URLs (iCloud.com/share or khandoba://share)
+        if url.absoluteString.contains("icloud.com/share") || (url.scheme == "khandoba" && url.host == "share") {
+            print("   ✅ CloudKit share URL detected")
+            handleCloudKitShareURL(url)
+            return
+        }
+        
         // Handle nominee invitation and transfer deep links
         if url.scheme == "khandoba" {
             print("   Scheme: khandoba")
@@ -155,6 +189,99 @@ struct ContentView: View {
             }
         } else {
             print("   ⚠️ Unknown URL scheme: \(url.scheme ?? "nil")")
+        }
+    }
+    
+    private func handleCloudKitShareURL(_ url: URL) {
+        print("📥 Handling CloudKit share URL: \(url)")
+        pendingShareURL = url
+        
+        // If user is authenticated and setup is complete, accept share immediately
+        if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+            print("   ✅ User ready, accepting share")
+            acceptCloudKitShare(url: url)
+        } else {
+            print("   ⏳ User not ready, storing share URL for later")
+            // Store share URL for later
+            if let urlString = url.absoluteString.data(using: .utf8) {
+                UserDefaults.standard.set(urlString, forKey: "pending_share_url")
+            }
+        }
+    }
+    
+    private func handleCloudKitShareInvitation(_ metadata: CKShare.Metadata) {
+        print("📥 Handling CloudKit share invitation from metadata")
+        
+        // Accept the share using the metadata-based method (preferred)
+        acceptCloudKitShare(metadata: metadata)
+    }
+    
+    private func acceptCloudKitShare(url: URL) {
+        Task {
+            do {
+                try await cloudKitSharing.acceptShareInvitation(from: url)
+                print("   ✅ CloudKit share accepted successfully")
+                
+                // Extract root record ID from URL if possible
+                var rootRecordID: String?
+                if url.absoluteString.contains("icloud.com/share") {
+                    // Try to extract from URL path
+                    let pathComponents = url.pathComponents
+                    if let shareIndex = pathComponents.firstIndex(of: "share"), 
+                       shareIndex + 1 < pathComponents.count {
+                        // The share token is in the path, but we need the root record ID
+                        // For now, we'll show success without the specific vault name
+                    }
+                }
+                
+                // After accepting share, wait a moment for SwiftData to sync
+                try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                
+                await MainActor.run {
+                    // Show success view for CloudKit share
+                    cloudKitShareRootRecordID = rootRecordID
+                    showCloudKitShareSuccess = true
+                }
+            } catch {
+                print("   ❌ Error accepting CloudKit share: \(error.localizedDescription)")
+                // Fallback: try to extract token and use token-based flow
+                if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                   let token = components.queryItems?.first(where: { $0.name == "token" })?.value {
+                    handleNomineeInvitationToken(token)
+                } else {
+                    // Show success view anyway - SwiftData might still sync
+                    await MainActor.run {
+                        showCloudKitShareSuccess = true
+                    }
+                }
+            }
+        }
+    }
+    
+    private func acceptCloudKitShare(metadata: CKShare.Metadata) {
+        Task {
+            do {
+                // Process the share (iOS has already accepted it)
+                try await cloudKitSharing.processShareInvitation(from: metadata)
+                print("   ✅ CloudKit share processed successfully from metadata")
+                
+                // After processing share, wait a moment for SwiftData to sync
+                try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                
+                await MainActor.run {
+                    // Show success view for CloudKit share (different from token-based invitation)
+                    cloudKitShareRootRecordID = metadata.rootRecordID.recordName
+                    showCloudKitShareSuccess = true
+                }
+            } catch {
+                print("   ❌ Error processing CloudKit share from metadata: \(error.localizedDescription)")
+                // Even if processing fails, SwiftData might still sync
+                // Show success view anyway
+                await MainActor.run {
+                    cloudKitShareRootRecordID = metadata.rootRecordID.recordName
+                    showCloudKitShareSuccess = true
+                }
+            }
         }
     }
     

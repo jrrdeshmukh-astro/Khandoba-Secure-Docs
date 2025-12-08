@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import CloudKit
 
 struct AddNomineeView: View {
     let vault: Vault
@@ -31,6 +32,7 @@ struct AddNomineeView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showCopiedAlert = false
+    @State private var showCloudKitSharing = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -72,6 +74,13 @@ struct AddNomineeView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("Invitation link copied to clipboard")
+            }
+            .sheet(isPresented: $showCloudKitSharing) {
+                CloudKitSharingView(
+                    vault: vault,
+                    container: CKContainer(identifier: AppConfig.cloudKitContainer),
+                    isPresented: $showCloudKitSharing
+                )
             }
             .onAppear {
                 nomineeService.configure(modelContext: modelContext)
@@ -310,7 +319,24 @@ struct AddNomineeView: View {
             
             // Action Buttons
             VStack(spacing: UnifiedTheme.Spacing.md) {
-                // Copy Link Button
+                // CloudKit Share Button (Primary - Recommended)
+                Button {
+                    Task {
+                        await presentCloudKitSharing(for: nominee)
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "square.and.arrow.up.fill")
+                        Text("Share via CloudKit")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(colors.primary)
+                    .foregroundColor(.white)
+                    .cornerRadius(UnifiedTheme.CornerRadius.lg)
+                }
+                
+                // Copy Link Button (Fallback)
                 Button {
                     copyInviteLink(nominee: nominee)
                 } label: {
@@ -321,37 +347,6 @@ struct AddNomineeView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(colors.secondary)
-                    .foregroundColor(.white)
-                    .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                }
-                
-                // Open Messages Button
-                Button {
-                    openMessagesWithLink(nominee: nominee)
-                } label: {
-                    HStack {
-                        Image(systemName: "message.fill")
-                        Text("Open Messages")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(colors.primary)
-                    .foregroundColor(.white)
-                    .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                }
-                
-                // Share Link (iOS Native ShareLink)
-                ShareLink(
-                    item: URL(string: "khandoba://invite?token=\(nominee.inviteToken)") ?? URL(string: "https://khandoba.app/invite?token=\(nominee.inviteToken)")!,
-                    message: Text(generateInvitationMessage(nominee: nominee, deepLink: "khandoba://invite?token=\(nominee.inviteToken)"))
-                ) {
-                    HStack {
-                        Image(systemName: "square.and.arrow.up.fill")
-                        Text("Share via...")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(colors.primary)
                     .foregroundColor(.white)
                     .cornerRadius(UnifiedTheme.CornerRadius.lg)
                 }
@@ -457,6 +452,41 @@ struct AddNomineeView: View {
         \(nominee.inviteToken)
         """
         return message
+    }
+    
+    // MARK: - CloudKit Sharing
+    
+    private func presentCloudKitSharing(for nominee: Nominee) async {
+        print("📤 Presenting CloudKit sharing for nominee: \(nominee.name)")
+        
+        // Configure sharing service with ModelContext
+        let sharingService = CloudKitSharingService()
+        sharingService.configure(modelContext: modelContext)
+        
+        // Try to get or create share first
+        // If it fails, show error and suggest using token-based invitation
+        do {
+            if let share = try await sharingService.getOrCreateShare(for: vault) {
+                // We have a share, present the controller
+                await MainActor.run {
+                    showCloudKitSharing = true
+                }
+                print("   ✅ CloudKit sharing controller will be presented")
+            } else {
+                // Can't create share - show error and suggest token-based invitation
+                await MainActor.run {
+                    errorMessage = "CloudKit sharing is currently unavailable. Please use the 'Copy Invitation Link' button to share the token-based invitation instead."
+                    showError = true
+                }
+                print("   ⚠️ CloudKit sharing unavailable - suggesting token-based invitation")
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = "CloudKit sharing is currently unavailable. Please use the 'Copy Invitation Link' button to share the token-based invitation instead."
+                showError = true
+            }
+            print("   ⚠️ Failed to prepare CloudKit share: \(error.localizedDescription)")
+        }
     }
 }
 

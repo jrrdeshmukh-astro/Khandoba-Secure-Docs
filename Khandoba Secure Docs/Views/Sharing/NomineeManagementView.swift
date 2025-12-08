@@ -73,7 +73,12 @@ struct NomineeManagementView: View {
                 }
         }
         .task {
-            nomineeService.configure(modelContext: modelContext)
+            // Configure nominee service with current user ID
+            if let userID = authService.currentUser?.id {
+                nomineeService.configure(modelContext: modelContext, currentUserID: userID)
+            } else {
+                nomineeService.configure(modelContext: modelContext)
+            }
             
             // Configure chat service
             if let userID = authService.currentUser?.id {

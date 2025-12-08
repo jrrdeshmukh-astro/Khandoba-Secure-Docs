@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import Combine
 import UserNotifications
+import CloudKit
 
 @main
 struct Khandoba_Secure_DocsApp: App {
@@ -147,4 +148,29 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             completionHandler(result)
         }
     }
+    
+    // MARK: - CloudKit Share Invitation Handling
+    
+    /// Handle CloudKit share invitations when app is opened from a share URL
+    func application(
+        _ application: UIApplication,
+        userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
+    ) {
+        print("📥 CloudKit share invitation received")
+        print("   Share record: \(cloudKitShareMetadata.share.recordID.recordName)")
+        print("   Root record: \(cloudKitShareMetadata.rootRecordID.recordName)")
+        
+        // Post notification to handle share acceptance
+        NotificationCenter.default.post(
+            name: .cloudKitShareInvitationReceived,
+            object: nil,
+            userInfo: ["metadata": cloudKitShareMetadata]
+        )
+    }
+}
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let cloudKitShareInvitationReceived = Notification.Name("cloudKitShareInvitationReceived")
 }

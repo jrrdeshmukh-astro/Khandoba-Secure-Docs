@@ -18,12 +18,16 @@ final class NomineeService: ObservableObject {
     
     private var modelContext: ModelContext?
     private var cloudKitAPI: CloudKitAPIService?
+    private var cloudKitSharing: CloudKitSharingService?
+    private var currentUserID: UUID?
     
     nonisolated init() {}
     
-    func configure(modelContext: ModelContext) {
+    func configure(modelContext: ModelContext, currentUserID: UUID? = nil) {
         self.modelContext = modelContext
         self.cloudKitAPI = CloudKitAPIService()
+        self.cloudKitSharing = CloudKitSharingService()
+        self.currentUserID = currentUserID
     }
     
     func loadNominees(for vault: Vault, includeInactive: Bool = false) async throws {
@@ -57,7 +61,78 @@ final class NomineeService: ObservableObject {
             )
         }
         
-        let fetchedNominees = try modelContext.fetch(descriptor)
+        var fetchedNominees = try modelContext.fetch(descriptor)
+        
+        // Sync CloudKit share participants to Nominee records
+        // Note: Temporarily disabled due to CloudKit query limitations with SwiftData
+        // CloudKit queries require queryable fields, which SwiftData doesn't expose reliably
+        if false, let sharingService = cloudKitSharing {
+            do {
+                let participants = try await sharingService.getShareParticipants(for: vault)
+                
+                // Get current user to identify owner
+                let currentUserID = try await getCurrentUserID()
+                
+                for participant in participants {
+                    // Skip the owner (current user)
+                    if participant.role == .owner {
+                        continue
+                    }
+                    
+                    let identity = participant.userIdentity
+                    let participantName = identity.nameComponents?.formatted() ?? 
+                                         identity.lookupInfo?.emailAddress ?? 
+                                         "Shared User"
+                    let participantEmail = identity.lookupInfo?.emailAddress
+                    
+                    // Check if nominee already exists (by email or name)
+                    let existingNominee = fetchedNominees.first { nominee in
+                        if let email = nominee.email, let participantEmail = participantEmail {
+                            return email == participantEmail
+                        }
+                        return nominee.name == participantName
+                    }
+                    
+                    if let existing = existingNominee {
+                        // Update existing nominee status based on CloudKit acceptance
+                        if participant.acceptanceStatus == .accepted && existing.status == "pending" {
+                            existing.status = "accepted"
+                            existing.acceptedAt = Date()
+                            print("   ✅ Updated nominee status: \(existing.name) -> accepted")
+                        }
+                    } else {
+                        // Create new nominee from CloudKit participant
+                        let newNominee = Nominee(
+                            name: participantName,
+                            email: participantEmail,
+                            status: participant.acceptanceStatus == .accepted ? "accepted" : "pending"
+                        )
+                        newNominee.vault = vault
+                        newNominee.invitedAt = Date()
+                        if participant.acceptanceStatus == .accepted {
+                            newNominee.acceptedAt = Date()
+                        }
+                        
+                        // Add to vault's nomineeList
+                        if vault.nomineeList == nil {
+                            vault.nomineeList = []
+                        }
+                        vault.nomineeList?.append(newNominee)
+                        
+                        modelContext.insert(newNominee)
+                        fetchedNominees.append(newNominee)
+                        
+                        print("   ✅ Created nominee from CloudKit participant: \(participantName)")
+                    }
+                }
+                
+                // Save changes
+                try modelContext.save()
+            } catch {
+                print("   ⚠️ Failed to sync CloudKit participants: \(error.localizedDescription)")
+                // Continue with existing nominees even if CloudKit sync fails
+            }
+        }
         
         print(" Found \(fetchedNominees.count) nominee(s) for vault '\(vault.name)'")
         for nominee in fetchedNominees {
@@ -67,6 +142,11 @@ final class NomineeService: ObservableObject {
         await MainActor.run {
             nominees = fetchedNominees
         }
+    }
+    
+    /// Get current user ID for comparison
+    private func getCurrentUserID() async throws -> UUID? {
+        return currentUserID
     }
     
     func inviteNominee(
@@ -122,8 +202,20 @@ final class NomineeService: ObservableObject {
             print("   📱 Push notification will be sent to: \(phoneNumber)")
         }
         
-        // Send invitation (placeholder - would use MessageUI in production)
-        await sendInvitation(to: nominee)
+        // Create CloudKit share for the vault (if not already shared)
+        var shareURL: URL?
+        if let sharingService = cloudKitSharing {
+            do {
+                shareURL = try await sharingService.createShare(for: vault)
+                print("   🔗 CloudKit share created: \(shareURL?.absoluteString ?? "nil")")
+            } catch {
+                print("   ⚠️ Failed to create CloudKit share: \(error.localizedDescription)")
+                print("   Continuing with token-based invitation as fallback")
+            }
+        }
+        
+        // Send invitation with CloudKit share URL or token fallback
+        await sendInvitation(to: nominee, shareURL: shareURL)
         
         // Reload nominees to refresh the list
         print("🔄 Reloading nominees list...")
@@ -246,19 +338,37 @@ final class NomineeService: ObservableObject {
         return nominee
     }
     
-    private func sendInvitation(to nominee: Nominee) async {
-        // Generate invitation details with deep link
-        let deepLink = "khandoba://invite?token=\(nominee.inviteToken)"
+    private func sendInvitation(to nominee: Nominee, shareURL: URL?) async {
+        // Generate invitation details with CloudKit share URL (preferred) or token fallback
+        let primaryLink: String
+        let fallbackMessage: String
+        
+        if let shareURL = shareURL {
+            // Use CloudKit share URL (works across different iCloud accounts)
+            primaryLink = shareURL.absoluteString
+            fallbackMessage = """
+            
+            Or use this token if the link doesn't work:
+            \(nominee.inviteToken)
+            """
+        } else {
+            // Fallback to token-based deep link
+            primaryLink = "khandoba://invite?token=\(nominee.inviteToken)"
+            fallbackMessage = """
+            
+            Or download Khandoba Secure Docs from the App Store and use this token:
+            \(nominee.inviteToken)
+            """
+        }
+        
         let invitationMessage = """
         You've been invited to co-manage a vault in Khandoba Secure Docs!
         
         Vault: \(nominee.vault?.name ?? "Unknown")
         Invited by: Vault Owner
         
-        Tap to accept: \(deepLink)
-        
-        Or download Khandoba Secure Docs from the App Store and use this token:
-        \(nominee.inviteToken)
+        Tap to accept: \(primaryLink)
+        \(fallbackMessage)
         """
         
         // Note: UnifiedShareView uses MessageComposeView to actually send the message
@@ -269,7 +379,11 @@ final class NomineeService: ObservableObject {
         UIPasteboard.general.string = invitationMessage
         
         print(" Invitation generated for: \(nominee.name)")
-        print("   Deep link: \(deepLink)")
+        if let shareURL = shareURL {
+            print("   CloudKit share URL: \(shareURL.absoluteString)")
+        } else {
+            print("   Deep link (token-based): \(primaryLink)")
+        }
         print("   Message copied to clipboard for sharing")
     }
 }

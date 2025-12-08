@@ -102,10 +102,12 @@ struct VaultRow: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var vaultService: VaultService
+    @EnvironmentObject var authService: AuthenticationService
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         let hasActiveSession = vaultService.hasActiveSession(for: vault.id)
+        let isSharedVault = isVaultShared
         
         HStack(spacing: UnifiedTheme.Spacing.md) {
             // Status Icon
@@ -135,6 +137,21 @@ struct VaultRow: View {
                     Text(vault.name)
                         .font(theme.typography.headline)
                         .foregroundColor(colors.textPrimary)
+                    
+                    // Shared Vault Badge
+                    if isSharedVault {
+                        HStack(spacing: 2) {
+                            Image(systemName: "person.2.fill")
+                                .font(.caption2)
+                            Text("SHARED")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(colors.info)
+                        .cornerRadius(4)
+                    }
                     
                     // Dual-Key Badge
                     if vault.keyType == "dual" {
@@ -186,6 +203,16 @@ struct VaultRow: View {
             return colors.success
         }
         return colors.error
+    }
+    
+    /// Check if this vault is shared (not owned by current user)
+    private var isVaultShared: Bool {
+        guard let currentUser = authService.currentUser,
+              let vaultOwner = vault.owner else {
+            return false
+        }
+        // Vault is shared if owner is different from current user
+        return vaultOwner.id != currentUser.id
     }
 }
 
