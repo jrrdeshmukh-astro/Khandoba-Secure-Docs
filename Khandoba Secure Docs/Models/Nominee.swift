@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 import Combine
+import CloudKit
 
 @Model
 final class Nominee {
@@ -15,30 +16,86 @@ final class Nominee {
     var name: String = ""
     var phoneNumber: String?
     var email: String?
-    var status: String = "pending" // "pending", "accepted", "active", "inactive"
+    
+    // Type-safe status (stored as String for SwiftData compatibility)
+    var statusRaw: String = NomineeStatus.pending.rawValue
+    
+    // Computed property for type-safe status access
+    var status: NomineeStatus {
+        get { NomineeStatus(rawValue: statusRaw) ?? .pending }
+        set { statusRaw = newValue.rawValue }
+    }
+    
+    // Legacy status property for backwards compatibility (deprecated)
+    @available(*, deprecated, message: "Use status computed property instead")
+    var statusString: String {
+        get { statusRaw }
+        set { statusRaw = newValue }
+    }
+    
     var invitedAt: Date = Date()
     var acceptedAt: Date?
-    var inviteToken: String = UUID().uuidString  // Token for CloudKit sync (uniqueness enforced in app logic)
+    var lastActiveAt: Date?
     
+    // CloudKit integration fields
+    var cloudKitShareRecordID: String? // CKShare record ID
+    var cloudKitParticipantID: String? // CKShare.Participant ID
+    
+    // Legacy token field (kept for migration, but CloudKit sharing is primary)
+    var inviteToken: String = UUID().uuidString
+    
+    // Relationships
     var vault: Vault?
     var invitedByUserID: UUID?
+    
+    // Concurrent access tracking (Bank Vault Model)
+    var isCurrentlyActive: Bool = false
+    var currentSessionID: UUID?
     
     init(
         id: UUID = UUID(),
         name: String = "",
         phoneNumber: String? = nil,
         email: String? = nil,
-        status: String = "pending",
-        invitedAt: Date = Date(),
-        inviteToken: String = UUID().uuidString
+        status: NomineeStatus = .pending,
+        invitedAt: Date = Date()
     ) {
         self.id = id
         self.name = name.isEmpty ? "Nominee" : name
         self.phoneNumber = phoneNumber
         self.email = email
-        self.status = status
+        self.statusRaw = status.rawValue
         self.invitedAt = invitedAt
-        self.inviteToken = inviteToken
+    }
+}
+
+// MARK: - Nominee Status Enum
+
+enum NomineeStatus: String, Codable, CaseIterable {
+    case pending = "pending"
+    case accepted = "accepted"
+    case active = "active"
+    case inactive = "inactive"
+    case revoked = "revoked"
+    
+    var displayName: String {
+        switch self {
+        case .pending: return "Pending"
+        case .accepted: return "Accepted"
+        case .active: return "Active"
+        case .inactive: return "Inactive"
+        case .revoked: return "Revoked"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .pending: return "warning"
+        case .accepted: return "info"
+        case .active: return "success"
+        case .inactive: return "textTertiary"
+        case .revoked: return "error"
+        }
     }
 }
 

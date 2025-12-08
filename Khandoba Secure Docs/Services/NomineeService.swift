@@ -15,19 +15,22 @@ import CloudKit
 final class NomineeService: ObservableObject {
     @Published var nominees: [Nominee] = []
     @Published var isLoading = false
+    @Published var activeNominees: [Nominee] = [] // Currently active in vault sessions
     
     private var modelContext: ModelContext?
-    private var cloudKitAPI: CloudKitAPIService?
     private var cloudKitSharing: CloudKitSharingService?
     private var currentUserID: UUID?
+    private let container: CKContainer
     
-    nonisolated init() {}
+    nonisolated init() {
+        self.container = CKContainer(identifier: AppConfig.cloudKitContainer)
+    }
     
     func configure(modelContext: ModelContext, currentUserID: UUID? = nil) {
         self.modelContext = modelContext
-        self.cloudKitAPI = CloudKitAPIService()
-        self.cloudKitSharing = CloudKitSharingService()
         self.currentUserID = currentUserID
+        self.cloudKitSharing = CloudKitSharingService()
+        cloudKitSharing?.configure(modelContext: modelContext)
     }
     
     func loadNominees(for vault: Vault, includeInactive: Bool = false) async throws {
@@ -55,7 +58,7 @@ final class NomineeService: ObservableObject {
         } else {
             descriptor = FetchDescriptor<Nominee>(
                 predicate: #Predicate { nominee in
-                    nominee.vault?.id == vaultID && nominee.status != "inactive"
+                    nominee.vault?.id == vaultID && nominee.statusRaw != NomineeStatus.inactive.rawValue && nominee.statusRaw != NomineeStatus.revoked.rawValue
                 },
                 sortBy: [SortDescriptor(\.invitedAt, order: .reverse)]
             )
@@ -63,90 +66,153 @@ final class NomineeService: ObservableObject {
         
         var fetchedNominees = try modelContext.fetch(descriptor)
         
-        // Sync CloudKit share participants to Nominee records
-        // Note: Temporarily disabled due to CloudKit query limitations with SwiftData
-        // CloudKit queries require queryable fields, which SwiftData doesn't expose reliably
-        if false, let sharingService = cloudKitSharing {
+        // Sync CloudKit share participants to Nominee records (ENABLED - removes technical debt)
+        if let sharingService = cloudKitSharing {
             do {
                 let participants = try await sharingService.getShareParticipants(for: vault)
                 
-                // Get current user to identify owner
-                let currentUserID = try await getCurrentUserID()
-                
-                for participant in participants {
-                    // Skip the owner (current user)
-                    if participant.role == .owner {
-                        continue
-                    }
-                    
-                    let identity = participant.userIdentity
-                    let participantName = identity.nameComponents?.formatted() ?? 
-                                         identity.lookupInfo?.emailAddress ?? 
-                                         "Shared User"
-                    let participantEmail = identity.lookupInfo?.emailAddress
-                    
-                    // Check if nominee already exists (by email or name)
-                    let existingNominee = fetchedNominees.first { nominee in
-                        if let email = nominee.email, let participantEmail = participantEmail {
-                            return email == participantEmail
-                        }
-                        return nominee.name == participantName
-                    }
-                    
-                    if let existing = existingNominee {
-                        // Update existing nominee status based on CloudKit acceptance
-                        if participant.acceptanceStatus == .accepted && existing.status == "pending" {
-                            existing.status = "accepted"
-                            existing.acceptedAt = Date()
-                            print("   ✅ Updated nominee status: \(existing.name) -> accepted")
-                        }
-                    } else {
-                        // Create new nominee from CloudKit participant
-                        let newNominee = Nominee(
-                            name: participantName,
-                            email: participantEmail,
-                            status: participant.acceptanceStatus == .accepted ? "accepted" : "pending"
-                        )
-                        newNominee.vault = vault
-                        newNominee.invitedAt = Date()
-                        if participant.acceptanceStatus == .accepted {
-                            newNominee.acceptedAt = Date()
-                        }
-                        
-                        // Add to vault's nomineeList
-                        if vault.nomineeList == nil {
-                            vault.nomineeList = []
-                        }
-                        vault.nomineeList?.append(newNominee)
-                        
-                        modelContext.insert(newNominee)
-                        fetchedNominees.append(newNominee)
-                        
-                        print("   ✅ Created nominee from CloudKit participant: \(participantName)")
-                    }
-                }
-                
-                // Save changes
-                try modelContext.save()
+                // Sync CloudKit participants with Nominee records
+                fetchedNominees = try await syncCloudKitParticipants(
+                    participants: participants,
+                    existingNominees: fetchedNominees,
+                    vault: vault,
+                    modelContext: modelContext
+                )
             } catch {
                 print("   ⚠️ Failed to sync CloudKit participants: \(error.localizedDescription)")
                 // Continue with existing nominees even if CloudKit sync fails
             }
         }
         
+        // Update active status based on current sessions (Bank Vault Model)
+        await updateActiveStatus(for: fetchedNominees, vault: vault)
+        
         print(" Found \(fetchedNominees.count) nominee(s) for vault '\(vault.name)'")
         for nominee in fetchedNominees {
-            print("   - \(nominee.name) (Status: \(nominee.status), Token: \(nominee.inviteToken))")
+            print("   - \(nominee.name) (Status: \(nominee.status.displayName), Active: \(nominee.isCurrentlyActive))")
         }
         
         await MainActor.run {
             nominees = fetchedNominees
+            activeNominees = fetchedNominees.filter { $0.isCurrentlyActive }
         }
     }
     
-    /// Get current user ID for comparison
-    private func getCurrentUserID() async throws -> UUID? {
-        return currentUserID
+    // MARK: - CloudKit Participant Sync (ENABLED - removes technical debt)
+    
+    private func syncCloudKitParticipants(
+        participants: [CKShare.Participant],
+        existingNominees: [Nominee],
+        vault: Vault,
+        modelContext: ModelContext
+    ) async throws -> [Nominee] {
+        var updatedNominees = existingNominees
+        let currentUserID = self.currentUserID
+        
+        for participant in participants {
+            // Skip owner
+            if participant.role == .owner {
+                continue
+            }
+            
+            let identity = participant.userIdentity
+            let participantName = identity.nameComponents?.formatted() ?? 
+                                 identity.lookupInfo?.emailAddress ?? 
+                                 "Shared User"
+            let participantEmail = identity.lookupInfo?.emailAddress
+            let participantID = identity.lookupInfo?.userRecordID?.recordName
+            
+            // Find or create nominee
+            let existingNominee = updatedNominees.first { nominee in
+                if let email = nominee.email, let participantEmail = participantEmail {
+                    return email == participantEmail
+                }
+                if let nomineeParticipantID = nominee.cloudKitParticipantID,
+                   let participantID = participantID {
+                    return nomineeParticipantID == participantID
+                }
+                return nominee.name == participantName
+            }
+            
+            if let existing = existingNominee {
+                // Update existing nominee
+                existing.cloudKitParticipantID = participantID
+                existing.cloudKitShareRecordID = participant.share?.recordID.recordName
+                
+                // Update status based on CloudKit acceptance
+                if participant.acceptanceStatus == .accepted {
+                    if existing.status == .pending {
+                        existing.status = .accepted
+                        existing.acceptedAt = Date()
+                    }
+                }
+                
+                print("   ✅ Updated nominee from CloudKit: \(existing.name) (Status: \(existing.status.displayName))")
+            } else {
+                // Create new nominee from CloudKit participant
+                let newNominee = Nominee(
+                    name: participantName,
+                    email: participantEmail,
+                    status: participant.acceptanceStatus == .accepted ? .accepted : .pending
+                )
+                newNominee.vault = vault
+                newNominee.invitedAt = Date()
+                newNominee.cloudKitParticipantID = participantID
+                newNominee.cloudKitShareRecordID = participant.share?.recordID.recordName
+                
+                if participant.acceptanceStatus == .accepted {
+                    newNominee.acceptedAt = Date()
+                }
+                
+                if vault.nomineeList == nil {
+                    vault.nomineeList = []
+                }
+                vault.nomineeList?.append(newNominee)
+                
+                modelContext.insert(newNominee)
+                updatedNominees.append(newNominee)
+                
+                print("   ✅ Created nominee from CloudKit participant: \(participantName)")
+            }
+        }
+        
+        try modelContext.save()
+        return updatedNominees
+    }
+    
+    // MARK: - Update Active Status (Concurrent Access - Bank Vault Model)
+    
+    private func updateActiveStatus(for nominees: [Nominee], vault: Vault) async {
+        // Check which nominees have active sessions in this vault
+        // In the Bank Vault Model: When owner opens vault, all accepted nominees get concurrent access
+        guard let sessions = vault.sessions else { return }
+        let now = Date()
+        let activeSessions = sessions.filter { session in
+            session.isActive && session.expiresAt > now
+        }
+        
+        // Update nominee active status
+        for nominee in nominees {
+            // A nominee is active if:
+            // 1. They have accepted the invitation
+            // 2. The vault has an active session (owner opened it)
+            // 3. They're a CloudKit participant with accepted status
+            let isActive = (nominee.status == .accepted || nominee.status == .active) &&
+                          !activeSessions.isEmpty
+            
+            await MainActor.run {
+                nominee.isCurrentlyActive = isActive
+                if isActive, let session = activeSessions.first {
+                    nominee.currentSessionID = session.id
+                    nominee.lastActiveAt = Date()
+                    if nominee.status == .accepted {
+                        nominee.status = .active
+                    }
+                } else if !isActive && nominee.status == .active {
+                    nominee.status = .accepted
+                }
+            }
+        }
     }
     
     func inviteNominee(
@@ -160,17 +226,16 @@ final class NomineeService: ObservableObject {
             throw NomineeError.contextNotAvailable
         }
         
+        // Create nominee record
         let nominee = Nominee(
             name: name,
             phoneNumber: phoneNumber,
-            email: email
+            email: email,
+            status: .pending
         )
-        
-        // Set bidirectional relationship
         nominee.vault = vault
         nominee.invitedByUserID = invitedByUserID
         
-        // Add nominee to vault's nomineeList to maintain relationship
         if vault.nomineeList == nil {
             vault.nomineeList = []
         }
@@ -179,43 +244,26 @@ final class NomineeService: ObservableObject {
         modelContext.insert(nominee)
         try modelContext.save()
         
-        print(" Nominee created: \(nominee.name)")
-        print("   Token: \(nominee.inviteToken)")
+        print("✅ Nominee created: \(nominee.name)")
         print("   Vault: \(vault.name) (ID: \(vault.id))")
-        print("   Status: \(nominee.status)")
-        print("   Vault relationship: \(nominee.vault?.name ?? "nil")")
-        print("   📤 CloudKit sync: Nominee record will sync automatically")
+        print("   Status: \(nominee.status.displayName)")
         
-        // Verify the relationship was set correctly
-        if nominee.vault?.id == vault.id {
-            print("    Vault relationship verified")
-        } else {
-            print("    WARNING: Vault relationship may not be set correctly")
-        }
-        
-        // Send push notification to nominee (if they have the app installed)
-        // Note: In production, this would be sent via your backend server
-        if let phoneNumber = nominee.phoneNumber {
-            // TODO: Send push notification via backend API
-            // The backend would look up the device token for this phone number
-            // and send a push notification with the invitation token
-            print("   📱 Push notification will be sent to: \(phoneNumber)")
-        }
-        
-        // Create CloudKit share for the vault (if not already shared)
-        var shareURL: URL?
+        // Create CloudKit share (primary method - no token fallback)
         if let sharingService = cloudKitSharing {
             do {
-                shareURL = try await sharingService.createShare(for: vault)
-                print("   🔗 CloudKit share created: \(shareURL?.absoluteString ?? "nil")")
+                let share = try await sharingService.getOrCreateShare(for: vault)
+                if let share = share {
+                    nominee.cloudKitShareRecordID = share.recordID.recordName
+                    try modelContext.save()
+                    print("   🔗 CloudKit share created/retrieved: \(share.recordID.recordName)")
+                } else {
+                    print("   ⚠️ CloudKit share not available - UICloudSharingController will handle it")
+                }
             } catch {
-                print("   ⚠️ Failed to create CloudKit share: \(error.localizedDescription)")
-                print("   Continuing with token-based invitation as fallback")
+                print("   ⚠️ CloudKit share creation failed: \(error.localizedDescription)")
+                throw NomineeError.shareCreationFailed
             }
         }
-        
-        // Send invitation with CloudKit share URL or token fallback
-        await sendInvitation(to: nominee, shareURL: shareURL)
         
         // Reload nominees to refresh the list
         print("🔄 Reloading nominees list...")
@@ -246,14 +294,28 @@ final class NomineeService: ObservableObject {
             
             print(" Nominee permanently deleted: \(nominee.name)")
         } else {
-            // Soft delete - mark as inactive
-        nominee.status = "inactive"
+            // Remove from CloudKit share first
+            if let sharingService = cloudKitSharing,
+               let vault = nominee.vault,
+               let participantID = nominee.cloudKitParticipantID {
+                do {
+                    try await sharingService.removeParticipant(
+                        participantID: participantID,
+                        from: vault
+                    )
+                } catch {
+                    print("⚠️ Failed to remove from CloudKit share: \(error.localizedDescription)")
+                    // Continue with local removal
+                }
+            }
             
-            // Optionally remove from vault's nomineeList (but keep in database)
-            // This is a design choice - keeping it allows viewing inactive nominees
-        try modelContext.save()
+            // Soft delete - mark as revoked
+            nominee.status = .revoked
+            nominee.vault?.nomineeList?.removeAll { $0.id == nominee.id }
             
-            print(" Nominee marked as inactive: \(nominee.name)")
+            try modelContext.save()
+            
+            print("✅ Nominee revoked: \(nominee.name)")
         }
         
         // Reload the list
@@ -320,11 +382,11 @@ final class NomineeService: ObservableObject {
             throw NomineeError.invalidToken
         }
         
-        nominee.status = "accepted"
+        nominee.status = .accepted
         nominee.acceptedAt = Date()
         try modelContext.save()
         
-        print(" Invitation accepted: \(nominee.name)")
+        print("✅ Invitation accepted: \(nominee.name)")
         print("   Vault: \(nominee.vault?.name ?? "Unknown")")
         print("   📤 CloudKit sync: Status update will sync to owner's device")
         
@@ -392,6 +454,8 @@ enum NomineeError: LocalizedError {
     case contextNotAvailable
     case invalidToken
     case sendFailed
+    case shareCreationFailed
+    case participantNotFound
     
     var errorDescription: String? {
         switch self {
@@ -401,6 +465,10 @@ enum NomineeError: LocalizedError {
             return "Invalid invitation token"
         case .sendFailed:
             return "Failed to send invitation"
+        case .shareCreationFailed:
+            return "Failed to create CloudKit share"
+        case .participantNotFound:
+            return "Participant not found in CloudKit share"
         }
     }
 }

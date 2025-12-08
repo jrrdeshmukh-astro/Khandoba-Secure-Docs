@@ -59,7 +59,7 @@ class ShareExtensionViewController: UIViewController {
         }
     }
     
-    // MARK: - Load Shared Items
+    // MARK: - Load Shared Items (Enhanced - Universal File Type Support)
     
     private func loadSharedItems(from inputItems: [NSExtensionItem], completion: @escaping ([SharedItem]) -> Void) {
         var sharedItems: [SharedItem] = []
@@ -68,110 +68,245 @@ class ShareExtensionViewController: UIViewController {
         for item in inputItems {
             guard let attachments = item.attachments else { continue }
             
-            for attachment in attachments {
+            // Handle URL items first (WhatsApp links, web pages, etc.)
+            if let urlProvider = attachments.first(where: { attachment in
+                attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier)
+            }) {
                 group.enter()
-                
-                // Check content type
-                if attachment.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
-                    attachment.loadItem(forTypeIdentifier: UTType.image.identifier, options: nil) { (data, error) in
-                        defer { group.leave() }
-                        
-                        if let error = error {
-                            print("❌ Error loading image: \(error.localizedDescription)")
-                            return
-                        }
-                        
-                        if let url = data as? URL {
-                            if let imageData = try? Data(contentsOf: url),
-                               let image = UIImage(data: imageData) {
-                                let mimeType = url.mimeType() ?? "image/jpeg"
-                                sharedItems.append(SharedItem(
-                                    data: imageData,
-                                    mimeType: mimeType,
-                                    name: url.lastPathComponent
-                                ))
-                            }
-                        } else if let image = data as? UIImage,
-                                  let imageData = image.jpegData(compressionQuality: 0.8) {
+                urlProvider.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { data, error in
+                    defer { group.leave() }
+                    
+                    guard error == nil, let url = data as? URL else { return }
+                    
+                    // Handle WhatsApp URLs
+                    if url.absoluteString.contains("wa.me") || 
+                       url.absoluteString.contains("whatsapp.com") ||
+                       url.absoluteString.contains("api.whatsapp.com") {
+                        // Save WhatsApp link as a document
+                        if let urlData = url.absoluteString.data(using: .utf8) {
                             sharedItems.append(SharedItem(
-                                data: imageData,
-                                mimeType: "image/jpeg",
-                                name: "image_\(Date().timeIntervalSince1970).jpg"
-                            ))
-                        }
-                    }
-                } else if attachment.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
-                    attachment.loadItem(forTypeIdentifier: UTType.movie.identifier, options: nil) { (data, error) in
-                        defer { group.leave() }
-                        
-                        if let error = error {
-                            print("❌ Error loading video: \(error.localizedDescription)")
-                            return
-                        }
-                        
-                        if let url = data as? URL {
-                            if let videoData = try? Data(contentsOf: url) {
-                                let mimeType = url.mimeType() ?? "video/mp4"
-                                sharedItems.append(SharedItem(
-                                    data: videoData,
-                                    mimeType: mimeType,
-                                    name: url.lastPathComponent
-                                ))
-                            }
-                        }
-                    }
-                } else if attachment.hasItemConformingToTypeIdentifier(UTType.data.identifier) {
-                    attachment.loadItem(forTypeIdentifier: UTType.data.identifier, options: nil) { (data, error) in
-                        defer { group.leave() }
-                        
-                        if let error = error {
-                            print("❌ Error loading file: \(error.localizedDescription)")
-                            return
-                        }
-                        
-                        if let url = data as? URL {
-                            if let fileData = try? Data(contentsOf: url) {
-                                let mimeType = url.mimeType() ?? "application/octet-stream"
-                                sharedItems.append(SharedItem(
-                                    data: fileData,
-                                    mimeType: mimeType,
-                                    name: url.lastPathComponent
-                                ))
-                            }
-                        } else if let fileData = data as? Data {
-                            sharedItems.append(SharedItem(
-                                data: fileData,
-                                mimeType: "application/octet-stream",
-                                name: "file_\(Date().timeIntervalSince1970)"
-                            ))
-                        }
-                    }
-                } else if attachment.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
-                    attachment.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { (data, error) in
-                        defer { group.leave() }
-                        
-                        if let error = error {
-                            print("❌ Error loading text: \(error.localizedDescription)")
-                            return
-                        }
-                        
-                        if let text = data as? String,
-                           let textData = text.data(using: .utf8) {
-                                sharedItems.append(SharedItem(
-                                data: textData,
+                                data: urlData,
                                 mimeType: "text/plain",
-                                name: "note_\(Date().timeIntervalSince1970).txt"
-                                ))
+                                name: "WhatsApp Link",
+                                sourceURL: url
+                            ))
+                        }
+                    } else {
+                        // Regular URL - save as document
+                        if let urlData = url.absoluteString.data(using: .utf8) {
+                            sharedItems.append(SharedItem(
+                                data: urlData,
+                                mimeType: "text/plain",
+                                name: url.host ?? "Link",
+                                sourceURL: url
+                            ))
                         }
                     }
-                } else {
-                    group.leave()
+                }
+            }
+            
+            // Handle all standard file types
+            for attachment in attachments {
+                // Skip URL type (already handled above)
+                if attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+                    continue
+                }
+                
+                // Images
+                if attachment.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+                    group.enter()
+                    loadImage(from: attachment) { item in
+                        if let item = item { sharedItems.append(item) }
+                        group.leave()
+                    }
+                }
+                // Videos
+                else if attachment.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
+                    group.enter()
+                    loadVideo(from: attachment) { item in
+                        if let item = item { sharedItems.append(item) }
+                        group.leave()
+                    }
+                }
+                // PDFs
+                else if attachment.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) {
+                    group.enter()
+                    loadPDF(from: attachment) { item in
+                        if let item = item { sharedItems.append(item) }
+                        group.leave()
+                    }
+                }
+                // Audio
+                else if attachment.hasItemConformingToTypeIdentifier(UTType.audio.identifier) {
+                    group.enter()
+                    loadAudio(from: attachment) { item in
+                        if let item = item { sharedItems.append(item) }
+                        group.leave()
+                    }
+                }
+                // Generic files
+                else if attachment.hasItemConformingToTypeIdentifier(UTType.data.identifier) {
+                    group.enter()
+                    loadFile(from: attachment) { item in
+                        if let item = item { sharedItems.append(item) }
+                        group.leave()
+                    }
+                }
+                // Plain text
+                else if attachment.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+                    group.enter()
+                    loadText(from: attachment) { item in
+                        if let item = item { sharedItems.append(item) }
+                        group.leave()
+                    }
                 }
             }
         }
         
         group.notify(queue: .main) {
             completion(sharedItems)
+        }
+    }
+    
+    // MARK: - File Type Loaders
+    
+    private func loadImage(from attachment: NSItemProvider, completion: @escaping (SharedItem?) -> Void) {
+        attachment.loadItem(forTypeIdentifier: UTType.image.identifier, options: nil) { data, error in
+            guard error == nil else {
+                print("⚠️ Error loading image: \(error?.localizedDescription ?? "unknown")")
+                completion(nil)
+                return
+            }
+            
+            if let url = data as? URL,
+               let imageData = try? Data(contentsOf: url),
+               let image = UIImage(data: imageData) {
+                let mimeType = url.mimeType() ?? "image/jpeg"
+                completion(SharedItem(
+                    data: imageData,
+                    mimeType: mimeType,
+                    name: url.lastPathComponent
+                ))
+            } else if let image = data as? UIImage,
+                      let imageData = image.jpegData(compressionQuality: 0.8) {
+                completion(SharedItem(
+                    data: imageData,
+                    mimeType: "image/jpeg",
+                    name: "image_\(Date().timeIntervalSince1970).jpg"
+                ))
+            } else {
+                completion(nil)
+            }
+        }
+    }
+    
+    private func loadVideo(from attachment: NSItemProvider, completion: @escaping (SharedItem?) -> Void) {
+        attachment.loadItem(forTypeIdentifier: UTType.movie.identifier, options: nil) { data, error in
+            guard error == nil, let url = data as? URL else {
+                completion(nil)
+                return
+            }
+            
+            if let videoData = try? Data(contentsOf: url) {
+                completion(SharedItem(
+                    data: videoData,
+                    mimeType: url.mimeType() ?? "video/mp4",
+                    name: url.lastPathComponent
+                ))
+            } else {
+                completion(nil)
+            }
+        }
+    }
+    
+    private func loadPDF(from attachment: NSItemProvider, completion: @escaping (SharedItem?) -> Void) {
+        attachment.loadItem(forTypeIdentifier: UTType.pdf.identifier, options: nil) { data, error in
+            guard error == nil else {
+                completion(nil)
+                return
+            }
+            
+            if let url = data as? URL,
+               let pdfData = try? Data(contentsOf: url) {
+                completion(SharedItem(
+                    data: pdfData,
+                    mimeType: "application/pdf",
+                    name: url.lastPathComponent
+                ))
+            } else if let data = data as? Data {
+                completion(SharedItem(
+                    data: data,
+                    mimeType: "application/pdf",
+                    name: "document_\(Date().timeIntervalSince1970).pdf"
+                ))
+            } else {
+                completion(nil)
+            }
+        }
+    }
+    
+    private func loadAudio(from attachment: NSItemProvider, completion: @escaping (SharedItem?) -> Void) {
+        attachment.loadItem(forTypeIdentifier: UTType.audio.identifier, options: nil) { data, error in
+            guard error == nil, let url = data as? URL else {
+                completion(nil)
+                return
+            }
+            
+            if let audioData = try? Data(contentsOf: url) {
+                completion(SharedItem(
+                    data: audioData,
+                    mimeType: url.mimeType() ?? "audio/mpeg",
+                    name: url.lastPathComponent
+                ))
+            } else {
+                completion(nil)
+            }
+        }
+    }
+    
+    private func loadFile(from attachment: NSItemProvider, completion: @escaping (SharedItem?) -> Void) {
+        attachment.loadItem(forTypeIdentifier: UTType.data.identifier, options: nil) { data, error in
+            guard error == nil else {
+                completion(nil)
+                return
+            }
+            
+            if let url = data as? URL,
+               let fileData = try? Data(contentsOf: url) {
+                completion(SharedItem(
+                    data: fileData,
+                    mimeType: url.mimeType() ?? "application/octet-stream",
+                    name: url.lastPathComponent
+                ))
+            } else if let data = data as? Data {
+                completion(SharedItem(
+                    data: data,
+                    mimeType: "application/octet-stream",
+                    name: "file_\(Date().timeIntervalSince1970)"
+                ))
+            } else {
+                completion(nil)
+            }
+        }
+    }
+    
+    private func loadText(from attachment: NSItemProvider, completion: @escaping (SharedItem?) -> Void) {
+        attachment.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { data, error in
+            guard error == nil else {
+                completion(nil)
+                return
+            }
+            
+            if let text = data as? String,
+               let textData = text.data(using: .utf8) {
+                completion(SharedItem(
+                    data: textData,
+                    mimeType: "text/plain",
+                    name: "note_\(Date().timeIntervalSince1970).txt"
+                ))
+            } else {
+                completion(nil)
+            }
         }
     }
     
@@ -187,10 +322,12 @@ class ShareExtensionViewController: UIViewController {
 
 // MARK: - Shared Item Model
 
-struct SharedItem {
+struct SharedItem: Identifiable {
+    let id = UUID()
     let data: Data
     let mimeType: String
     let name: String
+    var sourceURL: URL?
 }
 
 // MARK: - SwiftUI Share Extension View
@@ -221,7 +358,7 @@ struct ShareExtensionView: View {
                 
                 contentView
             }
-            .navigationTitle("Khandoba")
+            .navigationTitle("Save to Khandoba")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -276,33 +413,60 @@ struct ShareExtensionView: View {
     }
     
     private var uploadingView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             ProgressView(value: uploadProgress)
+                .progressViewStyle(.linear)
+            
             Text("Uploading \(uploadedCount) of \(sharedItems.count) items...")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .font(.headline)
+            
+            Text("\(Int(uploadProgress * 100))%")
+                .font(.title2)
+                .fontWeight(.semibold)
         }
         .padding()
     }
     
     private var mainContentView: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                itemsSummaryView
-                vaultSelectionView
-                uploadButtonView
+            VStack(spacing: 20) {
+                itemsPreviewCard
+                vaultSelectionCard
+                uploadButton
             }
             .padding()
         }
     }
     
-    private var itemsSummaryView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("\(sharedItems.count) item(s) to upload")
-                .font(.headline)
+    private var itemsPreviewCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "doc.on.doc.fill")
+                    .foregroundColor(.blue)
+                Text("\(sharedItems.count) item(s) to save")
+                    .font(.headline)
+            }
             
-            ForEach(Array(sharedItems.enumerated()), id: \.offset) { index, item in
-                itemRowView(item: item)
+            ForEach(sharedItems.prefix(3)) { item in
+                HStack {
+                    Image(systemName: iconForMimeType(item.mimeType))
+                        .foregroundColor(.secondary)
+                        .frame(width: 24)
+                    Text(item.name)
+                        .font(.subheadline)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(ByteCountFormatter.string(fromByteCount: Int64(item.data.count), countStyle: .file))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            if sharedItems.count > 3 {
+                Text("+ \(sharedItems.count - 3) more")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 32)
             }
         }
         .padding()
@@ -310,28 +474,21 @@ struct ShareExtensionView: View {
         .cornerRadius(12)
     }
     
-    private func itemRowView(item: SharedItem) -> some View {
-        HStack {
-            Image(systemName: iconForMimeType(item.mimeType))
-            Text(item.name)
-                .font(.subheadline)
-                .lineLimit(1)
-            Spacer()
-            Text(ByteCountFormatter.string(fromByteCount: Int64(item.data.count), countStyle: .file))
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-    
-    private var vaultSelectionView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Select Vault")
-                .font(.headline)
+    private var vaultSelectionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "lock.shield.fill")
+                    .foregroundColor(.blue)
+                Text("Select Vault")
+                    .font(.headline)
+            }
             
             if vaults.isEmpty {
                 emptyVaultsView
             } else {
-                vaultsListView
+                ForEach(vaults) { vault in
+                    vaultRow(vault: vault)
+                }
             }
         }
         .padding()
@@ -339,43 +496,7 @@ struct ShareExtensionView: View {
         .cornerRadius(12)
     }
     
-    private var emptyVaultsView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "tray")
-                .font(.largeTitle)
-                .foregroundColor(.secondary)
-            
-            Text("No vaults available")
-                .font(.headline)
-                .foregroundColor(.primary)
-            
-            Text("Create a vault in the main app first, then try again")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-            
-            Button {
-                loadVaults()
-            } label: {
-                HStack {
-                    Image(systemName: "arrow.clockwise")
-                    Text("Retry")
-                }
-                .font(.subheadline)
-                .foregroundColor(.blue)
-            }
-            .padding(.top, 8)
-        }
-        .padding()
-    }
-    
-    private var vaultsListView: some View {
-        ForEach(vaults, id: \.id) { vault in
-            vaultRowView(vault: vault)
-        }
-    }
-    
-    private func vaultRowView(vault: Vault) -> some View {
+    private func vaultRow(vault: Vault) -> some View {
         let isSelected = selectedVault?.id == vault.id
         let vaultName = vault.name.isEmpty ? "Unnamed Vault" : vault.name
         
@@ -385,37 +506,91 @@ struct ShareExtensionView: View {
             HStack {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(isSelected ? .blue : .gray)
-                Text(vaultName)
-                    .foregroundColor(.primary)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(vaultName)
+                        .foregroundColor(.primary)
+                        .font(.headline)
+                    
+                    if let description = vault.vaultDescription {
+                        Text(description)
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                            .lineLimit(1)
+                    }
+                }
+                
                 Spacer()
+                
+                // Show active session indicator
+                if hasActiveSession(vault) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 8, height: 8)
+                        Text("Open")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                }
             }
             .padding()
-            .background(isSelected ? Color.blue.opacity(0.1) : Color(.systemBackground))
+            .background(isSelected ? Color.blue.opacity(0.1) : Color.clear)
             .cornerRadius(8)
         }
     }
     
-    private var uploadButtonView: some View {
+    private var emptyVaultsView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "lock.shield")
+                .font(.largeTitle)
+                .foregroundColor(.secondary)
+            
+            Text("No unlocked vaults")
+                .font(.headline)
+            
+            Text("Open a vault in the main app first")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+    }
+    
+    private var uploadButton: some View {
         Button {
             uploadItems()
         } label: {
-            Text("Upload to Vault")
-                .font(.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(selectedVault != nil ? Color.blue : Color.gray)
-                .cornerRadius(12)
+            HStack {
+                Image(systemName: "arrow.up.circle.fill")
+                Text("Save to Vault")
+            }
+            .font(.headline)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(selectedVault != nil ? Color.blue : Color.gray)
+            .cornerRadius(12)
         }
         .disabled(selectedVault == nil || isUploading)
-        .padding()
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func hasActiveSession(_ vault: Vault) -> Bool {
+        guard let sessions = vault.sessions else { return false }
+        let now = Date()
+        return sessions.contains { session in
+            session.isActive && session.expiresAt > now
+        }
     }
     
     private func iconForMimeType(_ mimeType: String) -> String {
         if mimeType.hasPrefix("image/") {
-            return "photo"
+            return "photo.fill"
         } else if mimeType.hasPrefix("video/") {
-            return "video"
+            return "video.fill"
         } else if mimeType.hasPrefix("audio/") {
             return "music.note"
         } else if mimeType == "application/pdf" {
@@ -825,5 +1000,16 @@ struct ShareExtensionView: View {
         } else {
             return "file"
         }
+    }
+}
+
+// MARK: - URL Extension
+
+extension URL {
+    func mimeType() -> String? {
+        if let uti = UTType(filenameExtension: self.pathExtension) {
+            return uti.preferredMIMEType
+        }
+        return nil
     }
 }

@@ -178,7 +178,7 @@ struct VaultAccessControlView: View {
     }
     
     private func revokeNomineeAccess(_ nominee: Nominee) {
-        nominee.status = "inactive"
+        nominee.status = .revoked
         try? modelContext.save()
         print(" Access revoked for: \(nominee.name)")
     }

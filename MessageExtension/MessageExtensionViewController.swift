@@ -485,7 +485,7 @@ struct NomineeInvitationMessageView: View {
                 let vaultID = vault.id
                 let descriptor = FetchDescriptor<Nominee>(
                     predicate: #Predicate { nominee in
-                        nominee.vault?.id == vaultID && nominee.status == "pending"
+                        nominee.vault?.id == vaultID && nominee.statusRaw == NomineeStatus.pending.rawValue
                     },
                     sortBy: [SortDescriptor(\.invitedAt, order: .reverse)]
                 )

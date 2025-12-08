@@ -314,7 +314,7 @@ struct NomineeManagementRow: View {
                 
                 HStack(spacing: 8) {
                     // Status badge
-                    Text(nominee.status.capitalized)
+                    Text(nominee.status.displayName)
                         .font(.caption2)
                         .foregroundColor(statusColor)
                         .padding(.horizontal, 6)
@@ -322,7 +322,7 @@ struct NomineeManagementRow: View {
                         .background(statusColor.opacity(0.15))
                         .cornerRadius(4)
                     
-                    if nominee.status == "pending" {
+                    if nominee.status == .pending {
                         Text("Invited \(nominee.invitedAt, style: .relative)")
                             .font(theme.typography.caption2)
                             .foregroundColor(colors.textTertiary)
@@ -335,7 +335,7 @@ struct NomineeManagementRow: View {
             // Actions
             HStack(spacing: UnifiedTheme.Spacing.sm) {
                 // Chat button (only for accepted/active nominees)
-                if nominee.status == "accepted" || nominee.status == "active" {
+                if nominee.status == .accepted || nominee.status == .active {
                     NavigationLink {
                         SecureNomineeChatView(vault: vault, nominee: nominee)
                     } label: {
@@ -345,7 +345,7 @@ struct NomineeManagementRow: View {
                 }
                 
                 // Share button (for pending nominees - resend invitation)
-                if nominee.status == "pending" {
+                if nominee.status == .pending {
                     Button {
                         Task {
                             await onShare()
@@ -372,9 +372,9 @@ struct NomineeManagementRow: View {
     
     private var statusColor: Color {
         switch nominee.status {
-        case "pending": return colors.warning
-        case "accepted", "active": return colors.success
-        default: return colors.textTertiary
+        case .pending: return colors.warning
+        case .accepted, .active: return colors.success
+        case .inactive, .revoked: return colors.textTertiary
         }
     }
 }

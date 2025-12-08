@@ -13,24 +13,27 @@ Attempt to map database failed: permission was denied. This attempt will not be 
 Failed to initialize client context with error Error Domain=NSOSStatusErrorDomain Code=-54 "process may not map database"
 -[RTIInputSystemClient remoteTextInputSessionWithID:performInputOperation:] perform input operation requires a valid sessionID
 Error creating the CFMessagePort needed to communicate with PPT.
+[UISceneHosting-com.khandoba.securedocs:UIHostedScene-com.apple.ContactsUI.ContactsViewService-...] No scene exists for this identity (didUpdateClientSettingsWithDiff)
 ```
 
 ## Why These Errors Occur
 
-These errors are **expected behavior** in iOS app extensions because:
+These errors are **expected behavior** in iOS app extensions and system frameworks because:
 
 1. **Sandboxed Environment**: Share Extensions run in a restricted sandbox with limited system access
 2. **Launch Services Database**: Extensions don't have full access to the Launch Services database (used for app launching and registration)
 3. **System Services**: Some system services (like text input system, CFMessagePort) aren't fully available to extensions
 4. **Security Model**: iOS intentionally restricts extension access to prevent security issues
+5. **ContactsUI Scene Warning**: When using `CNContactPickerViewController`, iOS creates a scene for the ContactsUI service. The "No scene exists" warning occurs during scene lifecycle transitions and is harmless - the contact picker still works correctly
 
 ## Are These Errors Critical?
 
 **No.** These errors are:
-- ✅ **Harmless warnings** - They don't affect Share Extension functionality
-- ✅ **Expected behavior** - iOS extensions are designed with these restrictions
+- ✅ **Harmless warnings** - They don't affect Share Extension or contact picker functionality
+- ✅ **Expected behavior** - iOS extensions and system frameworks are designed with these restrictions
 - ✅ **Not user-visible** - Users won't see these errors
-- ✅ **Common** - Most iOS extensions see similar warnings
+- ✅ **Common** - Most iOS extensions and apps using ContactsUI see similar warnings
+- ✅ **System-level noise** - These are iOS framework internal warnings, not your app's errors
 
 ## When to Worry
 
@@ -111,12 +114,35 @@ If these warnings clutter your console during development, you can:
    - Your code already uses emoji prefixes for easy filtering
    - Filter by: `📦 ShareExtension` to see only relevant logs
 
+## Error Breakdown
+
+### LaunchServices Errors (Code -54)
+- **What**: iOS trying to access Launch Services database from extension
+- **Why**: Extensions don't have full system database access (by design)
+- **Impact**: None - purely informational warnings
+
+### CFMessagePort Errors
+- **What**: System trying to create inter-process communication ports
+- **Why**: Some system services aren't available in extension sandbox
+- **Impact**: None - system handles gracefully
+
+### RTIInputSystemClient Errors
+- **What**: Text input system trying to access remote input session
+- **Why**: Extensions have limited text input system access
+- **Impact**: None - text input still works normally
+
+### ContactsUI Scene Warning
+- **What**: iOS scene system warning during ContactsUI presentation
+- **Why**: Scene lifecycle transitions in system frameworks
+- **Impact**: None - contact picker works perfectly despite the warning
+
 ## Summary
 
-- ✅ **These errors are normal** for iOS Share Extensions
-- ✅ **They don't affect functionality** - your extension should work fine
+- ✅ **These errors are normal** for iOS Share Extensions and system frameworks
+- ✅ **They don't affect functionality** - your extension and contact picker work fine
 - ✅ **No action needed** unless the extension actually fails to work
-- ✅ **Focus on functional testing** - if vaults load and files upload, you're good!
+- ✅ **Focus on functional testing** - if vaults load, files upload, and contacts can be selected, you're good!
+- ✅ **These are iOS framework warnings**, not bugs in your code
 
 ## Related Documentation
 

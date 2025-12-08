@@ -246,7 +246,7 @@ final class AutomaticTriageService: ObservableObject {
     private func detectCompromisedNominees(_ nominees: [Nominee], in vault: Vault) async -> [Nominee] {
         var suspicious: [Nominee] = []
         
-        for nominee in nominees where nominee.status == "accepted" || nominee.status == "active" {
+        for nominee in nominees where nominee.status == .accepted || nominee.status == .active {
             // Check access logs for this nominee
             if let logs = vault.accessLogs {
                 let nomineeLogs = logs.filter { log in
@@ -455,7 +455,7 @@ final class AutomaticTriageService: ObservableObject {
         
         let nominees = try modelContext.fetch(descriptor)
         for nominee in nominees {
-            nominee.status = "inactive"
+            nominee.status = .revoked
         }
         try modelContext.save()
         print(" Revoked \(nominees.count) compromised nominee(s)")
@@ -468,7 +468,7 @@ final class AutomaticTriageService: ObservableObject {
         for vault in vaultService.vaults {
             if let nominees = vault.nomineeList {
                 for nominee in nominees {
-                    nominee.status = "inactive"
+                    nominee.status = .revoked
                 }
             }
         }

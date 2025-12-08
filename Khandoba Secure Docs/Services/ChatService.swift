@@ -164,7 +164,7 @@ final class ChatService: ObservableObject {
     func loadNomineeConversations(for vault: Vault) async throws {
         guard let nominees = vault.nomineeList else { return }
         
-        for nominee in nominees where nominee.status == "accepted" || nominee.status == "active" {
+        for nominee in nominees where nominee.status == .accepted || nominee.status == .active {
             let conversationID = getNomineeConversationID(vaultID: vault.id, nomineeID: nominee.id)
             
             // Load messages for this conversation

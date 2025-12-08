@@ -130,11 +130,11 @@ struct NomineeRow: View {
                         .font(theme.typography.subheadline)
                         .foregroundColor(colors.textPrimary)
                     
-                    Text(nominee.status.capitalized)
+                    Text(nominee.status.displayName)
                         .font(theme.typography.caption)
                         .foregroundColor(statusColor)
                     
-                    if nominee.status == "pending" {
+                    if nominee.status == .pending {
                         Text("Invited \(nominee.invitedAt, style: .relative)")
                             .font(theme.typography.caption2)
                             .foregroundColor(colors.textTertiary)
@@ -144,7 +144,7 @@ struct NomineeRow: View {
                 Spacer()
                 
                 // Chat button (only for accepted/active nominees)
-                if nominee.status == "accepted" || nominee.status == "active" {
+                if nominee.status == .accepted || nominee.status == .active {
                     NavigationLink {
                         SecureNomineeChatView(vault: vault, nominee: nominee)
                     } label: {
@@ -168,9 +168,9 @@ struct NomineeRow: View {
     private var statusColor: Color {
         let colors = theme.colors(for: colorScheme)
         switch nominee.status {
-        case "pending": return colors.warning
-        case "accepted", "active": return colors.success
-        default: return colors.textTertiary
+        case .pending: return colors.warning
+        case .accepted, .active: return colors.success
+        case .inactive, .revoked: return colors.textTertiary
         }
     }
 }

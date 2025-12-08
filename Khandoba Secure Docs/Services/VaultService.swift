@@ -377,7 +377,7 @@ final class VaultService: ObservableObject {
         let vaultID = vault.id
         let nomineeDescriptor = FetchDescriptor<Nominee>(
             predicate: #Predicate<Nominee> { nominee in
-                nominee.status == "accepted" || nominee.status == "active"
+                nominee.statusRaw == NomineeStatus.accepted.rawValue || nominee.statusRaw == NomineeStatus.active.rawValue
             }
         )
         
@@ -398,7 +398,7 @@ final class VaultService: ObservableObject {
                 // Grant access via shared session (already opened above)
                 // Nominees will be notified via SharedVaultSessionService notifications
                 for nominee in nominees {
-                    print("    Nominee '\(nominee.name)' has access (status: \(nominee.status))")
+                    print("    Nominee '\(nominee.name)' has access (status: \(nominee.status.displayName))")
                 }
             }
         } catch {

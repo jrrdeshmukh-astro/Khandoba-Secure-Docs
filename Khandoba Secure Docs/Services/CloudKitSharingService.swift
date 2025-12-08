@@ -428,6 +428,39 @@ final class CloudKitSharingService: ObservableObject {
         
         print("   ✅ Share removed successfully")
     }
+    
+    // MARK: - Remove Participant
+    
+    /// Remove a specific participant from a CloudKit share
+    func removeParticipant(participantID: String?, from vault: Vault) async throws {
+        print("🔒 Removing participant from CloudKit share for vault: \(vault.name)")
+        
+        guard let vaultRecordID = try await getVaultRecordID(vault),
+              let share = try await getExistingShare(for: vaultRecordID) else {
+            throw CloudKitSharingError.vaultRecordNotFound
+        }
+        
+        guard let participantID = participantID else {
+            print("   ⚠️ No participant ID provided")
+            return
+        }
+        
+        // Find and remove participant
+        let participants = share.participants
+        if let participant = participants.first(where: { 
+            $0.userIdentity.lookupInfo?.userRecordID?.recordName == participantID 
+        }) {
+            share.removeParticipant(participant)
+            
+            let database = container.privateCloudDatabase
+            try await database.save(share)
+            
+            print("   ✅ Participant removed successfully: \(participantID)")
+        } else {
+            print("   ⚠️ Participant not found: \(participantID)")
+            throw CloudKitSharingError.participantNotFound
+        }
+    }
 }
 
 // MARK: - Error Types
@@ -439,6 +472,7 @@ enum CloudKitSharingError: LocalizedError {
     case invalidShareURL
     case shareAcceptanceFailed
     case containerNotAvailable
+    case participantNotFound
     
     var errorDescription: String? {
         switch self {
@@ -454,6 +488,8 @@ enum CloudKitSharingError: LocalizedError {
             return "Failed to accept share invitation"
         case .containerNotAvailable:
             return "CloudKit container not available"
+        case .participantNotFound:
+            return "Participant not found in CloudKit share"
         }
     }
 }
