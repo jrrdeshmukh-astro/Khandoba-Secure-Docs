@@ -124,22 +124,35 @@ final class NomineeService: ObservableObject {
             let participantEmail = identity.lookupInfo?.emailAddress
             let participantID = identity.lookupInfo?.userRecordID?.recordName
             
-            // Find or create nominee
+            // Find or create nominee - improved matching logic
             let existingNominee = updatedNominees.first { nominee in
-                if let email = nominee.email, let participantEmail = participantEmail {
-                    return email == participantEmail
-                }
+                // Priority 1: Match by CloudKit participant ID (most reliable)
                 if let nomineeParticipantID = nominee.cloudKitParticipantID,
                    let participantID = participantID {
                     return nomineeParticipantID == participantID
                 }
-                return nominee.name == participantName
+                // Priority 2: Match by email (if both have emails)
+                if let email = nominee.email, let participantEmail = participantEmail, !email.isEmpty, !participantEmail.isEmpty {
+                    return email.lowercased() == participantEmail.lowercased()
+                }
+                // Priority 3: Match by name (least reliable, but fallback)
+                return nominee.name == participantName && nominee.vault?.id == vault.id
             }
             
             if let existing = existingNominee {
-                // Update existing nominee
+                // Update existing nominee with latest CloudKit data
                 existing.cloudKitParticipantID = participantID
                 existing.cloudKitShareRecordID = shareRecordID
+                
+                // Update email if missing
+                if existing.email == nil || existing.email?.isEmpty == true, let email = participantEmail {
+                    existing.email = email
+                }
+                
+                // Update name if it's just a placeholder
+                if existing.name == "Nominee" || existing.name.isEmpty {
+                    existing.name = participantName
+                }
                 
                 // Update status based on CloudKit acceptance
                 if participant.acceptanceStatus == .accepted {
@@ -147,11 +160,29 @@ final class NomineeService: ObservableObject {
                         existing.status = .accepted
                         existing.acceptedAt = Date()
                     }
+                } else if participant.acceptanceStatus == .pending {
+                    // Keep pending status if not yet accepted
+                    if existing.status != .pending {
+                        existing.status = .pending
+                    }
                 }
                 
-                print("   ✅ Updated nominee from CloudKit: \(existing.name) (Status: \(existing.status.displayName))")
+                print("   ✅ Updated nominee from CloudKit: \(existing.name) (Status: \(existing.status.displayName), ParticipantID: \(participantID ?? "none"))")
             } else {
                 // Create new nominee from CloudKit participant
+                // Validation: Check if nominee with same email/name already exists (avoid duplicates)
+                let duplicateCheck = existingNominees.first { nominee in
+                    if let email = nominee.email, let participantEmail = participantEmail {
+                        return email.lowercased() == participantEmail.lowercased()
+                    }
+                    return nominee.name == participantName && nominee.vault?.id == vault.id
+                }
+                
+                if duplicateCheck != nil {
+                    print("   ⚠️ Skipping duplicate nominee: \(participantName) (already exists)")
+                    continue
+                }
+                
                 let newNominee = Nominee(
                     name: participantName,
                     email: participantEmail,
@@ -174,8 +205,28 @@ final class NomineeService: ObservableObject {
                 modelContext.insert(newNominee)
                 updatedNominees.append(newNominee)
                 
-                print("   ✅ Created nominee from CloudKit participant: \(participantName)")
+                print("   ✅ Created nominee from CloudKit participant: \(participantName) (Status: \(newNominee.status.displayName))")
             }
+        }
+        
+        // Remove nominees that are no longer in CloudKit share (if they were CloudKit-based)
+        // But keep local nominees that were created manually
+        let cloudKitParticipantIDs = Set(participants.compactMap { $0.userIdentity.lookupInfo?.userRecordID?.recordName })
+        let nomineesToRemove = updatedNominees.filter { nominee in
+            // Only remove if:
+            // 1. Has CloudKit participant ID
+            // 2. Not in current CloudKit participants
+            // 3. Not manually created (has inviteToken but no CloudKit ID means manual)
+            if let participantID = nominee.cloudKitParticipantID {
+                return !cloudKitParticipantIDs.contains(participantID)
+            }
+            return false // Keep nominees without CloudKit IDs (manual nominees)
+        }
+        
+        for nominee in nomineesToRemove {
+            print("   🗑️ Removing nominee no longer in CloudKit share: \(nominee.name)")
+            nominee.status = .revoked
+            vault.nomineeList?.removeAll { $0.id == nominee.id }
         }
         
         try modelContext.save()
@@ -280,9 +331,31 @@ final class NomineeService: ObservableObject {
     }
     
     func removeNominee(_ nominee: Nominee, permanently: Bool = false) async throws {
-        guard let modelContext = modelContext else { return }
+        guard let modelContext = modelContext else {
+            throw NomineeError.contextNotAvailable
+        }
         
         let vault = nominee.vault
+        
+        // Always remove from CloudKit share first (before local deletion)
+        if let sharingService = cloudKitSharing,
+           let vault = vault,
+           let participantID = nominee.cloudKitParticipantID {
+            do {
+                print("🔗 Removing nominee from CloudKit share: \(nominee.name)")
+                try await sharingService.removeParticipant(
+                    participantID: participantID,
+                    from: vault
+                )
+                print("   ✅ CloudKit participant removed successfully")
+            } catch {
+                print("⚠️ Failed to remove from CloudKit share: \(error.localizedDescription)")
+                // Continue with local removal even if CloudKit fails
+                // This ensures local state is consistent
+            }
+        } else if nominee.cloudKitParticipantID == nil {
+            print("   ℹ️ Nominee has no CloudKit participant ID - skipping CloudKit removal")
+        }
         
         if permanently {
             // Permanently delete the nominee
@@ -294,33 +367,22 @@ final class NomineeService: ObservableObject {
             modelContext.delete(nominee)
             try modelContext.save()
             
-            print(" Nominee permanently deleted: \(nominee.name)")
+            print("✅ Nominee permanently deleted: \(nominee.name)")
         } else {
-            // Remove from CloudKit share first
-            if let sharingService = cloudKitSharing,
-               let vault = nominee.vault,
-               let participantID = nominee.cloudKitParticipantID {
-                do {
-                    try await sharingService.removeParticipant(
-                        participantID: participantID,
-                        from: vault
-                    )
-                } catch {
-                    print("⚠️ Failed to remove from CloudKit share: \(error.localizedDescription)")
-                    // Continue with local removal
-                }
-            }
-            
             // Soft delete - mark as revoked
             nominee.status = .revoked
             nominee.vault?.nomineeList?.removeAll { $0.id == nominee.id }
             
-        try modelContext.save()
+            // Clear CloudKit references
+            nominee.cloudKitParticipantID = nil
+            nominee.cloudKitShareRecordID = nil
+            
+            try modelContext.save()
             
             print("✅ Nominee revoked: \(nominee.name)")
         }
         
-        // Reload the list
+        // Reload the list to reflect changes
         if let vault = vault {
             try await loadNominees(for: vault)
         }

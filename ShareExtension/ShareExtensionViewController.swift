@@ -1483,7 +1483,10 @@ struct ShareExtensionView: View {
                 // Exclude system vaults
                 guard !vault.isSystemVault else { return false }
                 
-                // Check if vault has an active session
+                // Vault must be unlocked (status != "locked")
+                guard vault.status != "locked" else { return false }
+                
+                // Vault must have active session for upload
                 if let sessions = vault.sessions {
                     return sessions.contains { session in
                         session.isActive && session.expiresAt > now
@@ -1492,17 +1495,17 @@ struct ShareExtensionView: View {
                 return false
             }
             
-            print("📦 ShareExtension: Found \(unlockedVaults.count) unlocked vault(s) out of \(fetchedVaults.count) total")
+            print("📦 ShareExtension: Found \(unlockedVaults.count) unlocked vault(s) with active sessions out of \(fetchedVaults.count) total")
             
             let firstVault = unlockedVaults.first
                 
-                await MainActor.run {
+            await MainActor.run {
                 self.vaults = unlockedVaults
                 self.isLoading = false
                 
-                print("📦 ShareExtension: \(self.vaults.count) unlocked vault(s) available")
+                print("📦 ShareExtension: \(self.vaults.count) unlocked vault(s) with active sessions available")
                     
-                    // Auto-select first vault if available
+                // Auto-select first vault if available
                 if self.selectedVault == nil, let firstVault = firstVault {
                     self.selectedVault = firstVault
                     let vaultName = firstVault.name.isEmpty ? "Unnamed Vault" : firstVault.name
@@ -1510,14 +1513,16 @@ struct ShareExtensionView: View {
                 }
                 
                 if self.vaults.isEmpty {
-                    print("⚠️ ShareExtension: No vaults available")
+                    print("⚠️ ShareExtension: No unlocked vaults with active sessions available")
                     print("   Possible reasons:")
                     print("   1. No vaults created in main app yet")
-                    print("   2. CloudKit sync not complete (wait a few seconds)")
-                    print("   3. App Group not properly configured")
-                    print("   4. User not signed into iCloud")
-                    }
+                    print("   2. All vaults are locked - open a vault in the main app first")
+                    print("   3. Vault sessions expired - open the vault again in the main app")
+                    print("   4. CloudKit sync not complete (wait a few seconds)")
+                    print("   5. App Group not properly configured")
+                    print("   6. User not signed into iCloud")
                 }
+            }
             } catch {
             print("❌ ShareExtension: Failed to load vaults: \(error.localizedDescription)")
             print("   Error details: \(error)")
@@ -1535,7 +1540,11 @@ struct ShareExtensionView: View {
     }
     
     private func uploadItems() {
-        guard let vault = selectedVault else { return }
+        guard let vault = selectedVault else {
+            errorMessage = "Please select a vault first"
+            showError = true
+            return
+        }
         
         isUploading = true
         uploadedCount = 0
@@ -1574,18 +1583,44 @@ struct ShareExtensionView: View {
                 let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
                 let context = container.mainContext
                 
-                // Reload vault from context
+                // Reload vault from context and validate
                 let vaultID = vault.id
                 let vaultDescriptor = FetchDescriptor<Vault>(
                     predicate: #Predicate { $0.id == vaultID }
                 )
                 
                 guard let vaultInContext = try context.fetch(vaultDescriptor).first else {
-                    throw NSError(domain: "ShareExtension", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault not found"])
+                    throw NSError(domain: "ShareExtension", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault not found. Please ensure the vault exists in the main app."])
                 }
                 
-                // Upload each item
+                // Validate vault is unlocked
+                if vaultInContext.status == "locked" {
+                    throw NSError(domain: "ShareExtension", code: 2, userInfo: [NSLocalizedDescriptionKey: "Vault is locked. Please unlock the vault in the main app first."])
+                }
+                
+                // Validate vault has active session
+                let now = Date()
+                let hasActiveSession = vaultInContext.sessions?.contains { session in
+                    session.isActive && session.expiresAt > now
+                } ?? false
+                
+                if !hasActiveSession {
+                    throw NSError(domain: "ShareExtension", code: 3, userInfo: [NSLocalizedDescriptionKey: "Vault has no active session. Please open the vault in the main app first."])
+                }
+                
+                print("✅ ShareExtension: Vault validated - unlocked with active session")
+                
+                // Upload each item with per-item validation
                 for (index, item) in itemsToUpload.enumerated() {
+                    // Re-validate vault session before each upload (in case it expired)
+                    let currentTime = Date()
+                    let sessionStillActive = vaultInContext.sessions?.contains { session in
+                        session.isActive && session.expiresAt > currentTime
+                    } ?? false
+                    
+                    if !sessionStillActive {
+                        throw NSError(domain: "ShareExtension", code: 4, userInfo: [NSLocalizedDescriptionKey: "Vault session expired during upload. \(index) of \(itemsToUpload.count) items uploaded. Please open the vault again and retry."])
+                    }
                     // Create document
                     let document = Document(
                         name: item.name,
@@ -1616,9 +1651,10 @@ struct ShareExtensionView: View {
                     _ = document.id
                     
                     await MainActor.run {
-                    uploadedCount = index + 1
+                        uploadedCount = index + 1
                         uploadProgress = Double(uploadedCount) / Double(itemsToUpload.count)
-                }
+                        print("📤 ShareExtension: Uploaded \(uploadedCount)/\(itemsToUpload.count) items")
+                    }
                 }
                 
                 // Final save to ensure all changes are persisted
@@ -1629,13 +1665,20 @@ struct ShareExtensionView: View {
                 
                 await MainActor.run {
                     isUploading = false
+                    print("✅ ShareExtension: All \(itemsToUpload.count) items uploaded successfully")
                     completion()
                 }
             } catch {
                 await MainActor.run {
                     isUploading = false
-                    errorMessage = "Upload failed: \(error.localizedDescription)"
+                    let nsError = error as NSError
+                    if nsError.domain == "ShareExtension" {
+                        errorMessage = nsError.localizedDescription
+                    } else {
+                        errorMessage = "Upload failed: \(error.localizedDescription)\n\nIf this persists, try:\n1. Opening the vault in the main app\n2. Ensuring you have an active internet connection\n3. Retrying the upload"
+                    }
                     showError = true
+                    print("❌ ShareExtension: Upload failed - \(errorMessage)")
                 }
             }
         }

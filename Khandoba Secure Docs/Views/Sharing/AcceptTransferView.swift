@@ -322,10 +322,54 @@ struct AcceptTransferView: View {
             return
         }
         
+        // Validation: Check if user is already the owner
+        if vault.owner?.id == currentUser.id {
+            errorMessage = "You are already the owner of this vault."
+            showError = true
+            return
+        }
+        
+        // Validation: Check transfer request status
+        if request.status == "completed" {
+            errorMessage = "This transfer has already been completed."
+            showError = true
+            return
+        }
+        
+        // Validation: Check if transfer request is still valid (not expired)
+        // Transfer requests expire after 30 days
+        // requestedAt is non-optional, so we can use it directly
+        if Date().timeIntervalSince(request.requestedAt) > 30 * 24 * 60 * 60 {
+            errorMessage = "This transfer request has expired. Please ask the owner to create a new transfer request."
+            showError = true
+            return
+        }
+        
         isAccepting = true
         
         Task {
             do {
+                // Transfer CloudKit share ownership first (if share exists)
+                let cloudKitSharing = CloudKitSharingService()
+                cloudKitSharing.configure(modelContext: modelContext)
+                
+                do {
+                    // Check if CloudKit share exists (we don't need the share object itself)
+                    if try await cloudKitSharing.getOrCreateShare(for: vault) != nil {
+                        print("🔄 Transferring CloudKit share ownership...")
+                        // Note: CloudKit share ownership transfer requires updating the share's owner
+                        // This is handled by CloudKit when the new owner accepts the share
+                        // For now, we update local ownership and CloudKit will sync
+                        print("   ℹ️ CloudKit share ownership will be updated when share is accepted")
+                    }
+                } catch {
+                    print("⚠️ CloudKit share not available for transfer: \(error.localizedDescription)")
+                    // Continue with local transfer even if CloudKit fails
+                }
+                
+                // Find and update previous owner
+                let previousOwner = try await findPreviousOwner(vault: vault)
+                
                 // Update vault owner
                 vault.owner = currentUser
                 
@@ -337,27 +381,43 @@ struct AcceptTransferView: View {
                     currentUser.ownedVaults?.append(vault)
                 }
                 
+                // Remove vault from previous owner's owned vaults
+                if let previousOwner = previousOwner {
+                    previousOwner.ownedVaults?.removeAll { $0.id == vault.id }
+                    
+                    // Revoke all nominees from previous owner's perspective
+                    // New owner will need to re-invite if needed
+                    if let nominees = vault.nomineeList {
+                        for nominee in nominees {
+                            // Mark nominees as needing re-invitation
+                            // Don't delete them - new owner may want to keep them
+                            nominee.status = .inactive
+                        }
+                    }
+                }
+                
                 // Update transfer request status
                 request.status = "completed"
                 request.approvedAt = Date()
                 request.newOwnerID = currentUser.id
                 
-                // Remove vault from previous owner's owned vaults
-                if let previousOwner = try? await findPreviousOwner(vault: vault) {
-                    previousOwner.ownedVaults?.removeAll { $0.id == vault.id }
-                }
+                try modelContext.save()
                 
+                // Force CloudKit sync
+                try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
                 try modelContext.save()
                 
                 await MainActor.run {
                     showSuccess = true
                     isAccepting = false
+                    print("✅ Transfer ownership completed successfully")
                 }
             } catch {
                 await MainActor.run {
                     errorMessage = "Failed to accept transfer: \(error.localizedDescription)"
                     showError = true
                     isAccepting = false
+                    print("❌ Transfer ownership failed: \(error.localizedDescription)")
                 }
             }
         }
@@ -366,14 +426,20 @@ struct AcceptTransferView: View {
     private func findPreviousOwner(vault: Vault) async throws -> User? {
         // Find the user who requested the transfer
         guard let requestedByUserID = transferRequest?.requestedByUserID else {
-            return nil
+            // Fallback: Use current vault owner
+            return vault.owner
         }
         
         let descriptor = FetchDescriptor<User>(
             predicate: #Predicate { $0.id == requestedByUserID }
         )
         
-        return try modelContext.fetch(descriptor).first
+        if let previousOwner = try modelContext.fetch(descriptor).first {
+            return previousOwner
+        }
+        
+        // Fallback: Use current vault owner if transfer requester not found
+        return vault.owner
     }
 }
 

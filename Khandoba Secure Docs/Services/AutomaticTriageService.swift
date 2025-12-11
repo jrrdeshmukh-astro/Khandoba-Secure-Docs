@@ -19,6 +19,7 @@ final class AutomaticTriageService: ObservableObject {
     @Published var currentRemediationFlow: RemediationFlow?
     
     private var modelContext: ModelContext?
+    private var currentUserID: UUID?
     private var threatService: ThreatMonitoringService
     private var mlService: MLThreatAnalysisService
     private var vaultService: VaultService
@@ -35,9 +36,213 @@ final class AutomaticTriageService: ObservableObject {
     
     func configure(modelContext: ModelContext, userID: UUID) {
         self.modelContext = modelContext
+        self.currentUserID = userID
         vaultService.configure(modelContext: modelContext, userID: userID)
         documentService.configure(modelContext: modelContext, userID: userID)
         nomineeService.configure(modelContext: modelContext)
+    }
+    
+    // MARK: - Action Validation (Constrained by App Workflow)
+    
+    /// Validates if an action can be executed based on app workflow constraints
+    func canExecuteAction(_ action: RemediationAction, for result: TriageResult) async -> (canExecute: Bool, reason: String?) {
+        guard let modelContext = modelContext, let userID = currentUserID else {
+            return (false, "Service not configured")
+        }
+        
+        switch action {
+        case .redactDocuments(let documentIDs), .restrictDocumentAccess(let documentIDs):
+            return await validateDocumentOperation(documentIDs: documentIDs, vaultID: result.vaultID)
+            
+        case .revokeNominees(let nomineeIDs):
+            return await validateNomineeOperation(nomineeIDs: nomineeIDs, vaultID: result.vaultID, userID: userID)
+            
+        case .revokeAllNominees:
+            return await validateNomineeOperation(nomineeIDs: nil, vaultID: result.vaultID, userID: userID)
+            
+        case .lockVault(let vaultID):
+            return await validateVaultOperation(vaultID: vaultID, userID: userID)
+            
+        case .closeAllVaults:
+            return await validateVaultOperation(vaultID: nil, userID: userID)
+            
+        case .revokeAllSessions:
+            return await validateSessionOperation(userID: userID)
+            
+        case .changeVaultPassword, .changeAllPasswords:
+            return (false, "Password change not implemented in app workflow")
+            
+        case .enableDualKeyProtection:
+            return await validateDualKeyOperation(vaultID: result.vaultID, userID: userID)
+            
+        case .reviewAccessLogs, .reviewDocumentSharing, .recordMonitoringIP, .enableEnhancedMonitoring:
+            // Navigation/logging actions - always allowed
+            return (true, nil)
+        }
+    }
+    
+    /// Filters recommended actions to only include those possible in app workflow
+    func filterValidActions(_ actions: [RemediationAction], for result: TriageResult) async -> [RemediationAction] {
+        var validActions: [RemediationAction] = []
+        
+        for action in actions {
+            let validation = await canExecuteAction(action, for: result)
+            if validation.canExecute {
+                validActions.append(action)
+            } else {
+                print("⚠️ Triage: Filtered out action \(action.id) - \(validation.reason ?? "not possible")")
+            }
+        }
+        
+        return validActions
+    }
+    
+    private func validateDocumentOperation(documentIDs: [UUID], vaultID: UUID) async -> (canExecute: Bool, reason: String?) {
+        guard let modelContext = modelContext else {
+            return (false, "ModelContext not available")
+        }
+        
+        // Check vault exists and is unlocked
+        let vaultDescriptor = FetchDescriptor<Vault>(
+            predicate: #Predicate { $0.id == vaultID }
+        )
+        
+        guard let vault = try? modelContext.fetch(vaultDescriptor).first else {
+            return (false, "Vault not found")
+        }
+        
+        // Vault must be unlocked
+        if vault.status == "locked" {
+            return (false, "Vault is locked - unlock vault first")
+        }
+        
+        // Vault must have active session
+        let now = Date()
+        let hasActiveSession = vault.sessions?.contains { session in
+            session.isActive && session.expiresAt > now
+        } ?? false
+        
+        if !hasActiveSession {
+            return (false, "Vault has no active session - open vault first")
+        }
+        
+        // Check documents exist and are accessible
+        let docDescriptor = FetchDescriptor<Document>(
+            predicate: #Predicate { document in
+                documentIDs.contains(document.id) && document.vault?.id == vaultID
+            }
+        )
+        
+        let documents = (try? modelContext.fetch(docDescriptor)) ?? []
+        if documents.count != documentIDs.count {
+            return (false, "Some documents not found or not accessible")
+        }
+        
+        return (true, nil)
+    }
+    
+    private func validateNomineeOperation(nomineeIDs: [UUID]?, vaultID: UUID, userID: UUID) async -> (canExecute: Bool, reason: String?) {
+        guard let modelContext = modelContext else {
+            return (false, "ModelContext not available")
+        }
+        
+        // Check vault exists
+        let vaultDescriptor = FetchDescriptor<Vault>(
+            predicate: #Predicate { $0.id == vaultID }
+        )
+        
+        guard let vault = try? modelContext.fetch(vaultDescriptor).first else {
+            return (false, "Vault not found")
+        }
+        
+        // User must be vault owner
+        guard vault.owner?.id == userID else {
+            return (false, "Only vault owner can manage nominees")
+        }
+        
+        // If specific nominees, check they exist
+        if let nomineeIDs = nomineeIDs {
+            let nomineeDescriptor = FetchDescriptor<Nominee>(
+                predicate: #Predicate { nominee in
+                    nomineeIDs.contains(nominee.id) && nominee.vault?.id == vaultID
+                }
+            )
+            
+            let nominees = (try? modelContext.fetch(nomineeDescriptor)) ?? []
+            if nominees.count != nomineeIDs.count {
+                return (false, "Some nominees not found")
+            }
+            
+            // Check nominees aren't already revoked
+            let alreadyRevoked = nominees.filter { $0.status == .revoked }
+            if !alreadyRevoked.isEmpty {
+                return (false, "Some nominees are already revoked")
+            }
+        }
+        
+        return (true, nil)
+    }
+    
+    private func validateVaultOperation(vaultID: UUID?, userID: UUID) async -> (canExecute: Bool, reason: String?) {
+        guard let modelContext = modelContext else {
+            return (false, "ModelContext not available")
+        }
+        
+        if let vaultID = vaultID {
+            // Single vault operation
+            let vaultDescriptor = FetchDescriptor<Vault>(
+                predicate: #Predicate { $0.id == vaultID }
+            )
+            
+            guard let vault = try? modelContext.fetch(vaultDescriptor).first else {
+                return (false, "Vault not found")
+            }
+            
+            // User must be vault owner
+            guard vault.owner?.id == userID else {
+                return (false, "Only vault owner can lock vault")
+            }
+        } else {
+            // All vaults operation - check user owns at least one
+            try? await vaultService.loadVaults()
+            let userVaults = vaultService.vaults.filter { $0.owner?.id == userID }
+            if userVaults.isEmpty {
+                return (false, "You don't own any vaults")
+            }
+        }
+        
+        return (true, nil)
+    }
+    
+    private func validateSessionOperation(userID: UUID) async -> (canExecute: Bool, reason: String?) {
+        // Sessions can always be revoked (security action)
+        return (true, nil)
+    }
+    
+    private func validateDualKeyOperation(vaultID: UUID, userID: UUID) async -> (canExecute: Bool, reason: String?) {
+        guard let modelContext = modelContext else {
+            return (false, "ModelContext not available")
+        }
+        
+        let vaultDescriptor = FetchDescriptor<Vault>(
+            predicate: #Predicate { $0.id == vaultID }
+        )
+        
+        guard let vault = try? modelContext.fetch(vaultDescriptor).first else {
+            return (false, "Vault not found")
+        }
+        
+        // User must be vault owner
+        guard vault.owner?.id == userID else {
+            return (false, "Only vault owner can enable dual-key protection")
+        }
+        
+        // Check if already dual-key
+        if vault.keyType == "dual" {
+            return (false, "Vault already has dual-key protection")
+        }
+        
+        return (true, nil)
     }
     
     // MARK: - Automatic Triage Analysis
@@ -60,6 +265,19 @@ final class AutomaticTriageService: ObservableObject {
             results.append(contentsOf: vaultResults)
         }
         
+        // Filter recommended actions to only include those possible in app workflow
+        for index in results.indices {
+            results[index].recommendedActions = await filterValidActions(
+                results[index].recommendedActions,
+                for: results[index]
+            )
+            // Also filter auto-actions
+            results[index].autoActions = await filterValidActions(
+                results[index].autoActions,
+                for: results[index]
+            )
+        }
+        
         // Sort by severity and priority
         results.sort { result1, result2 in
             if result1.severity != result2.severity {
@@ -70,8 +288,8 @@ final class AutomaticTriageService: ObservableObject {
         
         self.triageResults = results
         
-        // Auto-start remediation for critical issues
-        if let criticalResult = results.first(where: { $0.severity == .critical }) {
+        // Auto-start remediation for critical issues (only if actions are possible)
+        if let criticalResult = results.first(where: { $0.severity == .critical && !$0.recommendedActions.isEmpty }) {
             await startGuidedRemediation(for: criticalResult)
         }
     }
@@ -340,7 +558,15 @@ final class AutomaticTriageService: ObservableObject {
     }
     
     func executeAction(_ action: RemediationAction, in flow: RemediationFlow) async throws {
-        guard modelContext != nil else { return }
+        guard modelContext != nil else {
+            throw NSError(domain: "AutomaticTriageService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Service not configured"])
+        }
+        
+        // Validate action can be executed before attempting
+        let validation = await canExecuteAction(action, for: flow.triageResult)
+        guard validation.canExecute else {
+            throw NSError(domain: "AutomaticTriageService", code: 2, userInfo: [NSLocalizedDescriptionKey: validation.reason ?? "Action cannot be executed"])
+        }
         
         switch action {
         case .closeAllVaults:
