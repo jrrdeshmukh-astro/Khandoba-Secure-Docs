@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct AccountDeletionView: View {
     @Environment(\.unifiedTheme) var theme
@@ -81,6 +82,11 @@ struct AccountDeletionView: View {
                                     text: "All encryption keys (data cannot be recovered)",
                                     colors: colors
                                 )
+                                DeletionItem(
+                                    icon: "person.2.fill",
+                                    text: "Access to all shared vaults (nominee access terminated)",
+                                    colors: colors
+                                )
                             }
                         }
                         .padding(UnifiedTheme.Spacing.md)
@@ -106,6 +112,19 @@ struct AccountDeletionView: View {
                                 .font(theme.typography.body)
                                 .foregroundColor(colors.textSecondary)
                                 .fontWeight(.semibold)
+                            
+                            Divider()
+                                .padding(.vertical, UnifiedTheme.Spacing.xs)
+                            
+                            Text("• Access logs and location data from shared vaults will remain with the vault owner for security and audit purposes")
+                                .font(theme.typography.body)
+                                .foregroundColor(colors.textSecondary)
+                                .italic()
+                            
+                            Text("• If you were a nominee (had access to someone else's vault), your access will be terminated but historical access records will be preserved")
+                                .font(theme.typography.body)
+                                .foregroundColor(colors.textSecondary)
+                                .italic()
                         }
                         .padding(UnifiedTheme.Spacing.md)
                         .background(colors.warning.opacity(0.1))

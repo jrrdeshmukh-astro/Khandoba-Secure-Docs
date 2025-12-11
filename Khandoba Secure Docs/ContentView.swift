@@ -32,6 +32,9 @@ struct ContentView: View {
     // Push notification handling
     @EnvironmentObject var pushNotificationService: PushNotificationService
     
+    // Subscription service - check status on launch
+    @StateObject private var subscriptionService = SubscriptionService()
+    
     var body: some View {
         Group {
             if authService.isLoading {
@@ -107,6 +110,17 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            // CRITICAL: Check subscription status on app launch
+            // This ensures subscription is detected even if purchased through App Store
+            if authService.isAuthenticated {
+                subscriptionService.configure(modelContext: modelContext)
+                Task {
+                    // Check for active subscriptions from App Store
+                    await subscriptionService.updatePurchasedProducts()
+                    print("📱 Subscription status checked on app launch")
+                }
+            }
+            
             // Check for pending invitation token from previous launch
             if let token = UserDefaults.standard.string(forKey: "pending_invite_token") {
                 pendingInviteToken = token
@@ -148,6 +162,11 @@ struct ContentView: View {
             if let metadata = notification.userInfo?["metadata"] as? CKShare.Metadata {
                 handleCloudKitShareInvitation(metadata)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .subscriptionStatusChanged)) { _ in
+            // Refresh subscription status when it changes
+            // This ensures view updates when subscription is detected
+            print("🔄 Subscription status changed - view will refresh")
         }
     }
     

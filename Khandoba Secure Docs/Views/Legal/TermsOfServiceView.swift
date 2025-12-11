@@ -79,6 +79,11 @@ struct TermsOfServiceView: View {
                     )
                     
                     TermsSection(
+                        title: "Account Termination",
+                        content: "You may delete your account at any time through the app's Profile settings. Account deletion is permanent and cannot be undone. If you delete your account and you were granted access to someone else's vault as a nominee, your access will be terminated immediately. However, access logs and location data from your previous vault access will remain with the vault owner for security and audit purposes. This includes timestamps, access types, and location information. This data retention is necessary for security compliance and audit trails."
+                    )
+                    
+                    TermsSection(
                         title: "Contact",
                         content: "For terms questions: legal@khandoba.org\nFull terms: https://khandoba.org/terms"
                     )

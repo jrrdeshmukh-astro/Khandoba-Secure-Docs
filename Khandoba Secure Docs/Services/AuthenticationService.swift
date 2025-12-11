@@ -39,6 +39,15 @@ final class AuthenticationService: ObservableObject {
                 self.currentUser = user
                 self.isAuthenticated = true
                 // No role selection - everyone has full access
+                
+                // CRITICAL: Check subscription status when user is authenticated
+                // This ensures subscription is detected even if purchased through App Store
+                Task { @MainActor in
+                    let subscriptionService = SubscriptionService()
+                    subscriptionService.configure(modelContext: modelContext)
+                    await subscriptionService.updatePurchasedProducts()
+                    print("📱 Subscription status checked after authentication")
+                }
             }
         } catch {
             print("Error checking auth state: \(error)")
@@ -73,11 +82,74 @@ final class AuthenticationService: ObservableObject {
         let existingUsers = try modelContext.fetch(descriptor)
         
         if let existingUser = existingUsers.first {
-            // Existing user - sign in
-            currentUser = existingUser
+            // CRITICAL: Check if this is a restored deleted account
+            // If user has no vaults, it's likely a CloudKit-restored deleted account
+            let vaultsDescriptor = FetchDescriptor<Vault>()
+            let allVaults = try modelContext.fetch(vaultsDescriptor)
+            let userVaults = allVaults.filter { $0.owner?.id == existingUser.id }
             
-            // Admin role removed - autopilot mode
-            isAuthenticated = true
+            // If user has no vaults, delete the old user and create fresh account
+            // This handles CloudKit restoring deleted user data
+            if userVaults.isEmpty {
+                print("⚠️ Found restored deleted account (no vaults) - creating fresh account")
+                print("   → Deleting old user record with photo/name from deleted account")
+                
+                // Delete the old user record
+                modelContext.delete(existingUser)
+                try modelContext.save()
+                
+                // Create fresh account with data from Apple
+                let givenName = appleIDCredential.fullName?.givenName ?? ""
+                let familyName = appleIDCredential.fullName?.familyName ?? ""
+                let fullName = "\(givenName) \(familyName)".trimmingCharacters(in: .whitespaces)
+                let email = appleIDCredential.email
+                
+                print("📝 Creating fresh account after deletion:")
+                print("   Given Name: '\(givenName)'")
+                print("   Family Name: '\(familyName)'")
+                print("   Full Name: '\(fullName)'")
+                print("   Email: '\(email ?? "nil")'")
+                
+                let newUser = User(
+                    appleUserID: userIdentifier,
+                    fullName: fullName.isEmpty ? "User" : fullName,
+                    email: email,
+                    profilePictureData: createDefaultProfileImage(name: fullName.isEmpty ? "User" : fullName)
+                )
+                
+                // Auto-assign client role
+                let clientRole = UserRole(role: .client)
+                clientRole.user = newUser
+                newUser.roles = [clientRole]
+                
+                modelContext.insert(newUser)
+                modelContext.insert(clientRole)
+                try modelContext.save()
+                
+                currentUser = newUser
+                isAuthenticated = true
+                
+                // Clean up any orphaned vaults
+                await cleanupOrphanedVaults(for: newUser, modelContext: modelContext)
+                
+                // Create Intel Vault for new user
+                Task {
+                    let vaultService = VaultService()
+                    vaultService.configure(modelContext: modelContext, userID: newUser.id)
+                    try? await vaultService.ensureIntelVaultExists(for: newUser)
+                }
+            } else {
+                // Existing user with vaults - normal sign in
+                currentUser = existingUser
+                
+                // CRITICAL: Clean up orphaned vaults that may have been restored from CloudKit
+                // This handles the case where account was deleted but CloudKit restored vaults
+                // Run synchronously to ensure cleanup completes before user sees vaults
+                await cleanupOrphanedVaults(for: existingUser, modelContext: modelContext)
+                
+                // Admin role removed - autopilot mode
+                isAuthenticated = true
+            }
         } else {
             // New user - create account with data from Apple
             let givenName = appleIDCredential.fullName?.givenName ?? ""
@@ -111,12 +183,91 @@ final class AuthenticationService: ObservableObject {
             currentUser = newUser
             isAuthenticated = true
             
+            // CRITICAL: Clean up any orphaned vaults from previous account deletion
+            // This handles CloudKit sync restoring deleted vaults
+            // Run synchronously to ensure cleanup completes
+            await cleanupOrphanedVaults(for: newUser, modelContext: modelContext)
+            
             // Create Intel Vault for new user
             Task {
                 let vaultService = VaultService()
                 vaultService.configure(modelContext: modelContext, userID: newUser.id)
                 try? await vaultService.ensureIntelVaultExists(for: newUser)
             }
+        }
+    }
+    
+    /// Clean up orphaned vaults that may have been restored from CloudKit
+    /// This handles the case where account was deleted but CloudKit sync restored vaults
+    @MainActor
+    private func cleanupOrphanedVaults(for user: User, modelContext: ModelContext) async {
+        do {
+            print("🔍 Checking for orphaned vaults after account deletion...")
+            
+            // Find all vaults
+            let allVaultsDescriptor = FetchDescriptor<Vault>()
+            let allVaults = try modelContext.fetch(allVaultsDescriptor)
+            
+            // Find all existing users
+            let usersDescriptor = FetchDescriptor<User>()
+            let allUsers = try modelContext.fetch(usersDescriptor)
+            let existingUserIDs = Set(allUsers.map { $0.id })
+            
+            var orphanedVaults: [Vault] = []
+            
+            for vault in allVaults {
+                // Skip system vaults
+                if vault.isSystemVault {
+                    continue
+                }
+                
+                // Check if vault has an owner
+                if let owner = vault.owner {
+                    // If owner's Apple ID matches current user but owner ID is different, it's orphaned
+                    // This happens when CloudKit restores a deleted user with a new UUID
+                    if owner.appleUserID == user.appleUserID && owner.id != user.id {
+                        print("   ⚠️ Found orphaned vault: \(vault.name) (Owner ID mismatch - CloudKit restored)")
+                        orphanedVaults.append(vault)
+                    }
+                    // If owner doesn't exist anymore, it's orphaned
+                    else if !existingUserIDs.contains(owner.id) {
+                        print("   ⚠️ Found vault with deleted owner: \(vault.name)")
+                        orphanedVaults.append(vault)
+                    }
+                } else {
+                    // Vault with no owner is orphaned
+                    print("   ⚠️ Found vault with no owner: \(vault.name)")
+                    orphanedVaults.append(vault)
+                }
+            }
+            
+            // Delete orphaned vaults
+            if !orphanedVaults.isEmpty {
+                print("   🗑️ Deleting \(orphanedVaults.count) orphaned vault(s) from CloudKit sync")
+                for vault in orphanedVaults {
+                    // Delete all documents first
+                    if let documents = vault.documents {
+                        for document in documents {
+                            modelContext.delete(document)
+                        }
+                    }
+                    // Delete vault
+                    modelContext.delete(vault)
+                    print("     → Deleted: \(vault.name)")
+                }
+                
+                try modelContext.save()
+                
+                // Force CloudKit sync
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                try modelContext.save()
+                
+                print("   ✅ Cleaned up \(orphanedVaults.count) orphaned vault(s)")
+            } else {
+                print("   ✅ No orphaned vaults found")
+            }
+        } catch {
+            print("   ⚠️ Error cleaning up orphaned vaults: \(error.localizedDescription)")
         }
     }
     
@@ -237,7 +388,6 @@ final class AuthenticationService: ObservableObject {
             
             // Create person icon using SF Symbols style
             UIColor.white.setFill()
-            let personPath = UIBezierPath()
             
             // Draw head (circle)
             let headRadius: CGFloat = iconSize * 0.25

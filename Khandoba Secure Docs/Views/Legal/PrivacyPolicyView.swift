@@ -56,6 +56,11 @@ struct PrivacyPolicyView: View {
                     )
                     
                     PolicySection(
+                        title: "Access Logs in Shared Vaults",
+                        content: "If you delete your account and you were granted access to someone else's vault as a nominee, your access will be terminated immediately. However, access logs and location data from your previous vault access will remain with the vault owner. This includes access timestamps, access types, location data, device information, and document access records. This data retention is necessary for security compliance, audit trails, and to protect the vault owner's security interests."
+                    )
+                    
+                    PolicySection(
                         title: "Contact",
                         content: "For privacy questions, contact us at privacy@khandoba.org"
                     )

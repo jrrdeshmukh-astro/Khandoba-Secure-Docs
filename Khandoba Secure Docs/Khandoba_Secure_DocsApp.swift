@@ -10,6 +10,7 @@ import SwiftData
 import Combine
 import UserNotifications
 import CloudKit
+import UIKit
 
 @main
 struct Khandoba_Secure_DocsApp: App {
@@ -121,6 +122,50 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         // Set notification delegate
         UNUserNotificationCenter.current().delegate = PushNotificationService.shared
+        
+        // Force dark mode for system alerts and modals
+        // This ensures the "Sign in to Apple Account" modal matches the app's dark theme
+        configureDarkModeAppearance()
+        
+        return true
+    }
+    
+    private func configureDarkModeAppearance() {
+        if #available(iOS 13.0, *) {
+            // Set window appearance to dark for all windows
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                windowScene.windows.forEach { window in
+                    window.overrideUserInterfaceStyle = .dark
+                }
+            }
+            
+            // Configure UIAlertController appearance for dark mode
+            // This affects system alerts like "Sign in to Apple Account"
+            let alertAppearance = UIAlertController.appearance()
+            alertAppearance.overrideUserInterfaceStyle = .dark
+            
+            // Configure UITextField appearance in alerts for dark mode
+            let textFieldAppearance = UITextField.appearance(whenContainedInInstancesOf: [UIAlertController.self])
+            textFieldAppearance.overrideUserInterfaceStyle = .dark
+            
+            // Configure UIButton appearance in alerts for dark mode
+            let buttonAppearance = UIButton.appearance(whenContainedInInstancesOf: [UIAlertController.self])
+            buttonAppearance.overrideUserInterfaceStyle = .dark
+            
+            // Also set for any future windows
+            NotificationCenter.default.addObserver(
+                forName: UIWindow.didBecomeKeyNotification,
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let window = notification.object as? UIWindow {
+                    window.overrideUserInterfaceStyle = .dark
+                }
+            }
+            
+            print("✅ Dark mode enforced for system alerts, modals, and all windows")
+        }
+        
         return true
     }
     
@@ -181,4 +226,5 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 extension Notification.Name {
     static let cloudKitShareInvitationReceived = Notification.Name("cloudKitShareInvitationReceived")
     static let navigateToVault = Notification.Name("navigateToVault")
+    static let subscriptionStatusChanged = Notification.Name("subscriptionStatusChanged")
 }

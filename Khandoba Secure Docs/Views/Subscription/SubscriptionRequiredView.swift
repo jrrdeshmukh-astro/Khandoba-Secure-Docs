@@ -19,8 +19,10 @@ struct SubscriptionRequiredView: View {
     
     @State private var selectedPlan: SubscriptionPlan = .monthly
     @State private var isPurchasing = false
+    @State private var isRestoring = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showRestoreSuccess = false
     @State private var appeared = false
     
     var body: some View {
@@ -164,7 +166,28 @@ struct SubscriptionRequiredView: View {
                             }
                         }
                         .buttonStyle(PrimaryButtonStyle())
-                        .disabled(isPurchasing)
+                        .disabled(isPurchasing || isRestoring)
+                        .padding(.horizontal, UnifiedTheme.Spacing.xl)
+                        
+                        // Restore Purchases Button
+                        Button {
+                            restorePurchases()
+                        } label: {
+                            if isRestoring {
+                                HStack {
+                                    ProgressView()
+                                        .tint(colors.textSecondary)
+                                    Text("Restoring...")
+                                }
+                            } else {
+                                HStack {
+                                    Image(systemName: "arrow.clockwise")
+                                    Text("Restore Purchases")
+                                }
+                            }
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .disabled(isPurchasing || isRestoring)
                         .padding(.horizontal, UnifiedTheme.Spacing.xl)
                         
                         // Subscription Information (Required by App Store)
@@ -211,6 +234,11 @@ struct SubscriptionRequiredView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
+        }
+        .alert("Subscription Restored", isPresented: $showRestoreSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Your subscription has been restored. You now have full access to all premium features.")
         }
         .onAppear {
             // Configure subscription service with model context
@@ -282,6 +310,55 @@ struct SubscriptionRequiredView: View {
                     errorMessage = error.localizedDescription
                     showError = true
                     HapticManager.shared.notification(.error)
+                }
+            }
+        }
+    }
+    
+    private func restorePurchases() {
+        isRestoring = true
+        HapticManager.shared.impact(.light)
+        
+        Task {
+            do {
+                // Restore purchases from App Store
+                try await subscriptionService.restorePurchases()
+                
+                // Check if subscription was restored
+                await subscriptionService.updatePurchasedProducts()
+                
+                // Wait a moment for database update to complete
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                
+                // Check if user now has active subscription
+                if subscriptionService.subscriptionStatus == .active {
+                    // Notify that subscription status changed (will trigger view refresh)
+                    NotificationCenter.default.post(name: .subscriptionStatusChanged, object: nil)
+                    
+                    await MainActor.run {
+                        isRestoring = false
+                        showRestoreSuccess = true
+                        HapticManager.shared.notification(.success)
+                        print("✅ Subscription restored successfully")
+                        print("   Subscription status: \(subscriptionService.subscriptionStatus)")
+                        print("   Purchased products: \(subscriptionService.purchasedProductIDs)")
+                    }
+                } else {
+                    await MainActor.run {
+                        isRestoring = false
+                        errorMessage = "No active subscription found. Please purchase a subscription or contact support if you believe this is an error."
+                        showError = true
+                        HapticManager.shared.notification(.error)
+                        print("ℹ️ No active subscription found to restore")
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isRestoring = false
+                    errorMessage = "Failed to restore purchases: \(error.localizedDescription)"
+                    showError = true
+                    HapticManager.shared.notification(.error)
+                    print("❌ Error restoring purchases: \(error.localizedDescription)")
                 }
             }
         }

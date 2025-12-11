@@ -164,7 +164,12 @@ final class SubscriptionService: ObservableObject {
         
         try? modelContext.save()
         
-        print(" Subscription updated: \(transaction.productID)")
+        print("✅ Subscription updated: \(transaction.productID)")
+        print("   User isPremiumSubscriber: \(currentUser.isPremiumSubscriber)")
+        print("   Subscription expiry: \(currentUser.subscriptionExpiryDate?.description ?? "none")")
+        
+        // Notify that subscription status changed
+        NotificationCenter.default.post(name: .subscriptionStatusChanged, object: nil)
     }
     
     // MARK: - Verification

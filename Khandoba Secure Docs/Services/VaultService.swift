@@ -49,6 +49,10 @@ final class VaultService: ObservableObject {
         // ONE-TIME CLEANUP: Delete Intel Reports vault
         try await deleteIntelReportsVault()
         
+        // CRITICAL: Clean up orphaned vaults (vaults with no owner or deleted owner)
+        // This prevents CloudKit from restoring deleted vaults
+        try await cleanupOrphanedVaults(modelContext: modelContext)
+        
         let descriptor = FetchDescriptor<Vault>(
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
@@ -67,6 +71,59 @@ final class VaultService: ObservableObject {
         
         // Load active sessions
         await loadActiveSessions()
+    }
+    
+    /// Clean up orphaned vaults (vaults with no owner or deleted owner)
+    /// This prevents CloudKit from restoring vaults after account deletion
+    private func cleanupOrphanedVaults(modelContext: ModelContext) async throws {
+        // Find all vaults
+        let allVaultsDescriptor = FetchDescriptor<Vault>()
+        let allVaults = try modelContext.fetch(allVaultsDescriptor)
+        
+        // Find all existing users
+        let usersDescriptor = FetchDescriptor<User>()
+        let allUsers = try modelContext.fetch(usersDescriptor)
+        let existingUserIDs = Set(allUsers.map { $0.id })
+        
+        var orphanedVaults: [Vault] = []
+        
+        for vault in allVaults {
+            // Skip system vaults (they may not have owners)
+            if vault.isSystemVault {
+                continue
+            }
+            
+            // Check if vault has an owner
+            if let owner = vault.owner {
+                // Check if owner still exists
+                if !existingUserIDs.contains(owner.id) {
+                    print("   ⚠️ Found vault with deleted owner: \(vault.name)")
+                    orphanedVaults.append(vault)
+                }
+            } else {
+                // Vault with no owner is orphaned (unless it's a system vault)
+                print("   ⚠️ Found vault with no owner: \(vault.name)")
+                orphanedVaults.append(vault)
+            }
+        }
+        
+        // Delete orphaned vaults
+        if !orphanedVaults.isEmpty {
+            print("   🗑️ Cleaning up \(orphanedVaults.count) orphaned vault(s)")
+            for vault in orphanedVaults {
+                // Delete all documents first
+                if let documents = vault.documents {
+                    for document in documents {
+                        modelContext.delete(document)
+                    }
+                }
+                // Delete vault
+                modelContext.delete(vault)
+            }
+            
+            try modelContext.save()
+            print("   ✅ Cleaned up \(orphanedVaults.count) orphaned vault(s)")
+        }
     }
     
     /// Force refresh vaults (useful after accepting CloudKit shares)
