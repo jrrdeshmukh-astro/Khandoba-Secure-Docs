@@ -44,32 +44,32 @@ final class URLAssetDownloadService: ObservableObject {
         let session = URLSession(configuration: .default)
         
         return try await withCheckedThrowingContinuation { continuation in
-            let task = session.dataTask(with: url) { [weak self] data, response, error in
+            let task = session.dataTask(with: url) { data, response, error in
                 Task { @MainActor in
                     if let error = error {
                         print("❌ URLAssetDownloadService: Download error: \(error.localizedDescription)")
-                        self?.downloadError = error.localizedDescription
+                        self.downloadError = error.localizedDescription
                         continuation.resume(throwing: error)
                         return
                     }
                     
                     guard let httpResponse = response as? HTTPURLResponse else {
                         print("❌ URLAssetDownloadService: Invalid response")
-                        self?.downloadError = "Invalid response from server"
+                        self.downloadError = "Invalid response from server"
                         continuation.resume(throwing: URLDownloadError.invalidResponse)
                         return
                     }
                     
                     guard (200...299).contains(httpResponse.statusCode) else {
                         print("❌ URLAssetDownloadService: HTTP error: \(httpResponse.statusCode)")
-                        self?.downloadError = "Server returned error: \(httpResponse.statusCode)"
+                        self.downloadError = "Server returned error: \(httpResponse.statusCode)"
                         continuation.resume(throwing: URLDownloadError.httpError(httpResponse.statusCode))
                         return
                     }
                     
                     guard let data = data, !data.isEmpty else {
                         print("❌ URLAssetDownloadService: No data received")
-                        self?.downloadError = "No data received from server"
+                        self.downloadError = "No data received from server"
                         continuation.resume(throwing: URLDownloadError.noData)
                         return
                     }
@@ -78,13 +78,13 @@ final class URLAssetDownloadService: ObservableObject {
                     let mimeType = httpResponse.value(forHTTPHeaderField: "Content-Type")?.components(separatedBy: ";").first?.trimmingCharacters(in: .whitespaces) ?? "application/octet-stream"
                     
                     // Generate filename from URL or use default
-                    let fileName = self?.generateFileName(from: url, mimeType: mimeType) ?? "download_\(Date().timeIntervalSince1970)"
+                    let fileName = self.generateFileName(from: url, mimeType: mimeType)
                     
                     print("✅ URLAssetDownloadService: Downloaded \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))")
                     print("   MIME type: \(mimeType)")
                     print("   Filename: \(fileName)")
                     
-                    self?.downloadProgress = 1.0
+                    self.downloadProgress = 1.0
                     continuation.resume(returning: (data, mimeType, fileName))
                 }
             }

@@ -367,6 +367,18 @@ final class FormalLogicEngine: ObservableObject {
                     "High probability of breach. Initiate incident response immediately." :
                     "Monitor closely for additional indicators."
             ))
+        } else {
+            // No evidence provided - return neutral inference
+            inferences.append(LogicalInference(
+                type: .statistical,
+                method: "Bayesian Inference",
+                premise: "No evidence provided",
+                observation: "Insufficient data for analysis",
+                conclusion: "Cannot calculate breach probability without evidence",
+                confidence: 0.0,
+                formula: "N/A",
+                actionable: "Gather more evidence before analysis"
+            ))
         }
         
         // Confidence Interval: Estimate range of values

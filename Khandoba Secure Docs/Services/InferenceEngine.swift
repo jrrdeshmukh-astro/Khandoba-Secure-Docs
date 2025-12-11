@@ -159,8 +159,9 @@ final class InferenceEngine: ObservableObject {
         var dateGroups: [String: Int] = [:] // "YYYY-MM": count
         
         for fact in knowledgeBase {
-            if let date = fact.object as? String, date.count == 10 { // Date format
-                let yearMonth = String(date.prefix(7)) // YYYY-MM
+            // fact.object is already a String, no cast needed
+            if fact.object.count == 10 { // Date format YYYY-MM-DD
+                let yearMonth = String(fact.object.prefix(7)) // YYYY-MM
                 dateGroups[yearMonth, default: 0] += 1
             }
         }

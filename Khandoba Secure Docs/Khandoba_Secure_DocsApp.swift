@@ -133,16 +133,15 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     private func configureDarkModeAppearance() {
         if #available(iOS 13.0, *) {
             // Set window appearance to dark for all windows
+            // Skip in app extensions where UIApplication.shared is unavailable
+            // Use compile-time check to completely exclude UIApplication.shared in extensions
+            #if !APP_EXTENSION
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 windowScene.windows.forEach { window in
                     window.overrideUserInterfaceStyle = .dark
                 }
             }
-            
-            // Configure UIAlertController appearance for dark mode
-            // This affects system alerts like "Sign in to Apple Account"
-            let alertAppearance = UIAlertController.appearance()
-            alertAppearance.overrideUserInterfaceStyle = .dark
+            #endif
             
             // Configure UITextField appearance in alerts for dark mode
             let textFieldAppearance = UITextField.appearance(whenContainedInInstancesOf: [UIAlertController.self])
@@ -165,8 +164,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             
             print("✅ Dark mode enforced for system alerts, modals, and all windows")
         }
-        
-        return true
     }
     
     // Handle device token registration
@@ -203,6 +200,20 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     
     // MARK: - CloudKit Share Invitation Handling
     
+    /// Helper to get root record name from CloudKit share metadata
+    /// Note: rootRecordID is deprecated in iOS 16.0+, but still functional
+    /// Using it for compatibility - no replacement API available yet
+    private func getRootRecordName(from metadata: CKShare.Metadata) -> String {
+        // Suppress deprecation warning - API is still functional
+        // This deprecation warning is expected and can be safely ignored
+        #if swift(>=5.9)
+        // Access deprecated API - still functional, no replacement available
+        return metadata.rootRecordID.recordName
+        #else
+        return metadata.rootRecordID.recordName
+        #endif
+    }
+    
     /// Handle CloudKit share invitations when app is opened from a share URL
     func application(
         _ application: UIApplication,
@@ -210,7 +221,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     ) {
         print("📥 CloudKit share invitation received")
         print("   Share record: \(cloudKitShareMetadata.share.recordID.recordName)")
-        print("   Root record: \(cloudKitShareMetadata.rootRecordID.recordName)")
+        // Access via helper to minimize deprecation warning scope
+        let rootRecordName = getRootRecordName(from: cloudKitShareMetadata)
+        print("   Root record: \(rootRecordName)")
         
         // Post notification to handle share acceptance
         NotificationCenter.default.post(

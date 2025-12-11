@@ -339,7 +339,7 @@ final class LlamaMediaDescriptionService: ObservableObject {
         return try? await withCheckedThrowingContinuation { continuation in
             var finalTranscript = ""
             recognizer.recognitionTask(with: request) { result, error in
-                if let error = error {
+                if error != nil {
                     continuation.resume(returning: nil)
                 } else if let result = result {
                     finalTranscript = result.bestTranscription.formattedString

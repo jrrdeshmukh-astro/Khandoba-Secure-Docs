@@ -81,7 +81,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
         print("📬 Received remote notification")
         
-        guard let aps = userInfo["aps"] as? [String: Any] else {
+        guard userInfo["aps"] as? [String: Any] != nil else {
             return .noData
         }
         

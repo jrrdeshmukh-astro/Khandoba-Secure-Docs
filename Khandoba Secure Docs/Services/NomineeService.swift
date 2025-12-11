@@ -110,7 +110,6 @@ final class NomineeService: ObservableObject {
         modelContext: ModelContext
     ) async throws -> [Nominee] {
         var updatedNominees = existingNominees
-        let currentUserID = self.currentUserID
         
         for participant in participants {
             // Skip owner

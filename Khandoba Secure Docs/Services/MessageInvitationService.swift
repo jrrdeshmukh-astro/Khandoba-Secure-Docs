@@ -102,7 +102,7 @@ final class MessageInvitationService {
             URLQueryItem(name: "vault", value: vaultName)
         ]
         
-        guard let invitationURL = components?.url else {
+        guard components?.url != nil else {
             print("❌ Failed to create invitation URL")
             return
         }

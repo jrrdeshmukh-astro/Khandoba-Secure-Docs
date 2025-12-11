@@ -972,7 +972,7 @@ class NLPTaggingService {
         do {
             try data.write(to: tempURL)
             
-            let asset = AVAsset(url: tempURL)
+            let asset = AVURLAsset(url: tempURL)
             
             // 1. Duration analysis
             let duration = try await asset.load(.duration)
@@ -1033,7 +1033,7 @@ class NLPTaggingService {
         do {
             try data.write(to: tempURL)
             
-            let asset = AVAsset(url: tempURL)
+            let asset = AVURLAsset(url: tempURL)
             
             // 1. Duration analysis
             let duration = try await asset.load(.duration)
@@ -1301,8 +1301,17 @@ class NLPTaggingService {
         
         for i in 1...count {
             let time = CMTime(seconds: interval * Double(i), preferredTimescale: 600)
-            if let cgImage = try? generator.copyCGImage(at: time, actualTime: nil) {
-                images.append(UIImage(cgImage: cgImage))
+            // Use async API for iOS 18+
+            if #available(iOS 18.0, *) {
+                try? await generator.generateCGImageAsynchronously(for: time) { image, actualTime, error in
+                    if let image = image {
+                        images.append(UIImage(cgImage: image))
+                    }
+                }
+            } else {
+                if let cgImage = try? generator.copyCGImage(at: time, actualTime: nil) {
+                    images.append(UIImage(cgImage: cgImage))
+                }
             }
         }
         

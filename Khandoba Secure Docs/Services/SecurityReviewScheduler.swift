@@ -29,13 +29,23 @@ final class SecurityReviewScheduler: ObservableObject {
     // MARK: - Calendar Access
     
     func checkCalendarAccess() {
-        let status = EKEventStore.authorizationStatus(for: .event)
-        hasCalendarAccess = (status == .authorized)
+        if #available(iOS 17.0, *) {
+            let status = EKEventStore.authorizationStatus(for: .event)
+            hasCalendarAccess = (status == .fullAccess)
+        } else {
+            let status = EKEventStore.authorizationStatus(for: .event)
+            hasCalendarAccess = (status == .authorized)
+        }
     }
     
     func requestCalendarAccess() async -> Bool {
         do {
-            let granted = try await eventStore.requestAccess(to: .event)
+            let granted: Bool
+            if #available(iOS 17.0, *) {
+                granted = try await eventStore.requestFullAccessToEvents()
+            } else {
+                granted = try await eventStore.requestAccess(to: .event)
+            }
             await MainActor.run {
                 hasCalendarAccess = granted
             }
@@ -83,7 +93,7 @@ final class SecurityReviewScheduler: ObservableObject {
         frequency: ReviewFrequency,
         startDate: Date = Date()
     ) throws {
-        guard hasCalendarAccess, let calendar = calendar else {
+        guard hasCalendarAccess, calendar != nil else {
             throw SchedulerError.noCalendarAccess
         }
         

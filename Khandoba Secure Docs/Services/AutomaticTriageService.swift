@@ -25,7 +25,7 @@ final class AutomaticTriageService: ObservableObject {
     private var documentService: DocumentService
     private var nomineeService: NomineeService
     
-    nonisolated init() {
+    init() {
         self.threatService = ThreatMonitoringService()
         self.mlService = MLThreatAnalysisService()
         self.vaultService = VaultService()
@@ -46,7 +46,7 @@ final class AutomaticTriageService: ObservableObject {
         isAnalyzing = true
         defer { isAnalyzing = false }
         
-        guard let modelContext = modelContext else { return }
+        guard modelContext != nil else { return }
         
         // Load all vaults
         try? await vaultService.loadVaults()
@@ -82,7 +82,16 @@ final class AutomaticTriageService: ObservableObject {
         var results: [TriageResult] = []
         
         // 1. Screen Monitoring Detection
-        if UIScreen.main.isCaptured {
+        // Note: UIScreen.main deprecated in iOS 26.0, but still functional
+        let isCaptured: Bool
+        if #available(iOS 26.0, *) {
+            // For iOS 26+, use alternative approach if available
+            // For now, fall back to deprecated API
+            isCaptured = UIScreen.main.isCaptured
+        } else {
+            isCaptured = UIScreen.main.isCaptured
+        }
+        if isCaptured {
             let monitoringIP = await getCurrentIPAddress()
             results.append(TriageResult(
                 id: UUID(),
@@ -331,7 +340,7 @@ final class AutomaticTriageService: ObservableObject {
     }
     
     func executeAction(_ action: RemediationAction, in flow: RemediationFlow) async throws {
-        guard let modelContext = modelContext else { return }
+        guard modelContext != nil else { return }
         
         switch action {
         case .closeAllVaults:

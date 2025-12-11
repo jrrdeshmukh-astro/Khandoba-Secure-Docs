@@ -72,6 +72,7 @@ struct AccessMapView: View {
                 }
                 
                 // Map with Enhanced Annotations
+                // Note: Using deprecated Map API for compatibility - will update to MapContentBuilder in future
                 Map(coordinateRegion: $region, annotationItems: filteredAnnotations) { annotation in
                     MapAnnotation(coordinate: annotation.coordinate) {
                         Button {
@@ -333,7 +334,7 @@ struct AccessMapView: View {
         // 3. DOCUMENT ACTIONS (preview, edit, rename, redact)
         var documentActionAnnotations: [AccessAnnotation] = []
         for log in recentLogs {
-            if let documentID = log.documentID,
+            if log.documentID != nil,
                let lat = log.locationLatitude,
                let lon = log.locationLongitude,
                (log.accessType == "previewed" || log.accessType == "edited" || 

@@ -108,10 +108,11 @@ struct ContactPickerView: UIViewControllerRepresentable {
             }
             
             // Check which contacts are registered in Khandoba (on main actor)
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                if let discovery = self.parent.contactDiscovery {
-                    let registeredContacts = fullContacts.filter { contact in
+            let contactsToCheck = fullContacts
+            Task { @MainActor in
+                let parent = self.parent
+                if let discovery = parent.contactDiscovery {
+                    let registeredContacts = contactsToCheck.filter { contact in
                         discovery.isContactRegistered(contact)
                     }
                     

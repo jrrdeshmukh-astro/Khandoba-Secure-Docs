@@ -294,20 +294,14 @@ final class DocumentIndexingService: ObservableObject {
             return 0.0
         }
         
-        do {
-            let prediction = try predictor.predictedLabel(for: text)
-            
-            // Convert to score: -1.0 (very negative) to 1.0 (very positive)
-            if let label = prediction {
-                switch label {
-                case "Positive": return 0.75
-                case "Negative": return -0.75
-                case "Neutral": return 0.0
-                default: return 0.0
-                }
+        // Use predictedLabel(for:) - the correct NLModel API
+        if let label = predictor.predictedLabel(for: text) {
+            switch label {
+            case "Positive": return 0.75
+            case "Negative": return -0.75
+            case "Neutral": return 0.0
+            default: return 0.0
             }
-        } catch {
-            print("Sentiment analysis error: \(error)")
         }
         
         return 0.0 // Neutral

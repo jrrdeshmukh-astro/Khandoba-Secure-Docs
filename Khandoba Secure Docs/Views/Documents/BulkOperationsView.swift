@@ -562,7 +562,7 @@ struct FilePreviewSheet: View {
                             
                             // Preview based on file type
                             if fileName.lowercased().hasSuffix(".pdf") {
-                                if let pdfDocument = PDFDocument(data: data) {
+                                if PDFDocument(data: data) != nil {
                                     PDFKitView(data: data)
                                         .frame(height: 600)
                                 } else {

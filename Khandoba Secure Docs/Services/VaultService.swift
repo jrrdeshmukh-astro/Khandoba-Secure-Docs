@@ -57,7 +57,7 @@ final class VaultService: ObservableObject {
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
         
-        var fetchedVaults = try modelContext.fetch(descriptor)
+        let fetchedVaults = try modelContext.fetch(descriptor)
         
         // Log vault information for debugging
         print("📦 VaultService: Loaded \(fetchedVaults.count) vault(s)")
@@ -256,8 +256,14 @@ final class VaultService: ObservableObject {
                 print("   → Reusing existing request instead of creating duplicate")
                 
                 // Use the existing request for ML processing
-                let approvalService = await MainActor.run { DualKeyApprovalService() }
-                await MainActor.run { approvalService.configure(modelContext: modelContext) }
+                // Configure service on MainActor (configure is @MainActor)
+                // modelContext is already unwrapped at function start
+                // Use Task with @MainActor to avoid Sendable requirement
+                let approvalService = await Task { @MainActor in
+                    let service = DualKeyApprovalService()
+                    service.configure(modelContext: modelContext)
+                    return service
+                }.value
                 
                 do {
                     let decision = try await approvalService.processDualKeyRequest(existingRequest, vault: vault)
@@ -303,8 +309,14 @@ final class VaultService: ObservableObject {
                 //  AUTOMATIC ML-BASED APPROVAL/DENIAL
                 print(" Dual-key request created - initiating ML analysis...")
                 
-                let approvalService = await MainActor.run { DualKeyApprovalService() }
-                await MainActor.run { approvalService.configure(modelContext: modelContext) }
+                // Configure service on MainActor (configure is @MainActor)
+                // modelContext is already unwrapped at function start
+                // Use Task with @MainActor to avoid Sendable requirement
+                let approvalService = await Task { @MainActor in
+                    let service = DualKeyApprovalService()
+                    service.configure(modelContext: modelContext)
+                    return service
+                }.value
                 
                 do {
                     // Process with ML + Formal Logic
@@ -411,8 +423,14 @@ final class VaultService: ObservableObject {
         
         // 🔗 INTEGRATION: Open shared vault session for nominees
         if let currentUser = currentUser {
-            let sharedSessionService = await MainActor.run { SharedVaultSessionService() }
-            await MainActor.run { sharedSessionService.configure(modelContext: modelContext, userID: currentUserID) }
+            // Configure service on MainActor (configure is @MainActor)
+            // modelContext and currentUserID are already unwrapped at function start
+            // Use Task with @MainActor to avoid Sendable requirement
+            let sharedSessionService = await Task { @MainActor in
+                let service = SharedVaultSessionService()
+                service.configure(modelContext: modelContext, userID: currentUserID)
+                return service
+            }.value
             try await sharedSessionService.openSharedVault(vault, unlockedBy: currentUser)
             print(" Shared vault session opened - nominees can now access")
             
@@ -548,8 +566,14 @@ final class VaultService: ObservableObject {
         
         // 🔗 INTEGRATION: Lock shared vault session (notifies all nominees)
         if let currentUser = currentUser {
-            let sharedSessionService = await MainActor.run { SharedVaultSessionService() }
-            await MainActor.run { sharedSessionService.configure(modelContext: modelContext, userID: currentUserID) }
+            // Configure service on MainActor (configure is @MainActor)
+            // modelContext and currentUserID are already unwrapped at function start
+            // Use Task with @MainActor to avoid Sendable requirement
+            let sharedSessionService = await Task { @MainActor in
+                let service = SharedVaultSessionService()
+                service.configure(modelContext: modelContext, userID: currentUserID)
+                return service
+            }.value
             try? await sharedSessionService.lockSharedVault(vault, lockedBy: currentUser)
             print(" Shared vault session locked - nominees notified")
         }

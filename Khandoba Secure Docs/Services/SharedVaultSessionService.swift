@@ -24,6 +24,7 @@ final class SharedVaultSessionService: ObservableObject {
     
     nonisolated init() {}
     
+    @MainActor
     func configure(modelContext: ModelContext, userID: UUID) {
         self.modelContext = modelContext
         self.currentUserID = userID

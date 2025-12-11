@@ -114,7 +114,7 @@ final class CloudKitSharingService: ObservableObject {
     /// Uses query-all-and-match approach to find the record reliably
     /// Returns nil if record not found, allowing UICloudSharingController to handle it automatically
     private func getVaultRecordID(_ vault: Vault) async throws -> CKRecord.ID? {
-        guard let modelContext = modelContext else {
+        guard modelContext != nil else {
             print("   ❌ ModelContext not configured")
             return nil
         }
@@ -344,7 +344,7 @@ final class CloudKitSharingService: ObservableObject {
         do {
             let fetchResult = try await database.records(for: [shareID])
             
-            if case .success(let record) = fetchResult[shareID], let share = record as? CKShare {
+            if case .success(let record) = fetchResult[shareID], record is CKShare {
                 print("   ✅ Share record fetched successfully")
                 print("   📤 SwiftData will automatically sync the shared vault")
                 // SwiftData will handle the sync automatically
@@ -365,7 +365,9 @@ final class CloudKitSharingService: ObservableObject {
     /// We just need to process the metadata and let SwiftData sync
     func processShareInvitation(from metadata: CKShare.Metadata) async throws {
         print("📥 Processing CloudKit share invitation from metadata")
-        print("   Root record: \(metadata.rootRecordID.recordName)")
+        // Note: rootRecordID is deprecated but still functional
+        let rootRecordID = metadata.rootRecordID
+        print("   Root record: \(rootRecordID.recordName)")
         print("   Share record: \(metadata.share.recordID.recordName)")
         
         // iOS has already accepted the share when AppDelegate receives it
@@ -375,13 +377,13 @@ final class CloudKitSharingService: ObservableObject {
         // Fetch the share to ensure it's in our database
         let database = container.privateCloudDatabase
         do {
-            let fetchResult = try await database.records(for: [metadata.share.recordID, metadata.rootRecordID])
+            let fetchResult = try await database.records(for: [metadata.share.recordID, rootRecordID])
             
             if case .success(let shareRecord) = fetchResult[metadata.share.recordID] {
                 print("   ✅ Share record fetched: \(shareRecord.recordID.recordName)")
             }
             
-            if case .success(let rootRecord) = fetchResult[metadata.rootRecordID] {
+            if case .success(let rootRecord) = fetchResult[rootRecordID] {
                 print("   ✅ Root record fetched: \(rootRecord.recordID.recordName)")
                 print("   📤 SwiftData will automatically sync the shared vault")
             }

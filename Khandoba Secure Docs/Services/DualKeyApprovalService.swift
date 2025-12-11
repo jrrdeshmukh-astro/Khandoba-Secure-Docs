@@ -29,6 +29,7 @@ final class DualKeyApprovalService: ObservableObject {
     
     nonisolated init() {}
     
+    @MainActor
     func configure(modelContext: ModelContext) {
         self.modelContext = modelContext
     }

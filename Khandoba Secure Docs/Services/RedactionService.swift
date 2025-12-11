@@ -21,7 +21,7 @@ final class RedactionService {
         }
         
         // Create a new PDF with redactions applied
-        let redactedPDF = PDFDocument()
+        let _ = PDFDocument()
         
         for pageIndex in 0..<pdfDocument.pageCount {
             guard let originalPage = pdfDocument.page(at: pageIndex) else { continue }
@@ -44,13 +44,7 @@ final class RedactionService {
             let redactedImage = redactImage(image: pageImage, redactionAreas: redactionAreas, phiMatches: phiMatches)
             
             // Convert redacted image back to PDF page
-            if let cgImage = redactedImage.cgImage {
-                let pdfPage = PDFPage()
-                let pageRect = CGRect(origin: .zero, size: redactedImage.size)
-                pdfPage.setBounds(pageRect, for: .mediaBox)
-                
-                // Create annotation with image
-                let annotation = PDFAnnotation(bounds: pageRect, forType: .stamp, withProperties: nil)
+            if redactedImage.cgImage != nil {
                 // Note: PDFKit doesn't directly support image annotations this way
                 // We'll use a different approach - redact text directly
             }
@@ -172,7 +166,7 @@ final class RedactionService {
         // Redact detected PHI text areas
         // Note: This is a simplified approach - full implementation would
         // need OCR to find text locations and redact those specific areas
-        for phi in phiMatches {
+        for _ in phiMatches {
             // For now, we'll need to find text locations using OCR
             // This is a placeholder - actual implementation would use Vision framework
             // to find text bounding boxes and redact those areas
