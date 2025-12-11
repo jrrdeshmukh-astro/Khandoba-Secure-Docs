@@ -1303,7 +1303,8 @@ class NLPTaggingService {
             let time = CMTime(seconds: interval * Double(i), preferredTimescale: 600)
             // Use async API for iOS 18+
             if #available(iOS 18.0, *) {
-                try? await generator.generateCGImageAsynchronously(for: time) { image, actualTime, error in
+                // generateCGImageAsynchronously doesn't throw, and the completion handler is async
+                generator.generateCGImageAsynchronously(for: time) { image, actualTime, error in
                     if let image = image {
                         images.append(UIImage(cgImage: image))
                     }

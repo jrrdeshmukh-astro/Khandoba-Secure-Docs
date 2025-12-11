@@ -408,7 +408,20 @@ struct TriageView: View {
     }
     
     private func checkScreenCapture() {
-        let captured = UIScreen.main.isCaptured
+        // Use screen from context instead of deprecated UIScreen.main
+        let captured: Bool
+        if #available(iOS 26.0, *) {
+            // For iOS 26+, get screen from window scene context
+            // Fallback to main screen for older versions
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let screen = windowScene.screen {
+                captured = screen.isCaptured
+            } else {
+                captured = UIScreen.main.isCaptured
+            }
+        } else {
+            captured = UIScreen.main.isCaptured
+        }
         
         if captured && !isScreenCaptured {
             // Screen capture just started - trigger automatic triage

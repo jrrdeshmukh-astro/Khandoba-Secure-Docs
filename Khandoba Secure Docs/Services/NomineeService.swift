@@ -314,14 +314,10 @@ final class NomineeService: ObservableObject {
                     try modelContext.save()
                     print("   ✅ CloudKit share created/retrieved: \(share.recordID.recordName)")
                     print("   📋 Share Record ID: \(share.recordID.recordName)")
-                    // Get root record ID (using hierarchicalRootRecordID for iOS 16+)
-                    if #available(iOS 16.0, *) {
-                        if let rootID = share.hierarchicalRootRecordID {
-                            print("   📋 Root Record ID: \(rootID.recordName)")
-                        }
-                    } else {
-                        print("   📋 Root Record ID: \(share.rootRecordID.recordName)")
-                    }
+                    // Note: CKShare doesn't directly expose rootRecordID
+                    // The root record is accessed via the share's rootRecord property
+                    // For logging purposes, we can note that the share references a root record
+                    print("   📋 Share references root record (vault)")
                 } else {
                     print("   ⚠️ CloudKit share not available yet")
                     print("   ℹ️ This usually means the vault hasn't synced to CloudKit yet")
