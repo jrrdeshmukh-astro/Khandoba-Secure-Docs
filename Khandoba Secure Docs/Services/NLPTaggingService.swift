@@ -1309,8 +1309,8 @@ class NLPTaggingService {
                     }
                 }
             } else {
-                if let cgImage = try? generator.copyCGImage(at: time, actualTime: nil) {
-                    images.append(UIImage(cgImage: cgImage))
+            if let cgImage = try? generator.copyCGImage(at: time, actualTime: nil) {
+                images.append(UIImage(cgImage: cgImage))
                 }
             }
         }

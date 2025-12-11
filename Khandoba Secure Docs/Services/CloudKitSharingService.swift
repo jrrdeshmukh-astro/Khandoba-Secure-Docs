@@ -90,22 +90,37 @@ final class CloudKitSharingService: ObservableObject {
         }
         
         print("   🔄 Ensuring vault is synced to CloudKit...")
+        print("   📋 Vault: \(vault.name) (ID: \(vault.id.uuidString))")
         
         // Force save to trigger CloudKit sync
         try modelContext.save()
+        print("   💾 Vault saved to SwiftData")
         
-        // Wait a moment for CloudKit sync to initiate
-        try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+        // Wait for CloudKit sync with retry logic
+        // SwiftData + CloudKit sync can take a few seconds
+        let maxRetries = 5
+        let retryDelay: UInt64 = 1_000_000_000 // 1 second
         
-        // Try to fetch the record to confirm it's synced
-        // This will trigger SwiftData to sync if it hasn't already
-        // Capture the UUID value before the predicate (required for SwiftData predicates)
-        let vaultID = vault.id
-        let _ = try modelContext.fetch(FetchDescriptor<Vault>(
-            predicate: #Predicate { $0.id == vaultID }
-        ))
+        for attempt in 1...maxRetries {
+            print("   ⏳ Waiting for CloudKit sync (attempt \(attempt)/\(maxRetries))...")
+            try await Task.sleep(nanoseconds: retryDelay)
+            
+            // Try to find the record in CloudKit
+            if let recordID = try? await getVaultRecordID(vault) {
+                print("   ✅ Vault found in CloudKit: \(recordID.recordName)")
+                return
+            }
+            
+            // Also try to trigger SwiftData sync by accessing the vault
+            let vaultID = vault.id
+            let _ = try modelContext.fetch(FetchDescriptor<Vault>(
+                predicate: #Predicate { $0.id == vaultID }
+            ))
+        }
         
-        print("   ✅ Vault sync initiated")
+        print("   ⚠️ Vault may not be synced to CloudKit yet after \(maxRetries) attempts")
+        print("   ℹ️ This is OK - CloudKit sync happens asynchronously")
+        print("   ℹ️ The record will be available once sync completes")
     }
     
     // MARK: - Get Vault Record ID
@@ -170,7 +185,47 @@ final class CloudKitSharingService: ObservableObject {
             }
         }
         
-        // Method 2: Try querying by creation date range (if creationDate is queryable)
+        // Method 2: Query all Vault records and match by UUID stored in record
+        // This is more reliable as it searches all records and matches by the vault's UUID
+        print("   🔍 Trying query all Vault records and match by UUID...")
+        do {
+            // Query all CD_Vault records (SwiftData uses CD_ prefix)
+            let query = CKQuery(recordType: "CD_Vault", predicate: NSPredicate(value: true))
+            query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            
+            let (matchResults, _) = try await database.records(matching: query, inZoneWith: zoneID, desiredKeys: ["id", "name", "ZNAME", "Name"])
+            
+            let vaultUUIDString = vault.id.uuidString
+            
+            // Match by UUID stored in the record
+            for (recordID, result) in matchResults {
+                if case .success(let record) = result {
+                    // Check if the record's ID field matches our vault UUID
+                    // SwiftData stores the UUID in various field names
+                    let recordIDValue = (record["id"] as? String) ?? 
+                                       (record["ZID"] as? String) ?? 
+                                       (record["ID"] as? String) ?? ""
+                    
+                    // Also check record name formats
+                    let recordName = recordID.recordName
+                    if recordName.contains(vaultUUIDString) || recordIDValue == vaultUUIDString {
+                        // Verify by name as well
+                        let recordNameValue = (record["name"] as? String) ?? 
+                                            (record["ZNAME"] as? String) ?? 
+                                            (record["Name"] as? String) ?? ""
+                        
+                        if recordNameValue == vault.name || recordNameValue.isEmpty {
+                            print("   ✅ Found CloudKit record by UUID query: \(recordID.recordName)")
+                            return recordID
+                        }
+                    }
+                }
+            }
+        } catch {
+            print("   ℹ️ Query all records failed: \(error.localizedDescription)")
+        }
+        
+        // Method 3: Try querying by creation date range (if creationDate is queryable)
         // This is a fallback if direct record ID lookup fails
         print("   🔍 Trying query by creation date range...")
         do {
@@ -473,20 +528,47 @@ final class CloudKitSharingService: ObservableObject {
     
     /// Get or create a share and return it for UICloudSharingController
     /// This allows users to share via native iOS sharing (Messages, Mail, etc.)
-    /// Returns nil if we can't get the record ID, letting UICloudSharingController handle it
+    /// Returns nil if we can't get the record ID after extended retries, letting UICloudSharingController handle it
     func getOrCreateShare(for vault: Vault) async throws -> CKShare? {
         print("🔗 Getting or creating CloudKit share for vault: \(vault.name)")
         
-        // Ensure vault is synced to CloudKit first
+        // Ensure vault is synced to CloudKit first (with retries)
         try await ensureVaultSynced(vault)
         
-        // Try to get the CloudKit record ID (may fail if record hasn't synced yet)
-        // If it fails, return nil to let UICloudSharingController handle it
-        // Note: This is expected behavior - the fallback will use token-based sharing
-        guard let vaultRecordID = try? await getVaultRecordID(vault) else {
-            print("   ℹ️ Could not get CloudKit record ID (this is OK - using fallback)")
-            print("   ℹ️ The vault may not be synced to CloudKit yet, or using different naming")
-            print("   ℹ️ Token-based sharing will be used as fallback")
+        // Try to get the CloudKit record ID with additional retries
+        // This is critical for nominee invitations, so we wait longer
+        var vaultRecordID: CKRecord.ID?
+        let maxRetries = 10 // More retries for invitation flow
+        let retryDelay: UInt64 = 1_000_000_000 // 1 second
+        
+        for attempt in 1...maxRetries {
+            if let recordID = try? await getVaultRecordID(vault) {
+                vaultRecordID = recordID
+                print("   ✅ Found CloudKit record ID on attempt \(attempt): \(recordID.recordName)")
+                break
+            }
+            
+            if attempt < maxRetries {
+                print("   ⏳ CloudKit record not found yet (attempt \(attempt)/\(maxRetries)), waiting...")
+                try await Task.sleep(nanoseconds: retryDelay)
+                
+                // Trigger another save to encourage sync
+                if let modelContext = modelContext {
+                    try? modelContext.save()
+                }
+            }
+        }
+        
+        // If we still can't find it, return nil to let UICloudSharingController handle it
+        guard let recordID = vaultRecordID else {
+            print("   ⚠️ Could not get CloudKit record ID after \(maxRetries) attempts")
+            print("   ℹ️ The vault may not be synced to CloudKit yet")
+            print("   ℹ️ This can happen if:")
+            print("      - CloudKit sync is disabled")
+            print("      - iCloud account is not signed in")
+            print("      - Network connectivity issues")
+            print("      - CloudKit sync is still in progress (can take up to 30 seconds)")
+            print("   ℹ️ UICloudSharingController will handle sharing automatically when sync completes")
             return nil
         }
         

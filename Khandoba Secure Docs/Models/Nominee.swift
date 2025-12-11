@@ -140,6 +140,54 @@ final class VaultTransferRequest {
 }
 
 @Model
+final class VaultAccessRequest {
+    var id: UUID = UUID()
+    var requestedAt: Date = Date()
+    var status: String = "pending" // "pending", "accepted", "declined", "expired"
+    var requestType: String = "request" // "request" (requesting access) or "send" (sending access)
+    var message: String? // Optional message from requester/sender
+    var expiresAt: Date? // Optional expiration date
+    
+    // Requester/Sender information
+    var requesterUserID: UUID? // User requesting/sending access
+    var requesterName: String?
+    var requesterEmail: String?
+    var requesterPhone: String?
+    
+    // Recipient information (for send type)
+    var recipientUserID: UUID?
+    var recipientName: String?
+    var recipientEmail: String?
+    var recipientPhone: String?
+    
+    // Vault information
+    var vault: Vault?
+    var vaultID: UUID?
+    var vaultName: String?
+    
+    // CloudKit integration
+    var cloudKitShareRecordID: String?
+    var accessToken: String = UUID().uuidString // Token for deep linking
+    
+    // Response tracking
+    var respondedAt: Date?
+    var responseMessage: String?
+    
+    init(
+        id: UUID = UUID(),
+        requestType: String = "request",
+        message: String? = nil,
+        expiresAt: Date? = nil
+    ) {
+        self.id = id
+        self.requestType = requestType
+        self.message = message
+        self.expiresAt = expiresAt
+        self.requestedAt = Date()
+    }
+}
+
+@Model
 final class EmergencyAccessRequest {
     var id: UUID = UUID()
     var requestedAt: Date = Date()

@@ -32,6 +32,7 @@ struct Khandoba_Secure_DocsApp: App {
             ChatMessage.self,
             Nominee.self,
             VaultTransferRequest.self,
+            VaultAccessRequest.self,
             EmergencyAccessRequest.self
         ])
         // Use App Group for shared storage with extensions

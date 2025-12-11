@@ -304,17 +304,38 @@ final class NomineeService: ObservableObject {
         // Create CloudKit share (primary method - no token fallback)
         if let sharingService = cloudKitSharing {
             do {
+                // Ensure vault is saved and synced before attempting to share
+                try modelContext.save()
+                print("   💾 Vault saved before CloudKit share creation")
+                
                 let share = try await sharingService.getOrCreateShare(for: vault)
                 if let share = share {
                     nominee.cloudKitShareRecordID = share.recordID.recordName
                     try modelContext.save()
-                    print("   🔗 CloudKit share created/retrieved: \(share.recordID.recordName)")
-        } else {
-                    print("   ⚠️ CloudKit share not available - UICloudSharingController will handle it")
+                    print("   ✅ CloudKit share created/retrieved: \(share.recordID.recordName)")
+                    print("   📋 Share Record ID: \(share.recordID.recordName)")
+                    // Get root record ID (using hierarchicalRootRecordID for iOS 16+)
+                    if #available(iOS 16.0, *) {
+                        if let rootID = share.hierarchicalRootRecordID {
+                            print("   📋 Root Record ID: \(rootID.recordName)")
+                        }
+                    } else {
+                        print("   📋 Root Record ID: \(share.rootRecordID.recordName)")
+                    }
+                } else {
+                    print("   ⚠️ CloudKit share not available yet")
+                    print("   ℹ️ This usually means the vault hasn't synced to CloudKit yet")
+                    print("   ℹ️ The nominee invitation will work once CloudKit sync completes")
+                    print("   ℹ️ You can retry the invitation in a few seconds")
+                    // Don't throw error - allow nominee to be created locally
+                    // CloudKit sync will happen in background and share can be created later
                 }
             } catch {
                 print("   ⚠️ CloudKit share creation failed: \(error.localizedDescription)")
-                throw NomineeError.shareCreationFailed
+                print("   ℹ️ Error details: \(error)")
+                // Don't throw - allow nominee to be created locally
+                // The share can be created later when CloudKit sync completes
+                print("   ℹ️ Nominee created locally - CloudKit share will be created when sync completes")
             }
         }
         

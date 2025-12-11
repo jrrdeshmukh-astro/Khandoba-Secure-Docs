@@ -53,6 +53,9 @@ final class Vault {
     @Relationship(deleteRule: .cascade, inverse: \VaultTransferRequest.vault)
     var transferRequests: [VaultTransferRequest]?
     
+    @Relationship(deleteRule: .cascade, inverse: \VaultAccessRequest.vault)
+    var accessRequests: [VaultAccessRequest]?
+    
     init(
         id: UUID = UUID(),
         name: String = "",
