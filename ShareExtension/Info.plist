@@ -26,8 +26,12 @@
 			<dict>
 				<key>NSExtensionActivationSupportsImage</key>
 				<true/>
+				<key>NSExtensionActivationSupportsImageWithMaxCount</key>
+				<integer>100</integer>
 				<key>NSExtensionActivationSupportsMovie</key>
 				<true/>
+				<key>NSExtensionActivationSupportsMovieWithMaxCount</key>
+				<integer>100</integer>
 				<key>NSExtensionActivationSupportsFileWithMaxCount</key>
 				<integer>100</integer>
 				<key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
