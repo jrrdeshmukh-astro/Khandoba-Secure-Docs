@@ -13,7 +13,7 @@ import MobileCoreServices
 import LocalAuthentication
 
 class ShareExtensionViewController: UIViewController {
-    private var hostingController: UIHostingController<ShareExtensionView>?
+    private var hostingController: UIHostingController<AnyView>?
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -54,20 +54,22 @@ class ShareExtensionViewController: UIViewController {
                 print("✅ ShareExtension: Creating SwiftUI view with \(items.count) item(s)")
                 
                 // Create SwiftUI view with UnifiedTheme environment
-                let shareView = ShareExtensionView(
-                    sharedItems: items,
-                    onComplete: { [weak self] in
-                        print("✅ ShareExtension: Upload complete, dismissing")
-                        self?.extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
-                    },
-                    onCancel: { [weak self] in
-                        print("❌ ShareExtension: User cancelled")
-                        let error = NSError(domain: "ShareExtension", code: 0, userInfo: [NSLocalizedDescriptionKey: "User cancelled"])
-                        self?.extensionContext?.cancelRequest(withError: error)
-                    }
+                let shareView = AnyView(
+                    ShareExtensionView(
+                        sharedItems: items,
+                        onComplete: { [weak self] in
+                            print("✅ ShareExtension: Upload complete, dismissing")
+                            self?.extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+                        },
+                        onCancel: { [weak self] in
+                            print("❌ ShareExtension: User cancelled")
+                            let error = NSError(domain: "ShareExtension", code: 0, userInfo: [NSLocalizedDescriptionKey: "User cancelled"])
+                            self?.extensionContext?.cancelRequest(withError: error)
+                        }
+                    )
+                    .environment(\.unifiedTheme, UnifiedTheme()) // Ensure theme is available
+                    .preferredColorScheme(.dark) // Match main app's dark theme
                 )
-                .environment(\.unifiedTheme, UnifiedTheme()) // Ensure theme is available
-                .preferredColorScheme(.dark) // Match main app's dark theme
                 
                 // Ensure the view controller's view has a background
                 self.view.backgroundColor = .systemBackground
@@ -317,7 +319,7 @@ class ShareExtensionViewController: UIViewController {
                 let fallbackGroup = DispatchGroup()
                 var fallbackItems: [SharedItem] = []
                 
-                for (index, item) in inputItems.enumerated() {
+                for (_, item) in inputItems.enumerated() {
                     guard let attachments = item.attachments else { continue }
                     
                     for attachment in attachments {
@@ -1011,8 +1013,6 @@ struct ShareExtensionView: View {
     
     @ViewBuilder
     private var contentView: some View {
-        let colors = theme.colors(for: colorScheme)
-        
         // Always show something - don't show blank screen
         if isUploading {
             uploadingView
