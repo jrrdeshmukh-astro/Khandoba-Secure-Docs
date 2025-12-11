@@ -57,8 +57,30 @@ struct PrivacyPolicyView: View {
                     
                     PolicySection(
                         title: "Contact",
-                        content: "For privacy questions, contact us at privacy@khandoba.com or visit https://khandoba.com/privacy"
+                        content: "For privacy questions, contact us at privacy@khandoba.org"
                     )
+                    
+                    // Functional Privacy Policy Link (Required by App Store)
+                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                        Link(destination: URL(string: "https://khandoba.org/privacy")!) {
+                            HStack {
+                                Text("View Full Privacy Policy")
+                                    .foregroundColor(colors.primary)
+                                Image(systemName: "arrow.up.right.square")
+                                    .foregroundColor(colors.primary)
+                            }
+                        }
+                        
+                        Link(destination: URL(string: "https://khandoba.org/terms")!) {
+                            HStack {
+                                Text("View Terms of Service")
+                                    .foregroundColor(colors.primary)
+                                Image(systemName: "arrow.up.right.square")
+                                    .foregroundColor(colors.primary)
+                            }
+                        }
+                    }
+                    .padding(.top, UnifiedTheme.Spacing.md)
                 }
                 .padding()
             }

@@ -21,7 +21,7 @@ final class SubscriptionService: ObservableObject {
     private var updateListenerTask: Task<Void, Error>?
     
     private let productIDs = [
-        "com.khandoba.premium.monthly"
+        "com.khandoba.premium.monthly" // $5.99/month auto-renewable subscription
     ]
     
     init() {

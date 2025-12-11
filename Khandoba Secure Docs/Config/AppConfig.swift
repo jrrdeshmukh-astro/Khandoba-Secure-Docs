@@ -18,7 +18,8 @@ struct AppConfig {
     static let appName = "Khandoba Secure Docs"
     
     // Production Configuration
-    static let apiBaseURL = "https://api.khandoba.com" // Configure your API endpoint
+    // Note: No custom API server needed - app uses CloudKit for all data sync
+    // static let apiBaseURL = "https://api.khandoba.org" // Not used - CloudKit handles all sync
     static let cloudKitContainer = "iCloud.com.khandoba.securedocs"
     
     // CloudKit API Configuration

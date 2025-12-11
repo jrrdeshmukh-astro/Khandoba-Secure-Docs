@@ -12,6 +12,7 @@ import Combine
 struct SubscriptionRequiredView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @StateObject private var abService = ABTestingService.shared
     @StateObject private var subscriptionService = SubscriptionService()
@@ -105,15 +106,39 @@ struct SubscriptionRequiredView: View {
                         
                         // Subscription Plan
                         VStack(spacing: UnifiedTheme.Spacing.md) {
-                            Text("Subscription")
+                            Text("Subscription Plan")
                                 .font(theme.typography.headline)
                                 .foregroundColor(colors.textPrimary)
                                 .opacity(appeared ? 1 : 0)
                                 .offset(y: appeared ? 0 : 20)
                             
-                            // Monthly plan only
-                                monthlyPlanCard(colors: colors)
+                            // Monthly plan only - $5.99/month
+                            monthlyPlanCard(colors: colors)
                                 .staggeredAppearance(index: 0, total: 1)
+                            
+                            // Required subscription information display
+                            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
+                                Text("Subscription Details:")
+                                    .font(theme.typography.caption)
+                                    .foregroundColor(colors.textSecondary)
+                                    .fontWeight(.semibold)
+                                
+                                Text("• Title: Khandoba Premium")
+                                    .font(theme.typography.caption2)
+                                    .foregroundColor(colors.textSecondary)
+                                
+                                Text("• Length: Monthly (auto-renewable)")
+                                    .font(theme.typography.caption2)
+                                    .foregroundColor(colors.textSecondary)
+                                
+                                Text("• Price: $5.99 per month")
+                                    .font(theme.typography.caption2)
+                                    .foregroundColor(colors.textSecondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(UnifiedTheme.Spacing.sm)
+                            .background(colors.surface.opacity(0.5))
+                            .cornerRadius(UnifiedTheme.CornerRadius.md)
                         }
                         .padding(.horizontal, UnifiedTheme.Spacing.xl)
                         .onAppear {
@@ -142,20 +167,39 @@ struct SubscriptionRequiredView: View {
                         .disabled(isPurchasing)
                         .padding(.horizontal, UnifiedTheme.Spacing.xl)
                         
-                        // Terms
-                        VStack(spacing: UnifiedTheme.Spacing.xs) {
-                            Text("7-Day Free Trial • Cancel Anytime")
-                                .font(theme.typography.caption)
-                                .foregroundColor(colors.success)
-                                .fontWeight(.semibold)
-                            
-                            HStack(spacing: 4) {
-                                Link("Terms of Service", destination: URL(string: "https://khandoba.com/terms")!)
-                                Text("•")
-                                Link("Privacy Policy", destination: URL(string: "https://khandoba.com/privacy")!)
+                        // Subscription Information (Required by App Store)
+                        VStack(spacing: UnifiedTheme.Spacing.sm) {
+                            // Subscription Details
+                            VStack(spacing: UnifiedTheme.Spacing.xs) {
+                                Text("Khandoba Premium")
+                                    .font(theme.typography.subheadline)
+                                    .foregroundColor(colors.textPrimary)
+                                    .fontWeight(.semibold)
+                                
+                                Text("$5.99 per month")
+                                    .font(theme.typography.body)
+                                    .foregroundColor(colors.textPrimary)
+                                
+                                Text("Auto-renewable subscription")
+                                    .font(theme.typography.caption)
+                                    .foregroundColor(colors.textSecondary)
                             }
-                            .font(theme.typography.caption2)
-                            .foregroundColor(colors.textTertiary)
+                            .padding(.vertical, UnifiedTheme.Spacing.sm)
+                            
+                            // Terms and Privacy Links (Required)
+                            VStack(spacing: UnifiedTheme.Spacing.xs) {
+                                HStack(spacing: 4) {
+                                    Link("Terms of Service", destination: URL(string: "https://khandoba.org/terms")!)
+                                    Text("•")
+                                    Link("Privacy Policy", destination: URL(string: "https://khandoba.org/privacy")!)
+                                }
+                                .font(theme.typography.caption2)
+                                .foregroundColor(colors.textTertiary)
+                                
+                                Text("Cancel anytime in App Store Settings")
+                                    .font(theme.typography.caption2)
+                                    .foregroundColor(colors.textTertiary)
+                            }
                         }
                         .padding(.bottom, UnifiedTheme.Spacing.xl)
                     }
@@ -168,6 +212,15 @@ struct SubscriptionRequiredView: View {
         } message: {
             Text(errorMessage)
         }
+        .onAppear {
+            // Configure subscription service with model context
+            subscriptionService.configure(modelContext: modelContext)
+            
+            // Load products from App Store Connect
+            Task {
+                await subscriptionService.loadProducts()
+            }
+        }
     }
     
     private func subscribeToPlan() {
@@ -176,31 +229,51 @@ struct SubscriptionRequiredView: View {
         
         Task {
             do {
-                // For development/testing: Auto-grant premium access
-                // In production, this will use actual StoreKit purchase
-                try await purchaseSubscription(selectedPlan)
+                // Load products first
+                await subscriptionService.loadProducts()
                 
-                // Mark user as premium and force UI update
-                if let user = authService.currentUser {
-                    user.isPremiumSubscriber = true
-                    user.subscriptionExpiryDate = Calendar.current.date(byAdding: .month, value: 1, to: Date())
-                    
-                    // Force save to ensure persistence
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s delay
-                    
-                    await MainActor.run {
-                        // Trigger authService refresh to update UI
-                        authService.objectWillChange.send()
-                    }
+                // Get the monthly subscription product
+                guard let product = subscriptionService.products.first else {
+                    throw SubscriptionError.productNotFound
                 }
                 
-                // Track A/B test conversion
-                abService.trackConversion("subscription_purchased", testID: "pricing_display_v1")
+                // Purchase using StoreKit
+                let result = try await subscriptionService.purchase(product)
                 
-                await MainActor.run {
-                    isPurchasing = false
-                    HapticManager.shared.notification(.success)
-                    print(" Subscription activated - user should proceed to main app")
+                switch result {
+                case .success:
+                    // Update user subscription status (handled by SubscriptionService)
+                    await subscriptionService.updatePurchasedProducts()
+                    
+                    // Track A/B test conversion
+                    abService.trackConversion("subscription_purchased", testID: "pricing_display_v1")
+                    
+                    await MainActor.run {
+                        isPurchasing = false
+                        HapticManager.shared.notification(.success)
+                        print("✅ Subscription activated - user should proceed to main app")
+                    }
+                    
+                case .cancelled:
+                    await MainActor.run {
+                        isPurchasing = false
+                        print("ℹ️ Purchase cancelled by user")
+                    }
+                    
+                case .pending:
+                    await MainActor.run {
+                        isPurchasing = false
+                        errorMessage = "Purchase is pending approval. You will be notified when it completes."
+                        showError = true
+                    }
+                    
+                case .failed:
+                    await MainActor.run {
+                        isPurchasing = false
+                        errorMessage = "Purchase failed. Please try again."
+                        showError = true
+                        HapticManager.shared.notification(.error)
+                    }
                 }
                 
             } catch {
@@ -230,20 +303,7 @@ struct SubscriptionRequiredView: View {
     }
     
     
-    private func purchaseSubscription(_ plan: SubscriptionPlan) async throws {
-        // Simulate purchase delay
-        try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
-        
-        // For v1.0: Auto-grant access for testing
-        // In production with App Store Connect:
-        // 1. Fetch products from StoreKit
-        // 2. Purchase selected product
-        // 3. Verify receipt
-        // 4. Update user subscription status
-        
-        print(" DEV MODE: Subscription auto-granted for: \(plan.rawValue)")
-        print("   User will be marked as premium subscriber")
-    }
+    // Purchase function removed - now handled directly in subscribeToPlan()
 }
 
 // MARK: - Supporting Views

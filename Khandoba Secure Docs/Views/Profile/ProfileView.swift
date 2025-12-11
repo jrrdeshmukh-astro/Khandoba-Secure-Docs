@@ -175,6 +175,26 @@ struct ProfileView: View {
                         .listRowBackground(colors.surface)
                     }
                     
+                    // Account Deletion Section (App Store Requirement)
+                    Section {
+                        NavigationLink {
+                            AccountDeletionView()
+                        } label: {
+                            HStack(spacing: UnifiedTheme.Spacing.md) {
+                                Image(systemName: "trash.fill")
+                                    .foregroundColor(colors.error)
+                                    .frame(width: 24)
+                                Text("Delete Account")
+                                    .foregroundColor(colors.error)
+                            }
+                        }
+                        .listRowBackground(colors.surface)
+                    } footer: {
+                        Text("Deleting your account will permanently remove all your data, vaults, and documents. This action cannot be undone.")
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textSecondary)
+                    }
+                    
                     // Sign Out Section
                     Section {
                         Button {

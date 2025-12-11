@@ -11,6 +11,7 @@ import StoreKit
 struct StoreView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @StateObject private var subscriptionService = SubscriptionService()
     
@@ -49,6 +50,16 @@ struct StoreView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
+        }
+        .onAppear {
+            // Configure subscription service with model context
+            subscriptionService.configure(modelContext: modelContext)
+            
+            // Load products and check subscription status
+            Task {
+                await subscriptionService.loadProducts()
+                await subscriptionService.updatePurchasedProducts()
+            }
         }
     }
     

@@ -22,8 +22,31 @@ struct TermsOfServiceView: View {
                     
                     TermsSection(
                         title: "Subscription",
-                        content: "Khandoba Secure Docs is a subscription service at $5.99/month. Payment is processed through the App Store. Subscription auto-renews unless cancelled 24 hours before the end of the period. Manage or cancel in iOS Settings → Subscriptions."
+                        content: "Khandoba Secure Docs is a subscription service. Subscription Title: Khandoba Premium. Subscription Length: Monthly (auto-renewable). Subscription Price: $5.99 per month. Payment is processed through the App Store. Subscription auto-renews unless cancelled 24 hours before the end of the period. Manage or cancel in iOS Settings → Subscriptions or visit https://apps.apple.com/account/subscriptions"
                     )
+                    
+                    // Required subscription metadata display
+                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                        Text("Subscription Information")
+                            .font(theme.typography.headline)
+                            .foregroundColor(colors.textPrimary)
+                        
+                        Text("Title: Khandoba Premium")
+                            .font(theme.typography.body)
+                            .foregroundColor(colors.textSecondary)
+                        
+                        Text("Length: Monthly (auto-renewable)")
+                            .font(theme.typography.body)
+                            .foregroundColor(colors.textSecondary)
+                        
+                        Text("Price: $5.99 per month")
+                            .font(theme.typography.body)
+                            .foregroundColor(colors.textSecondary)
+                    }
+                    .padding(UnifiedTheme.Spacing.md)
+                    .background(colors.surface)
+                    .cornerRadius(UnifiedTheme.CornerRadius.md)
+                    .padding(.bottom, UnifiedTheme.Spacing.md)
                     
                     TermsSection(
                         title: "Service Description",
@@ -57,8 +80,30 @@ struct TermsOfServiceView: View {
                     
                     TermsSection(
                         title: "Contact",
-                        content: "For terms questions: legal@khandoba.com\nFull terms: https://khandoba.com/terms"
+                        content: "For terms questions: legal@khandoba.org\nFull terms: https://khandoba.org/terms"
                     )
+                    
+                    // Links to Terms and Privacy (Required)
+                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                        Link(destination: URL(string: "https://khandoba.org/terms")!) {
+                            HStack {
+                                Text("View Full Terms of Service")
+                                    .foregroundColor(colors.primary)
+                                Image(systemName: "arrow.up.right.square")
+                                    .foregroundColor(colors.primary)
+                            }
+                        }
+                        
+                        Link(destination: URL(string: "https://khandoba.org/privacy")!) {
+                            HStack {
+                                Text("View Privacy Policy")
+                                    .foregroundColor(colors.primary)
+                                Image(systemName: "arrow.up.right.square")
+                                    .foregroundColor(colors.primary)
+                            }
+                        }
+                    }
+                    .padding(.top, UnifiedTheme.Spacing.md)
                 }
                 .padding()
             }
