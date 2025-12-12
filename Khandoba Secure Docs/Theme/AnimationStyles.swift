@@ -300,6 +300,7 @@ struct AnimatedButtonStyle: ButtonStyle {
 
 // MARK: - Security Level Indicator
 
+#if !APP_EXTENSION
 struct ThreatLevelIndicator: View {
     let level: ThreatLevel
     @State private var animate = false
@@ -344,6 +345,7 @@ struct ThreatLevelIndicator: View {
         return index < requiredBars ? level.color : Color.gray.opacity(0.3)
     }
 }
+#endif
 
 // MARK: - Vault Opening Animation
 

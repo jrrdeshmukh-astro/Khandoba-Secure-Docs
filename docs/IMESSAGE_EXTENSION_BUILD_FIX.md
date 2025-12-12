@@ -1,112 +1,94 @@
-# Fix: Multiple Commands Produce Error
+# iMessage Extension Build Fix
 
-> **Issue:** "Multiple commands produce" error when building MessageExtension
-> 
-> **Cause:** Shared files compiled in both targets generate conflicting intermediate build artifacts
+> **Date:** December 2024  
+> **Status:** ✅ Fixed - Extension builds successfully
 
-## Quick Fix (3 Steps)
+## Problem
 
-### Step 1: Clean Build Folder
+The `KhandobaSecureDocsMessageApp MessagesExtension` target failed to build with multiple errors:
+- `Cannot find 'PushNotificationService' in scope`
+- `Cannot find 'SharedVaultSessionService' in scope`
+- `Cannot find 'VaultService' in scope`
+- `Cannot find type 'ThreatLevel' in scope`
+- And many more dependency errors
 
-**In Xcode:**
-1. **Product → Clean Build Folder** (⇧⌘K)
-2. Wait for cleanup to complete
+## Root Cause
 
-**Or via Terminal:**
-```bash
-cd "/Users/jaideshmukh/Desktop/Khandoba Secure Docs"
-rm -rf ~/Library/Developer/Xcode/DerivedData/Khandoba_Secure_Docs-*
-```
+The iMessage extension target includes the entire "Khandoba Secure Docs" folder via `PBXFileSystemSynchronizedRootGroup`, which automatically includes all files. However, many of these files depend on services that use `UIApplication.shared` or other APIs unavailable in app extensions.
 
-### Step 2: Verify File Membership (Important!)
+## Solution
 
-**For each of these files:**
-- `AppConfig.swift`
-- `Nominee.swift`
-- `User.swift`
-- `Vault.swift`
-- `StandardCard.swift`
-- `ThemeModifiers.swift`
-- `UnifiedTheme.swift`
+Excluded all files that aren't needed in the iMessage extension from the extension target using `PBXFileSystemSynchronizedBuildFileExceptionSet`.
 
-**Do this:**
-1. Select the file in Project Navigator
-2. Open File Inspector (right panel)
-3. Under "Target Membership":
-   - ✅ Check "Khandoba Secure Docs" (main app)
-   - ✅ Check "MessageExtension"
-   - ⚠️ **Make sure each is checked ONLY ONCE**
+### Files Excluded
 
-### Step 3: Check Build Phases
+**Services (not needed in extension):**
+- `MessageInvitationService.swift` - Uses UIApplication.shared
+- `PushNotificationService.swift` - Uses UIApplication.shared
+- `SharedVaultSessionService.swift` - Depends on PushNotificationService
+- `VaultService.swift` - Depends on SharedVaultSessionService
+- `ThreatMonitoringService.swift` - Not needed in extension
+- `ThreatRemediationAIService.swift` - Depends on ThreatMonitoringService
+- `DualKeyApprovalService.swift` - Depends on ThreatMonitoringService
+- `AutomaticTriageService.swift` - Depends on ThreatMonitoringService
+- `SecurityReviewScheduler.swift` - Depends on excluded services
+- `ShareExtensionService.swift` - Depends on VaultService
+- `AuthenticationService.swift` - Depends on VaultService
 
-**For MessageExtension target:**
-1. Select **MessageExtension** target
-2. Go to **Build Phases** tab
-3. Expand **Compile Sources**
-4. **Look for duplicates:**
-   - Same file listed twice = problem!
-   - Remove duplicate entries
-5. **Verify files are listed:**
-   - AppConfig.swift (once)
-   - Nominee.swift (once)
-   - User.swift (once)
-   - Vault.swift (once)
-   - StandardCard.swift (once)
-   - ThemeModifiers.swift (once)
-   - UnifiedTheme.swift (once)
+**Views (all main app views - extension has its own):**
+- All 61 view files in `Views/` directory (Authentication, Chat, Client, Documents, Emergency, Intelligence, Legal, Media, Onboarding, Profile, Security, Settings, Sharing, Store, Subscription, Support, Vaults)
 
-## Alternative Fix: Remove and Re-add Files
+**Other:**
+- `Khandoba_Secure_DocsApp.swift` - Main app entry point
+- `ContentView.swift` - Main app view
+- `Theme/AnimationStyles.swift` - Contains ThreatLevelIndicator (depends on ThreatLevel)
 
-If Step 2 doesn't work:
+### Code Changes
 
-1. **Select file** (e.g., `AppConfig.swift`)
-2. **File Inspector → Target Membership**
-3. **Uncheck both targets**
-4. **Re-check both targets**
-5. **Repeat for all affected files**
+**AuthenticationService.swift:**
+- Made `VaultService` usage conditional with `#if !APP_EXTENSION` (though ultimately excluded the entire file)
 
-## Manual DerivedData Clean
+**SharedVaultSessionService.swift:**
+- Made `PushNotificationService` usage conditional (though ultimately excluded the entire file)
 
-If errors persist:
+**VaultService.swift:**
+- Made `SharedVaultSessionService` usage conditional (though ultimately excluded the entire file)
 
-```bash
-# Close Xcode first!
-cd ~/Library/Developer/Xcode/DerivedData
-rm -rf Khandoba_Secure_Docs-*
-```
+**AnimationStyles.swift:**
+- Wrapped `ThreatLevelIndicator` struct in `#if !APP_EXTENSION` (though ultimately excluded the entire file)
 
-Then:
-1. Open Xcode
-2. Clean Build Folder (⇧⌘K)
-3. Build (⌘+B)
+## Build Status
 
-## Verify Fix
+✅ **iMessage Extension:** Builds successfully  
+✅ **Main App:** Builds successfully  
+✅ **ShareExtension:** Builds successfully  
 
-After cleaning:
+## What the Extension Includes
 
-1. **Build main app** (⌘+B)
-   - Should succeed without errors
+The iMessage extension now includes only:
+- **Models:** All SwiftData models (User, Vault, Document, etc.)
+- **Services:** Core services needed for message handling (DocumentService, NomineeService, CloudKitSharingService, etc.)
+- **Theme:** UnifiedTheme (without AnimationStyles)
+- **Config:** AppConfig, NotificationNames
+- **Extension-specific views:** Views in `KhandobaSecureDocsMessageApp/Views/` (MainMenuMessageView, NomineeInvitationMessageView, etc.)
 
-2. **Build MessageExtension** (⌘+B)
-   - Select MessageExtension scheme
-   - Build
-   - Should succeed without "Multiple commands produce" errors
+## Testing
 
-## Why This Happens
+The extension should now:
+1. ✅ Build without errors
+2. ✅ Appear in Messages app drawer
+3. ✅ Send vault invitations
+4. ✅ Share files from Photos/Safari
+5. ✅ Handle interactive message bubbles
 
-When a Swift file is compiled in multiple targets:
-- Xcode generates intermediate files (`.stringsdata`, `.o`, etc.)
-- If build settings conflict, same intermediate file names are generated
-- Build system sees duplicate outputs → error
+## Notes
 
-**Solution:** Ensure proper target membership and clean build folder.
+- The extension uses App Groups (`group.com.khandoba.securedocs`) to share data with the main app
+- Vault data is synced via UserDefaults in the App Group
+- The extension creates interactive message bubbles (Apple Cash style)
+- File sharing works when invoked from Photos/Safari share sheet
 
-## Prevention
+## Related Fixes
 
-1. ✅ Always check target membership when adding shared files
-2. ✅ Clean build folder if you change target membership
-3. ✅ Avoid manual duplicate entries in Compile Sources
-
----
-
-**Status:** Follow steps above to resolve
+- `docs/BUILD_ERRORS_FIXED_FINAL.md` - Initial UIApplication.shared fixes
+- `docs/IMESSAGE_APP_INFOPLIST_FIX.md` - Info.plist conflict fix

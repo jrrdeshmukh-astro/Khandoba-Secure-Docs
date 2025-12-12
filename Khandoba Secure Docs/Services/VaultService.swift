@@ -423,6 +423,7 @@ final class VaultService: ObservableObject {
         
         // 🔗 INTEGRATION: Open shared vault session for nominees
         if let currentUser = currentUser {
+            #if !APP_EXTENSION
             // Configure service on MainActor (configure is @MainActor)
             // modelContext and currentUserID are already unwrapped at function start
             // Use Task with @MainActor to avoid Sendable requirement
@@ -433,6 +434,7 @@ final class VaultService: ObservableObject {
             }.value
             try await sharedSessionService.openSharedVault(vault, unlockedBy: currentUser)
             print(" Shared vault session opened - nominees can now access")
+            #endif
             
             //  NOMINEE ACCESS: Check if current user is a nominee
             await checkAndGrantNomineeAccess(for: vault, userID: currentUserID)
@@ -565,6 +567,7 @@ final class VaultService: ObservableObject {
         }
         
         // 🔗 INTEGRATION: Lock shared vault session (notifies all nominees)
+        #if !APP_EXTENSION
         if let currentUser = currentUser {
             // Configure service on MainActor (configure is @MainActor)
             // modelContext and currentUserID are already unwrapped at function start
@@ -577,6 +580,7 @@ final class VaultService: ObservableObject {
             try? await sharedSessionService.lockSharedVault(vault, lockedBy: currentUser)
             print(" Shared vault session locked - nominees notified")
         }
+        #endif
         
         // Log access with location
         let accessLog = VaultAccessLog(

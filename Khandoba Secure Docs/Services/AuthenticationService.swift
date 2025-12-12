@@ -133,11 +133,13 @@ final class AuthenticationService: ObservableObject {
                 await cleanupOrphanedVaults(for: newUser, modelContext: modelContext)
                 
                 // Create Intel Vault for new user
+                #if !APP_EXTENSION
                 Task {
                     let vaultService = VaultService()
                     vaultService.configure(modelContext: modelContext, userID: newUser.id)
                     try? await vaultService.ensureIntelVaultExists(for: newUser)
                 }
+                #endif
             } else {
                 // Existing user with vaults - normal sign in
                 currentUser = existingUser
@@ -189,11 +191,13 @@ final class AuthenticationService: ObservableObject {
             await cleanupOrphanedVaults(for: newUser, modelContext: modelContext)
             
             // Create Intel Vault for new user
+            #if !APP_EXTENSION
             Task {
                 let vaultService = VaultService()
                 vaultService.configure(modelContext: modelContext, userID: newUser.id)
                 try? await vaultService.ensureIntelVaultExists(for: newUser)
             }
+            #endif
         }
     }
     
@@ -347,11 +351,13 @@ final class AuthenticationService: ObservableObject {
             isAuthenticated = true
             
             // Create Intel Vault for dev user
+            #if !APP_EXTENSION
             Task {
                 let vaultService = VaultService()
                 vaultService.configure(modelContext: modelContext, userID: newUser.id)
                 try? await vaultService.ensureIntelVaultExists(for: newUser)
             }
+            #endif
         }
     }
     

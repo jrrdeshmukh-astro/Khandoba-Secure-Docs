@@ -100,6 +100,13 @@
 			);
 			target = 24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */;
 		};
+		24807B8C2EEB52F2008E3E1F /* Exceptions for "KhandobaSecureDocsMessageApp" folder in "KhandobaSecureDocsMessageApp" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 24807B742EEB52EF008E3E1E /* KhandobaSecureDocsMessageApp */;
+		};
 		24FB38952EDF354C00BA1227 /* Exceptions for "Khandoba Secure Docs" folder in "Khandoba Secure Docs" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -112,10 +119,80 @@
 			membershipExceptions = (
 				Info.plist,
 				Khandoba_Secure_DocsApp.swift,
+				ContentView.swift,
 				Services/MessageInvitationService.swift,
 				Services/PushNotificationService.swift,
+				Services/SharedVaultSessionService.swift,
+				Services/VaultService.swift,
+				Services/ThreatMonitoringService.swift,
+				Services/ThreatRemediationAIService.swift,
+				Services/DualKeyApprovalService.swift,
+				Services/AutomaticTriageService.swift,
+				Services/SecurityReviewScheduler.swift,
+				Services/ShareExtensionService.swift,
+				Services/AuthenticationService.swift,
+				Theme/AnimationStyles.swift,
+				Views/Authentication/AccountSetupView.swift,
+				Views/Authentication/PermissionsSetupView.swift,
+				Views/Authentication/WelcomeView.swift,
+				Views/Chat/ChatView.swift,
+				Views/Client/ClientDashboardView.swift,
+				Views/Client/ClientMainView.swift,
+				Views/Client/DualKeyRequestStatusView.swift,
+				Views/Components/SecurityActionRow.swift,
+				Views/Documents/BulkOperationsView.swift,
+				Views/Documents/DocumentFilterView.swift,
+				Views/Documents/DocumentPreviewView.swift,
+				Views/Documents/DocumentSearchView.swift,
+				Views/Documents/DocumentUploadView.swift,
+				Views/Documents/DocumentVersionHistoryView.swift,
+				Views/Documents/RedactionView.swift,
+				Views/Documents/URLDownloadView.swift,
+				Views/Emergency/EmergencyAccessView.swift,
+				Views/Intelligence/AudioIntelReportView.swift,
+				Views/Intelligence/IntelChatView.swift,
+				Views/Intelligence/MarkdownTextView.swift,
+				Views/Intelligence/ReasoningGraphView.swift,
+				Views/Intelligence/TextIntelReportView.swift,
+				Views/Intelligence/VoiceMemoPlayerView.swift,
+				Views/Legal/AboutView.swift,
+				Views/Legal/HelpSupportView.swift,
+				Views/Legal/PrivacyPolicyView.swift,
+				Views/Legal/TermsOfServiceView.swift,
+				Views/Media/VideoRecordingView.swift,
+				Views/Media/VoiceRecordingView.swift,
+				Views/Onboarding/ClientOnboardingView.swift,
+				Views/Profile/AccountDeletionView.swift,
+				Views/Profile/ProfileView.swift,
+				Views/Security/AccessMapView.swift,
+				Views/Security/EnhancedThreatMonitorView.swift,
+				Views/Security/GuidedRemediationWizard.swift,
+				Views/Security/ThreatDashboardView.swift,
+				Views/Security/TriageView.swift,
+				Views/Settings/NotificationSettingsView.swift,
+				Views/Sharing/AcceptNomineeInvitationView.swift,
+				Views/Sharing/AcceptTransferView.swift,
 				Views/Sharing/AddNomineeView.swift,
+				Views/Sharing/CloudKitShareSuccessView.swift,
+				Views/Sharing/CloudKitSharingController.swift,
+				Views/Sharing/ManualInviteTokenView.swift,
+				Views/Sharing/NomineeManagementView.swift,
+				Views/Sharing/SecureNomineeChatView.swift,
 				Views/Sharing/TransferOwnershipView.swift,
+				Views/Sharing/UnifiedAddNomineeView.swift,
+				Views/Sharing/UnifiedNomineeManagementView.swift,
+				Views/Sharing/UnifiedShareView.swift,
+				Views/Sharing/VaultRequestView.swift,
+				Views/Sharing/VaultRequestsListView.swift,
+				Views/Sharing/VaultTransferView.swift,
+				Views/Store/StoreView.swift,
+				Views/Subscription/SubscriptionRequiredView.swift,
+				Views/Support/SupportChatView.swift,
+				Views/Vaults/CreateVaultView.swift,
+				Views/Vaults/SessionTimerView.swift,
+				Views/Vaults/VaultAccessControlView.swift,
+				Views/Vaults/VaultDetailView.swift,
+				Views/Vaults/VaultListView.swift,
 			);
 			target = 24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */;
 		};
@@ -132,6 +209,9 @@
 		};
 		24807B762EEB52EF008E3E1E /* KhandobaSecureDocsMessageApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				24807B8C2EEB52F2008E3E1F /* Exceptions for "KhandobaSecureDocsMessageApp" folder in "KhandobaSecureDocsMessageApp" target */,
+			);
 			path = KhandobaSecureDocsMessageApp;
 			sourceTree = "<group>";
 		};
@@ -615,7 +695,7 @@
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "KhandobaSecureDocsMessageApp MessagesExtension/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = KhandobaSecureDocsMessageApp;
+				INFOPLIST_KEY_CFBundleDisplayName = Khandoba;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -644,7 +724,7 @@
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "KhandobaSecureDocsMessageApp MessagesExtension/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = KhandobaSecureDocsMessageApp;
+				INFOPLIST_KEY_CFBundleDisplayName = Khandoba;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

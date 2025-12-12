@@ -269,17 +269,30 @@ final class SharedVaultSessionService: ObservableObject {
     }
     
     private func sendLocalNotification(title: String, body: String, vaultID: UUID) async {
-        #if !APP_EXTENSION
-        // Use PushNotificationService for consistent notification handling (main app only)
-        PushNotificationService.shared.sendVaultAccessNotification(
-            vaultName: title,
-            openedBy: body
-        )
-        #else
+        #if APP_EXTENSION
         // In extension context, notifications are handled differently
         print("📬 Vault access notification: \(title) - \(body)")
+        #else
+        // Use PushNotificationService for consistent notification handling (main app only)
+        // Direct call - PushNotificationService is only compiled for main app target
+        sendVaultAccessNotificationMainApp(vaultName: title, openedBy: body)
         #endif
     }
+    
+    #if !APP_EXTENSION
+    /// Send vault access notification (main app only)
+    private func sendVaultAccessNotificationMainApp(vaultName: String, openedBy: String) {
+        PushNotificationService.shared.sendVaultAccessNotification(
+            vaultName: vaultName,
+            openedBy: openedBy
+        )
+    }
+    #else
+    /// Dummy implementation for extension (never called)
+    private func sendVaultAccessNotificationMainApp(vaultName: String, openedBy: String) {
+        // Not available in extension
+    }
+    #endif
     
     // MARK: - Helpers
     
