@@ -424,8 +424,13 @@ final class CloudKitSharingService: ObservableObject {
         // hierarchicalRootRecordID is optional, so we fallback to deprecated rootRecordID if nil
         let rootRecordID: CKRecord.ID
         if #available(iOS 16.0, *) {
-            // Use new API if available, fallback to deprecated API if nil
-            rootRecordID = metadata.hierarchicalRootRecordID ?? metadata.rootRecordID
+            // Use new API if available
+            if let hierarchicalID = metadata.hierarchicalRootRecordID {
+                rootRecordID = hierarchicalID
+            } else {
+                // Fallback to deprecated API only if hierarchical is nil
+                rootRecordID = metadata.rootRecordID
+            }
         } else {
             // Fallback for older iOS versions
             rootRecordID = metadata.rootRecordID
@@ -573,7 +578,7 @@ final class CloudKitSharingService: ObservableObject {
         }
         
         // Check if share already exists
-        if let existingShare = try? await getExistingShare(for: vaultRecordID) {
+        if let existingShare = try? await getExistingShare(for: recordID) {
             print("   ✅ Using existing share")
             return existingShare
         }
@@ -581,10 +586,10 @@ final class CloudKitSharingService: ObservableObject {
         // Try to create new share
         do {
             print("   Creating new share...")
-            let rootRecord = try await getVaultRecord(vaultRecordID)
+            let rootRecord = try await getVaultRecord(recordID)
             let share = CKShare(rootRecord: rootRecord)
             share[CKShare.SystemFieldKey.title] = vault.name
-            share.publicPermission = .none // Private share only
+            share.publicPermission = CKShare.ParticipantPermission.none // Private share only
             
             // Add the share to the root record's share property
             rootRecord.setParent(share.recordID)

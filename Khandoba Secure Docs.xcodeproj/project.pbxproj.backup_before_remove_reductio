@@ -86,13 +86,6 @@
 			);
 			target = 245C55822EE4B66400270A37 /* ShareExtension */;
 		};
-		245C559E2EE4C09600270A38 /* Exceptions for "ShareExtension" folder in "ShareExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 245C55822EE4B66400270A37 /* ShareExtension */;
-		};
 		24807B8B2EEB52F2008E3E1E /* Exceptions for "KhandobaSecureDocsMessageApp MessagesExtension" folder in "KhandobaSecureDocsMessageApp MessagesExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -111,11 +104,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				Khandoba_Secure_DocsApp.swift,
-				Services/MessageInvitationService.swift,
-				Services/PushNotificationService.swift,
-				Views/Sharing/AddNomineeView.swift,
-				Views/Sharing/TransferOwnershipView.swift,
 			);
 			target = 24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */;
 		};
@@ -124,9 +112,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		245C55842EE4B66400270A37 /* ShareExtension */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				245C559E2EE4C09600270A38 /* Exceptions for "ShareExtension" folder in "ShareExtension" target */,
-			);
 			path = ShareExtension;
 			sourceTree = "<group>";
 		};
@@ -1074,6 +1059,12 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 24FB386A2EDF354B00BA1227 /* Project object */;
 }

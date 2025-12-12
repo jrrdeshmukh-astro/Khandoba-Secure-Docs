@@ -174,6 +174,8 @@ final class ShareExtensionService: ObservableObject {
 
 // MARK: - VaultInfo (for encoding/decoding)
 
+/// Vault information structure for sharing between app and extension
+/// Note: A duplicate exists in ShareExtensionViewController for the extension target
 struct VaultInfo: Codable {
     let id: UUID
     let name: String

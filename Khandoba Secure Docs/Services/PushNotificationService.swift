@@ -37,18 +37,13 @@ final class PushNotificationService: NSObject, ObservableObject {
         }
         
         if granted {
-            // Only register for remote notifications in main app, not in extensions
-            // Check if we're in an app extension by checking bundle extension identifier
-            let isAppExtension = Bundle.main.bundlePath.hasSuffix(".appex")
-            if !isAppExtension {
-                // Register for remote notifications only in main app
-                // This code is excluded from ShareExtension compilation via conditional compilation
-                #if !APP_EXTENSION
-            await MainActor.run {
-                UIApplication.shared.registerForRemoteNotifications()
-                }
-                #endif
-            }
+            #if APP_EXTENSION
+            // In extension, skip registration
+            print(" Push notification registration skipped in extension")
+            #else
+            // Register for remote notifications only in main app
+            await registerForRemoteNotificationsMainApp()
+            #endif
             print(" Push notification authorization granted")
         } else {
             print(" Push notification authorization denied")
@@ -288,6 +283,22 @@ extension PushNotificationService: UNUserNotificationCenterDelegate {
         
         completionHandler()
     }
+    
+    // MARK: - Helper Methods (Conditionally Compiled)
+    
+    #if !APP_EXTENSION
+    /// Register for remote notifications (main app only)
+    @MainActor
+    private func registerForRemoteNotificationsMainApp() {
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+    #else
+    /// Register for remote notifications (dummy for extension)
+    @MainActor
+    private func registerForRemoteNotificationsMainApp() {
+        // Not available in extension
+    }
+    #endif
 }
 
 // MARK: - Notification Names

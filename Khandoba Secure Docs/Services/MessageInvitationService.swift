@@ -69,27 +69,32 @@ final class MessageInvitationService {
         return message
     }
     
-    /// Check if Messages app is available
+    /// Check if Messages app is available (Main app only)
     func canSendMessages() -> Bool {
-        #if !APP_EXTENSION
+        #if APP_EXTENSION
+        // In iMessage extension, Messages is always available
+        return true
+        #else
         // In main app, check if SMS URL scheme is available
         guard let smsURL = URL(string: "sms:") else {
             return false
         }
         return UIApplication.shared.canOpenURL(smsURL)
-        #else
-        // In iMessage extension, Messages is always available
-        return true
         #endif
     }
     
-    /// Open Messages app with pre-filled invitation
+    /// Open Messages app with pre-filled invitation (Main app only)
     func openMessagesWithInvitation(
         inviteToken: String,
         vaultName: String,
         nomineeName: String,
         phoneNumber: String?
     ) {
+        #if APP_EXTENSION
+        // Not available in extension context
+        print("❌ openMessagesWithInvitation is not available in app extensions")
+        return
+        #else
         guard canSendMessages() else {
             print("❌ Messages app is not available")
             return
@@ -122,16 +127,18 @@ final class MessageInvitationService {
         }
         smsURLString += "&body=\(messageText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? messageText)"
         
-        if let smsURL = URL(string: smsURLString) {
-            #if !APP_EXTENSION
-            if UIApplication.shared.canOpenURL(smsURL) {
-                UIApplication.shared.open(smsURL)
-                print("✅ Opened Messages app with invitation")
-            } else {
-                print("❌ Cannot open Messages app")
-            }
-            #endif
+        guard let smsURL = URL(string: smsURLString) else {
+            print("❌ Failed to create SMS URL")
+            return
         }
+        
+        if UIApplication.shared.canOpenURL(smsURL) {
+            UIApplication.shared.open(smsURL)
+            print("✅ Opened Messages app with invitation")
+        } else {
+            print("❌ Cannot open Messages app")
+        }
+        #endif
     }
 }
 

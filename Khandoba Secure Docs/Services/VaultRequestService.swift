@@ -81,14 +81,16 @@ final class VaultRequestService: ObservableObject {
         if let currentUser = try? await getCurrentUser() {
             request.requesterName = currentUser.fullName
             request.requesterEmail = currentUser.email
-            request.requesterPhone = currentUser.phoneNumber
+            // Note: User model doesn't have phoneNumber property
+            request.requesterPhone = nil
         }
         
         // Set recipient (vault owner)
         request.recipientUserID = owner.id
         request.recipientName = owner.fullName
         request.recipientEmail = ownerEmail ?? owner.email
-        request.recipientPhone = ownerPhone ?? owner.phoneNumber
+        // Note: User model doesn't have phoneNumber property
+        request.recipientPhone = ownerPhone
         
         modelContext.insert(request)
         try modelContext.save()
@@ -143,7 +145,8 @@ final class VaultRequestService: ObservableObject {
         if let currentUser = try? await getCurrentUser() {
             request.requesterName = currentUser.fullName
             request.requesterEmail = currentUser.email
-            request.requesterPhone = currentUser.phoneNumber
+            // Note: User model doesn't have phoneNumber property
+            request.requesterPhone = nil
         }
         
         // Set recipient
@@ -174,7 +177,6 @@ final class VaultRequestService: ObservableObject {
     /// Similar to how Zelle automatically sends money when you "Send"
     private func processSendRequest(_ request: VaultAccessRequest) async throws {
         guard let vault = request.vault,
-              let cloudKitSharing = cloudKitSharing,
               let nomineeService = nomineeService else {
             return
         }
@@ -211,7 +213,6 @@ final class VaultRequestService: ObservableObject {
     func acceptRequest(_ request: VaultAccessRequest) async throws {
         guard let modelContext = modelContext,
               let vault = request.vault,
-              let cloudKitSharing = cloudKitSharing,
               let nomineeService = nomineeService else {
             throw VaultRequestError.contextNotAvailable
         }
@@ -294,8 +295,8 @@ final class VaultRequestService: ObservableObject {
         let sent = allRequests.filter { $0.requesterUserID == currentUserID }
         let received = allRequests.filter { 
             $0.recipientUserID == currentUserID || 
-            (currentUser?.email != nil && $0.recipientEmail?.lowercased() == currentUser?.email?.lowercased()) ||
-            (currentUser?.phoneNumber != nil && $0.recipientPhone == currentUser?.phoneNumber)
+            (currentUser?.email != nil && $0.recipientEmail?.lowercased() == currentUser?.email?.lowercased())
+            // Note: User model doesn't have phoneNumber, so we skip phone matching
         }
         let pending = allRequests.filter { $0.status == "pending" }
         

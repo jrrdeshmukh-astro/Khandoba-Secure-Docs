@@ -196,7 +196,8 @@ struct TriageView: View {
         // Analyze each vault
         for vault in vaults {
             // Traditional threat detection
-            let threatLevel = await threatService.analyzeThreatLevel(for: vault)
+            // Note: threatLevel is calculated but not used in this loop
+            _ = await threatService.analyzeThreatLevel(for: vault)
             let threats = threatService.detectThreats(for: vault)
             
             for threat in threats {
@@ -409,19 +410,22 @@ struct TriageView: View {
     
     private func checkScreenCapture() {
         // Use screen from context instead of deprecated UIScreen.main
-        let captured: Bool
-        if #available(iOS 26.0, *) {
-            // For iOS 26+, get screen from window scene context
-            // Fallback to main screen for older versions
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let screen = windowScene.screen {
-                captured = screen.isCaptured
-            } else {
-                captured = UIScreen.main.isCaptured
-            }
-        } else {
-            captured = UIScreen.main.isCaptured
+        // Note: UIApplication.shared is unavailable in app extensions
+        
+        // Check if we're in an app extension
+        let isExtension = Bundle.main.bundlePath.hasSuffix(".appex")
+        
+        if isExtension {
+            // Screen capture detection not available in app extensions
+            // Skip this check in extensions
+            return
         }
+        
+        // Get screen capture status
+        // For now, use UIScreen.main (deprecated but still functional)
+        // In iOS 26+, we'd prefer to use windowScene.screen, but UIApplication.shared
+        // is unavailable in extensions, so we use the deprecated API as fallback
+        let captured = UIScreen.main.isCaptured
         
         if captured && !isScreenCaptured {
             // Screen capture just started - trigger automatic triage

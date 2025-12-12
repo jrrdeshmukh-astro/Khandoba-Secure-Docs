@@ -236,9 +236,4 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 }
 
 // MARK: - Notification Names
-
-extension Notification.Name {
-    static let cloudKitShareInvitationReceived = Notification.Name("cloudKitShareInvitationReceived")
-    static let navigateToVault = Notification.Name("navigateToVault")
-    static let subscriptionStatusChanged = Notification.Name("subscriptionStatusChanged")
-}
+// Note: Notification names moved to Config/NotificationNames.swift for sharing with extensions

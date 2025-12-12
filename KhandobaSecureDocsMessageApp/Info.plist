@@ -19,7 +19,7 @@
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.message</string>
 		<key>NSExtensionPrincipalClass</key>
-		<string>$(PRODUCT_MODULE_NAME).MessageExtensionViewController</string>
+		<string>$(PRODUCT_MODULE_NAME).MessagesViewController</string>
 		<key>NSExtensionAttributes</key>
 		<dict>
 			<key>MSMessageExtensionCategory</key>
