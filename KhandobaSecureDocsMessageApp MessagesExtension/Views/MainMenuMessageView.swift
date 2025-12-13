@@ -11,6 +11,7 @@ import Messages
 struct MainMenuMessageView: View {
     let conversation: MSConversation
     let onInviteNominee: () -> Void
+    let onTransferOwnership: () -> Void
     let onShareFile: () -> Void
     
     @Environment(\.unifiedTheme) var theme
@@ -68,6 +69,30 @@ struct MainMenuMessageView: View {
                                 .cornerRadius(UnifiedTheme.CornerRadius.lg)
                             }
                             
+                            // Transfer Ownership Button
+                            Button {
+                                onTransferOwnership()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.title2)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Transfer Ownership")
+                                            .font(theme.typography.headline)
+                                        Text("Transfer vault ownership")
+                                            .font(theme.typography.caption)
+                                            .foregroundColor(colors.textSecondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                }
+                                .foregroundColor(colors.textPrimary)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(colors.surface)
+                                .cornerRadius(UnifiedTheme.CornerRadius.lg)
+                            }
+                            
                             // Share File Button
                             Button {
                                 onShareFile()
@@ -106,7 +131,7 @@ struct MainMenuMessageView: View {
                                         .fontWeight(.semibold)
                                 }
                                 
-                                Text("Invite others to access your vaults or share files directly. All sharing is secure and encrypted.")
+                                Text("Invite others to access your vaults, transfer ownership, or share files directly. All sharing is secure and encrypted.")
                                     .font(theme.typography.caption)
                                     .foregroundColor(colors.textSecondary)
                             }

@@ -60,6 +60,9 @@ class MessagesViewController: MSMessagesAppViewController {
             onInviteNominee: { [weak self] in
                 self?.presentNomineeInvitationView(for: conversation)
             },
+            onTransferOwnership: { [weak self] in
+                self?.presentTransferOwnershipView(for: conversation)
+            },
             onShareFile: { [weak self] in
                 self?.presentFileSharingView(items: [], conversation: conversation)
             }
@@ -186,7 +189,7 @@ class MessagesViewController: MSMessagesAppViewController {
             return
         }
         
-        // Parse invitation data
+        // Parse message data
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let queryItems = components.queryItems else {
             return
@@ -197,15 +200,28 @@ class MessagesViewController: MSMessagesAppViewController {
         let status = queryItems.first(where: { $0.name == "status" })?.value ?? "pending"
         let sender = queryItems.first(where: { $0.name == "sender" })?.value ?? "Vault Owner"
         
-        // Show accept/decline UI (Apple Cash style)
-        presentInvitationResponseView(
-            message: message,
-            conversation: conversation,
-            token: token,
-            vaultName: vaultName,
-            sender: sender,
-            status: status
-        )
+        // Determine message type based on URL path
+        if url.host == "transfer" || url.path.contains("transfer") {
+            // Show transfer ownership response UI
+            presentTransferResponseView(
+                message: message,
+                conversation: conversation,
+                token: token,
+                vaultName: vaultName,
+                sender: sender,
+                status: status
+            )
+        } else {
+            // Show nominee invitation response UI (default)
+            presentInvitationResponseView(
+                message: message,
+                conversation: conversation,
+                token: token,
+                vaultName: vaultName,
+                sender: sender,
+                status: status
+            )
+        }
     }
     
     private func presentInvitationResponseView(
@@ -257,6 +273,11 @@ class MessagesViewController: MSMessagesAppViewController {
         token: String?,
         vaultName: String
     ) {
+        // Process acceptance in background
+        Task {
+            await processInvitationAcceptance(token: token, vaultName: vaultName)
+        }
+        
         // Update message to accepted state
         let updatedLayout = MSMessageTemplateLayout()
         updatedLayout.caption = "✅ Vault Access Accepted"
@@ -285,16 +306,62 @@ class MessagesViewController: MSMessagesAppViewController {
                 print("❌ Failed to update message: \(error.localizedDescription)")
             } else {
                 print("✅ Invitation accepted - message updated")
-                // Open main app
+                // Open main app with deep link
                 if let url = URL(string: "khandoba://nominee/invite?token=\(token ?? "")&vault=\(vaultName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? vaultName)") {
                     self.extensionContext?.open(url) { success in
                         if success {
-                            print("✅ Opened main app")
+                            print("✅ Opened main app to process invitation")
+                        } else {
+                            // Store token for later processing
+                            UserDefaults(suiteName: "group.com.khandoba.securedocs")?.set(token, forKey: "pending_invite_token")
+                            print("📝 Stored invitation token for later processing")
                         }
                     }
                 }
                 self.requestPresentationStyle(.compact)
             }
+        }
+    }
+    
+    // MARK: - Process Invitation Acceptance
+    
+    private func processInvitationAcceptance(token: String?, vaultName: String) async {
+        guard let token = token else {
+            print("⚠️ No token provided for invitation acceptance")
+            return
+        }
+        
+        // Load SwiftData context
+        do {
+            let schema = Schema([Nominee.self, Vault.self, User.self])
+            let modelConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                cloudKitDatabase: .automatic
+            )
+            
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let context = container.mainContext
+            
+            // Find nominee by token
+            let nomineeDescriptor = FetchDescriptor<Nominee>(
+                predicate: #Predicate { $0.inviteToken == token }
+            )
+            
+            let nominees = try context.fetch(nomineeDescriptor)
+            
+            if let nominee = nominees.first {
+                // Update nominee status
+                nominee.status = .accepted
+                nominee.acceptedAt = Date()
+                
+                try context.save()
+                print("✅ Nominee invitation accepted and saved")
+            } else {
+                print("⚠️ No nominee found with token: \(token)")
+            }
+        } catch {
+            print("❌ Failed to process invitation acceptance: \(error.localizedDescription)")
         }
     }
     
@@ -351,10 +418,316 @@ class MessagesViewController: MSMessagesAppViewController {
     }
     
     private func handleReceivedMessage(_ message: MSMessage, in conversation: MSConversation) {
+        guard let url = message.url,
+              url.scheme == "khandoba" else {
+            return
+        }
+        
+        // Handle nominee invitations
+        if url.host == "nominee" || url.host == "invite" {
+            print("📬 Received nominee invitation message: \(url.absoluteString)")
+            // Parse and show invitation response view if needed
+            if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+               let queryItems = components.queryItems,
+               let status = queryItems.first(where: { $0.name == "status" })?.value,
+               status == "pending" {
+                // Show invitation response view
+                let token = queryItems.first(where: { $0.name == "token" })?.value
+                let vaultName = queryItems.first(where: { $0.name == "vault" })?.value ?? "Unknown Vault"
+                let sender = queryItems.first(where: { $0.name == "sender" })?.value ?? "Vault Owner"
+                
+                presentInvitationResponseView(
+                    message: message,
+                    conversation: conversation,
+                    token: token,
+                    vaultName: vaultName,
+                    sender: sender,
+                    status: status
+                )
+            }
+        }
+        
+        // Handle transfer ownership requests
+        if url.host == "transfer" || url.path.contains("transfer") {
+            print("📬 Received transfer ownership message: \(url.absoluteString)")
+            // Parse and show transfer response view if needed
+            if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+               let queryItems = components.queryItems,
+               let status = queryItems.first(where: { $0.name == "status" })?.value,
+               status == "pending" {
+                // Show transfer response view
+                let token = queryItems.first(where: { $0.name == "token" })?.value
+                let vaultName = queryItems.first(where: { $0.name == "vault" })?.value ?? "Unknown Vault"
+                let sender = queryItems.first(where: { $0.name == "sender" })?.value ?? "Vault Owner"
+                
+                presentTransferResponseView(
+                    message: message,
+                    conversation: conversation,
+                    token: token,
+                    vaultName: vaultName,
+                    sender: sender,
+                    status: status
+                )
+            }
+        }
+    }
+    
+    // MARK: - Transfer Ownership
+    
+    private func presentTransferOwnershipView(for conversation: MSConversation) {
+        removeAllChildViewControllers()
+        
+        let transferView = TransferOwnershipMessageView(
+            conversation: conversation,
+            onSendTransfer: { [weak self] transferToken, vaultName, recipientName in
+                self?.sendTransferOwnershipRequest(
+                    transferToken: transferToken,
+                    vaultName: vaultName,
+                    recipientName: recipientName,
+                    in: conversation
+                )
+            },
+            onCancel: { [weak self] in
+                self?.presentMainInterface(for: conversation)
+            }
+        )
+        
+        let hostingController = UIHostingController(
+            rootView: transferView.environment(\.unifiedTheme, UnifiedTheme())
+        )
+        addChild(hostingController)
+        hostingController.view.frame = view.bounds
+        hostingController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(hostingController.view)
+        hostingController.didMove(toParent: self)
+    }
+    
+    private func sendTransferOwnershipRequest(
+        transferToken: String,
+        vaultName: String,
+        recipientName: String,
+        in conversation: MSConversation
+    ) {
+        // Create transfer URL
+        var components = URLComponents(string: "khandoba://transfer/ownership")
+        components?.queryItems = [
+            URLQueryItem(name: "token", value: transferToken),
+            URLQueryItem(name: "vault", value: vaultName),
+            URLQueryItem(name: "status", value: "pending"),
+            URLQueryItem(name: "sender", value: recipientName)
+        ]
+        
+        guard let url = components?.url else {
+            print("❌ Failed to create transfer URL")
+            return
+        }
+        
+        // Create interactive message layout
+        let layout = MSMessageTemplateLayout()
+        layout.caption = "🔄 Transfer Ownership"
+        layout.subcaption = vaultName
+        layout.trailingCaption = "Tap to Accept"
+        layout.imageTitle = "Khandoba Secure Docs"
+        
+        // Create message
+        let message = MSMessage()
+        message.layout = layout
+        message.url = url
+        message.summaryText = "Transfer Ownership: \(vaultName) - Tap to accept"
+        
+        // Insert message
+        conversation.insert(message) { error in
+            if let error = error {
+                print("❌ Failed to send transfer request: \(error.localizedDescription)")
+            } else {
+                print("✅ Transfer ownership request sent via iMessage")
+                self.requestPresentationStyle(.compact)
+            }
+        }
+    }
+    
+    private func presentTransferResponseView(
+        message: MSMessage,
+        conversation: MSConversation,
+        token: String?,
+        vaultName: String,
+        sender: String,
+        status: String
+    ) {
+        removeAllChildViewControllers()
+        
+        let responseView = TransferResponseMessageView(
+            message: message,
+            conversation: conversation,
+            token: token,
+            vaultName: vaultName,
+            sender: sender,
+            status: status,
+            onAccept: { [weak self] in
+                self?.handleTransferAcceptance(
+                    message: message,
+                    conversation: conversation,
+                    token: token,
+                    vaultName: vaultName
+                )
+            },
+            onDecline: { [weak self] in
+                self?.handleTransferDecline(
+                    message: message,
+                    conversation: conversation
+                )
+            }
+        )
+        
+        let hostingController = UIHostingController(
+            rootView: responseView.environment(\.unifiedTheme, UnifiedTheme())
+        )
+        addChild(hostingController)
+        hostingController.view.frame = view.bounds
+        hostingController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(hostingController.view)
+        hostingController.didMove(toParent: self)
+    }
+    
+    private func handleTransferAcceptance(
+        message: MSMessage,
+        conversation: MSConversation,
+        token: String?,
+        vaultName: String
+    ) {
+        // Process acceptance in background
+        Task {
+            await processTransferAcceptance(token: token, vaultName: vaultName)
+        }
+        
+        // Update message to accepted state
+        let updatedLayout = MSMessageTemplateLayout()
+        updatedLayout.caption = "✅ Ownership Transfer Accepted"
+        updatedLayout.subcaption = vaultName
+        updatedLayout.trailingCaption = "Accepted"
+        
+        var components = URLComponents(string: "khandoba://transfer/ownership")
+        components?.queryItems = [
+            URLQueryItem(name: "token", value: token ?? ""),
+            URLQueryItem(name: "vault", value: vaultName),
+            URLQueryItem(name: "status", value: "accepted")
+        ]
+        
+        guard let updatedURL = components?.url else { return }
+        
+        let updatedMessage = MSMessage()
+        updatedMessage.layout = updatedLayout
+        updatedMessage.url = updatedURL
+        updatedMessage.summaryText = "✅ Accepted: \(vaultName)"
+        
+        conversation.insert(updatedMessage) { error in
+            if let error = error {
+                print("❌ Failed to update message: \(error.localizedDescription)")
+            } else {
+                print("✅ Transfer accepted - message updated")
+                // Open main app with deep link
+                if let url = URL(string: "khandoba://transfer/accept?token=\(token ?? "")&vault=\(vaultName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? vaultName)") {
+                    self.extensionContext?.open(url) { success in
+                        if success {
+                            print("✅ Opened main app to process transfer")
+                        } else {
+                            // Store token for later processing
+                            UserDefaults(suiteName: "group.com.khandoba.securedocs")?.set(token, forKey: "pending_transfer_token")
+                            print("📝 Stored transfer token for later processing")
+                        }
+                    }
+                }
+                self.requestPresentationStyle(.compact)
+            }
+        }
+    }
+    
+    private func handleTransferDecline(
+        message: MSMessage,
+        conversation: MSConversation
+    ) {
+        var vaultName = "Vault"
         if let url = message.url,
-           url.scheme == "khandoba",
-           (url.host == "nominee" || url.host == "invite") {
-            print("📬 Received invitation message: \(url.absoluteString)")
+           let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let queryItems = components.queryItems,
+           let vault = queryItems.first(where: { $0.name == "vault" })?.value {
+            vaultName = vault
+        }
+        
+        let updatedLayout = MSMessageTemplateLayout()
+        updatedLayout.caption = "❌ Ownership Transfer Declined"
+        updatedLayout.subcaption = vaultName
+        updatedLayout.trailingCaption = "Declined"
+        
+        var components = URLComponents(string: "khandoba://transfer/ownership")
+        if let originalURL = message.url,
+           let originalComponents = URLComponents(url: originalURL, resolvingAgainstBaseURL: false),
+           let originalQueryItems = originalComponents.queryItems {
+            components?.queryItems = originalQueryItems.map { item in
+                if item.name == "status" {
+                    return URLQueryItem(name: "status", value: "declined")
+                }
+                return item
+            }
+            if !(components?.queryItems?.contains { $0.name == "status" } ?? false) {
+                components?.queryItems?.append(URLQueryItem(name: "status", value: "declined"))
+            }
+        }
+        
+        let updatedMessage = MSMessage()
+        updatedMessage.layout = updatedLayout
+        if let updatedURL = components?.url {
+            updatedMessage.url = updatedURL
+        }
+        updatedMessage.summaryText = "❌ Declined: \(vaultName)"
+        
+        conversation.insert(updatedMessage) { error in
+            if let error = error {
+                print("❌ Failed to update message: \(error.localizedDescription)")
+            } else {
+                print("✅ Transfer declined - message updated")
+                self.requestPresentationStyle(.compact)
+            }
+        }
+    }
+    
+    private func processTransferAcceptance(token: String?, vaultName: String) async {
+        guard let token = token else {
+            print("⚠️ No token provided for transfer acceptance")
+            return
+        }
+        
+        // Load SwiftData context
+        do {
+            let schema = Schema([VaultTransferRequest.self, Vault.self, User.self])
+            let modelConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                cloudKitDatabase: .automatic
+            )
+            
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let context = container.mainContext
+            
+            // Find transfer request by token
+            let transferDescriptor = FetchDescriptor<VaultTransferRequest>(
+                predicate: #Predicate { $0.transferToken == token }
+            )
+            
+            let transfers = try context.fetch(transferDescriptor)
+            
+            if let transfer = transfers.first {
+                // Update transfer status
+                transfer.status = "accepted"
+                transfer.approvedAt = Date()
+                
+                try context.save()
+                print("✅ Transfer ownership accepted and saved")
+            } else {
+                print("⚠️ No transfer request found with token: \(token)")
+            }
+        } catch {
+            print("❌ Failed to process transfer acceptance: \(error.localizedDescription)")
         }
     }
     

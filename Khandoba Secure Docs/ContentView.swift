@@ -204,8 +204,8 @@ struct ContentView: View {
                 } else {
                     print("   ❌ Failed to extract token from invite URL")
                 }
-            } else if url.host == "transfer" {
-                // Transfer format: khandoba://transfer?token=UUID
+            } else if url.host == "transfer" || url.path.contains("transfer") {
+                // Transfer format: khandoba://transfer/ownership?token=UUID or khandoba://transfer/accept?token=UUID
                 if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                    let token = components.queryItems?.first(where: { $0.name == "token" })?.value {
                     print("   ✅ Found transfer token: \(token)")
