@@ -10,6 +10,7 @@
 		245C558D2EE4B66400270A37 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 245C55832EE4B66400270A37 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		24807B7E2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 24807B7D2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		24807B812EEB52F1008E3E1E /* Messages.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 245C33862EE4B1D500270A37 /* Messages.framework */; };
+		24ADEBF42EEDB82000C1A9B5 /* KhandobaSecureDocsMessageApp MessagesExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 24807B7D2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -21,6 +22,13 @@
 			remoteInfo = ShareExtension;
 		};
 		24807B7F2EEB52F1008E3E1E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 24FB386A2EDF354B00BA1227 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 24807B7C2EEB52F1008E3E1E;
+			remoteInfo = "KhandobaSecureDocsMessageApp MessagesExtension";
+		};
+		24ADEBF52EEDB88700C1A9B5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 24FB386A2EDF354B00BA1227 /* Project object */;
 			proxyType = 1;
@@ -57,10 +65,11 @@
 		};
 		24A78EB02EE4988400B2F32E /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
+			buildActionMask = 12;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				24ADEBF42EEDB82000C1A9B5 /* KhandobaSecureDocsMessageApp MessagesExtension.appex in Embed Foundation Extensions */,
 				245C558D2EE4B66400270A37 /* ShareExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
@@ -117,20 +126,20 @@
 		OWRZA7VISHT0FFJ857KLAZAO /* Exceptions for "Khandoba Secure Docs" folder in "KhandobaSecureDocsMessageApp MessagesExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				ContentView.swift,
 				Info.plist,
 				Khandoba_Secure_DocsApp.swift,
-				ContentView.swift,
+				Services/AuthenticationService.swift,
+				Services/AutomaticTriageService.swift,
+				Services/DualKeyApprovalService.swift,
 				Services/MessageInvitationService.swift,
 				Services/PushNotificationService.swift,
+				Services/SecurityReviewScheduler.swift,
 				Services/SharedVaultSessionService.swift,
-				Services/VaultService.swift,
+				Services/ShareExtensionService.swift,
 				Services/ThreatMonitoringService.swift,
 				Services/ThreatRemediationAIService.swift,
-				Services/DualKeyApprovalService.swift,
-				Services/AutomaticTriageService.swift,
-				Services/SecurityReviewScheduler.swift,
-				Services/ShareExtensionService.swift,
-				Services/AuthenticationService.swift,
+				Services/VaultService.swift,
 				Theme/AnimationStyles.swift,
 				Views/Authentication/AccountSetupView.swift,
 				Views/Authentication/PermissionsSetupView.swift,
@@ -182,8 +191,8 @@
 				Views/Sharing/UnifiedAddNomineeView.swift,
 				Views/Sharing/UnifiedNomineeManagementView.swift,
 				Views/Sharing/UnifiedShareView.swift,
-				Views/Sharing/VaultRequestView.swift,
 				Views/Sharing/VaultRequestsListView.swift,
+				Views/Sharing/VaultRequestView.swift,
 				Views/Sharing/VaultTransferView.swift,
 				Views/Store/StoreView.swift,
 				Views/Subscription/SubscriptionRequiredView.swift,
@@ -403,6 +412,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				24ADEBF62EEDB88700C1A9B5 /* PBXTargetDependency */,
 				245C558C2EE4B66400270A37 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
@@ -613,6 +623,11 @@
 			target = 24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */;
 			targetProxy = 24807B7F2EEB52F1008E3E1E /* PBXContainerItemProxy */;
 		};
+		24ADEBF62EEDB88700C1A9B5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */;
+			targetProxy = 24ADEBF52EEDB88700C1A9B5 /* PBXContainerItemProxy */;
+		};
 		24FB38852EDF354C00BA1227 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 24FB38712EDF354B00BA1227 /* Khandoba Secure Docs */;
@@ -703,7 +718,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = openstreetllc.KhandobaSecureDocsMessageApp.MessagesExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.khandoba.securedocs.KhandobaSecureDocsMessageApp.MessagesExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -732,7 +747,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = openstreetllc.KhandobaSecureDocsMessageApp.MessagesExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.khandoba.securedocs.KhandobaSecureDocsMessageApp.MessagesExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -757,7 +772,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = openstreetllc.KhandobaSecureDocsMessageApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.khandoba.securedocs.KhandobaSecureDocsMessageApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -781,7 +796,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = openstreetllc.KhandobaSecureDocsMessageApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.khandoba.securedocs.KhandobaSecureDocsMessageApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -1013,7 +1028,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "openstreetllc.Khandoba-Secure-DocsTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.khandoba.securedocs.Khandoba-Secure-DocsTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -1035,7 +1050,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "openstreetllc.Khandoba-Secure-DocsTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.khandoba.securedocs.Khandoba-Secure-DocsTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -1055,7 +1070,7 @@
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "openstreetllc.Khandoba-Secure-DocsUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.khandoba.securedocs.Khandoba-Secure-DocsUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -1075,7 +1090,7 @@
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "openstreetllc.Khandoba-Secure-DocsUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.khandoba.securedocs.Khandoba-Secure-DocsUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
