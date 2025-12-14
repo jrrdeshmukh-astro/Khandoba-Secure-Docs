@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct NomineeManagementView: View {
     let vault: Vault
@@ -18,7 +19,8 @@ struct NomineeManagementView: View {
     @EnvironmentObject var chatService: ChatService
     
     @StateObject private var nomineeService = NomineeService()
-    @State private var showAddNominee = false
+    @State private var showError = false
+    @State private var errorMessage = ""
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -33,10 +35,10 @@ struct NomineeManagementView: View {
                         EmptyStateView(
                             icon: "person.badge.plus",
                             title: "No Nominees",
-                            message: "Invite people to access this vault",
-                            actionTitle: "Invite Nominee"
+                            message: "Invite people to access this vault via Messages",
+                            actionTitle: "Invite via Messages"
                         ) {
-                            showAddNominee = true
+                            openMessagesForNomineeInvitation()
                         }
                     } else {
                         LazyVStack(spacing: UnifiedTheme.Spacing.sm) {
@@ -56,21 +58,17 @@ struct NomineeManagementView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    showAddNominee = true
+                    openMessagesForNomineeInvitation()
                 } label: {
-                    Image(systemName: "plus")
+                    Image(systemName: "message.fill")
                         .foregroundColor(colors.primary)
                 }
             }
         }
-        .sheet(isPresented: $showAddNominee) {
-            AddNomineeView(vault: vault)
-                .onDisappear {
-                    // Reload nominees when sheet dismisses
-                    Task {
-                        try? await nomineeService.loadNominees(for: vault)
-                    }
-                }
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
         }
         .task {
             // Configure nominee service with current user ID
@@ -99,6 +97,39 @@ struct NomineeManagementView: View {
     
     private func removeNominee(_ nominee: Nominee) async {
         try? await nomineeService.removeNominee(nominee)
+    }
+    
+    // MARK: - Open Messages for Nominee Invitation
+    
+    private func openMessagesForNomineeInvitation() {
+        #if !APP_EXTENSION
+        // Store vault ID in App Group UserDefaults so iMessage extension can access it
+        let appGroupID = "group.com.khandoba.securedocs"
+        if let sharedDefaults = UserDefaults(suiteName: appGroupID) {
+            // Store vault ID as UUID string
+            sharedDefaults.set(vault.id.uuidString, forKey: "pending_nominee_vault_id")
+            sharedDefaults.set(vault.name, forKey: "pending_nominee_vault_name")
+            sharedDefaults.synchronize()
+            print("📱 Stored vault ID for iMessage extension: \(vault.id.uuidString)")
+        }
+        
+        // Open Messages app
+        if let messagesURL = URL(string: "sms:") {
+            UIApplication.shared.open(messagesURL) { success in
+                if !success {
+                    DispatchQueue.main.async {
+                        errorMessage = "Unable to open Messages app. Please make sure Messages is installed."
+                        showError = true
+                    }
+                } else {
+                    print("✅ Opened Messages app for nominee invitation")
+                }
+            }
+        } else {
+            errorMessage = "Unable to open Messages app."
+            showError = true
+        }
+        #endif
     }
 }
 
@@ -175,7 +206,7 @@ struct NomineeRow: View {
     }
 }
 
-// MARK: - AddNomineeView
-// Nominee invitations are created via AddNomineeView which generates invite links
-// Flow: User taps "+" → AddNomineeView → Create nominee → Get invite link → Share via Messages/Email/etc.
+// MARK: - Nominee Invitation Flow
+// Nominee invitations are created via iMessage extension
+// Flow: User taps "+" → Opens Messages app → iMessage extension loads → User selects vault (pre-selected) → Enter nominee details → Send invitation
 

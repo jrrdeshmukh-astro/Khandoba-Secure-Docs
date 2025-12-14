@@ -183,10 +183,37 @@ struct NomineeInvitationMessageView: View {
                 
                 await MainActor.run {
                     vaults = fetchedVaults.filter { !$0.isSystemVault }
-                    if let firstVault = vaults.first {
-                        selectedVault = firstVault
-                        vaultName = firstVault.name
+                    
+                    // Check if there's a pending vault ID from main app
+                    let appGroupID = "group.com.khandoba.securedocs"
+                    if let sharedDefaults = UserDefaults(suiteName: appGroupID),
+                       let vaultIDString = sharedDefaults.string(forKey: "pending_nominee_vault_id"),
+                       let vaultID = UUID(uuidString: vaultIDString) {
+                        // Find the vault with matching ID
+                        if let pendingVault = vaults.first(where: { $0.id == vaultID }) {
+                            selectedVault = pendingVault
+                            vaultName = pendingVault.name
+                            print("✅ Pre-selected vault from main app: \(pendingVault.name)")
+                            
+                            // Clear the stored vault ID after using it
+                            sharedDefaults.removeObject(forKey: "pending_nominee_vault_id")
+                            sharedDefaults.removeObject(forKey: "pending_nominee_vault_name")
+                            sharedDefaults.synchronize()
+                        } else {
+                            // Vault not found, use first vault as fallback
+                            if let firstVault = vaults.first {
+                                selectedVault = firstVault
+                                vaultName = firstVault.name
+                            }
+                        }
+                    } else {
+                        // No pending vault, use first vault
+                        if let firstVault = vaults.first {
+                            selectedVault = firstVault
+                            vaultName = firstVault.name
+                        }
                     }
+                    
                     modelContext = context
                 }
             } catch {
