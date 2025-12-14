@@ -46,7 +46,11 @@ struct MainMenuMessageView: View {
                         VStack(spacing: UnifiedTheme.Spacing.md) {
                             // Invite Nominee Button
                             Button {
-                                onInviteNominee()
+                                print("📱 Invite to Vault button tapped")
+                                // Use a small delay to ensure UI is ready
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    onInviteNominee()
+                                }
                             } label: {
                                 HStack {
                                     Image(systemName: "person.badge.plus")
@@ -67,6 +71,7 @@ struct MainMenuMessageView: View {
                                 .background(colors.primary)
                                 .cornerRadius(UnifiedTheme.CornerRadius.lg)
                             }
+                            .buttonStyle(.plain) // Ensure button is tappable
                             
                             // Transfer Ownership Button
                             Button {

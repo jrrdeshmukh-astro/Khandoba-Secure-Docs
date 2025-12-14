@@ -63,10 +63,16 @@ class MessagesViewController: MSMessagesAppViewController {
         let menuView = MainMenuMessageView(
             conversation: conversation,
             onInviteNominee: { [weak self] in
-                self?.presentNomineeInvitationView(for: conversation)
+                print("📱 onInviteNominee closure called")
+                DispatchQueue.main.async {
+                    self?.presentNomineeInvitationView(for: conversation)
+                }
             },
             onTransferOwnership: { [weak self] in
-                self?.presentTransferOwnershipView(for: conversation)
+                print("📱 onTransferOwnership closure called")
+                DispatchQueue.main.async {
+                    self?.presentTransferOwnershipView(for: conversation)
+                }
             }
         )
         
@@ -83,31 +89,63 @@ class MessagesViewController: MSMessagesAppViewController {
     // MARK: - Nominee Invitation
     
     private func presentNomineeInvitationView(for conversation: MSConversation) {
-        removeAllChildViewControllers()
+        print("📱 presentNomineeInvitationView called")
         
-        let invitationView = NomineeInvitationMessageView(
-            conversation: conversation,
-            onSendInvitation: { [weak self] inviteToken, vaultName, recipientName in
-                self?.sendNomineeInvitation(
-                    inviteToken: inviteToken,
-                    vaultName: vaultName,
-                    recipientName: recipientName,
-                    in: conversation
-                )
-            },
-            onCancel: { [weak self] in
-                self?.presentMainInterface(for: conversation)
+        // Ensure this runs on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else {
+                print("❌ self is nil in presentNomineeInvitationView")
+                return
             }
-        )
-        
-        let hostingController = UIHostingController(
-            rootView: invitationView.environment(\.unifiedTheme, UnifiedTheme())
-        )
-        addChild(hostingController)
-        hostingController.view.frame = view.bounds
-        hostingController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(hostingController.view)
-        hostingController.didMove(toParent: self)
+            
+            print("📱 Removing old view controllers...")
+            self.removeAllChildViewControllers()
+            self.view.subviews.forEach { $0.removeFromSuperview() }
+            
+            // Small delay to ensure cleanup is complete
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                print("📱 Creating NomineeInvitationMessageView...")
+                
+                let invitationView = NomineeInvitationMessageView(
+                    conversation: conversation,
+                    onSendInvitation: { [weak self] inviteToken, vaultName, recipientName in
+                        print("📱 onSendInvitation called with token: \(inviteToken)")
+                        self?.sendNomineeInvitation(
+                            inviteToken: inviteToken,
+                            vaultName: vaultName,
+                            recipientName: recipientName,
+                            in: conversation
+                        )
+                    },
+                    onCancel: { [weak self] in
+                        print("📱 onCancel called, returning to main menu")
+                        self?.presentMainInterface(for: conversation)
+                    }
+                )
+                
+                let hostingController = UIHostingController(
+                    rootView: invitationView.environment(\.unifiedTheme, UnifiedTheme())
+                )
+                
+                hostingController.view.backgroundColor = .systemBackground
+                hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+                
+                self.addChild(hostingController)
+                self.view.addSubview(hostingController.view)
+                
+                // Use constraints for better layout
+                NSLayoutConstraint.activate([
+                    hostingController.view.topAnchor.constraint(equalTo: self.view.topAnchor),
+                    hostingController.view.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                    hostingController.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+                    hostingController.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
+                ])
+                
+                hostingController.didMove(toParent: self)
+                
+                print("📱 NomineeInvitationMessageView presented successfully")
+            }
+        }
     }
     
     private func sendNomineeInvitation(

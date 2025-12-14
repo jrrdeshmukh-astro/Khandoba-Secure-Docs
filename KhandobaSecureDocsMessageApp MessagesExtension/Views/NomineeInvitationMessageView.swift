@@ -8,6 +8,7 @@
 import SwiftUI
 import Messages
 import SwiftData
+import Foundation
 
 struct NomineeInvitationMessageView: View {
     let conversation: MSConversation
@@ -158,15 +159,49 @@ struct NomineeInvitationMessageView: View {
             do {
                 // Try to load with timeout
                 try await withTimeout(seconds: 10) {
-                    let schema = Schema([Vault.self, User.self, Nominee.self])
+                    // Use the same schema as main app for compatibility
+                    let schema = Schema([
+                        User.self,
+                        UserRole.self,
+                        Vault.self,
+                        VaultSession.self,
+                        VaultAccessLog.self,
+                        DualKeyRequest.self,
+                        Document.self,
+                        DocumentVersion.self,
+                        ChatMessage.self,
+                        Nominee.self,
+                        VaultTransferRequest.self,
+                        VaultAccessRequest.self,
+                        EmergencyAccessRequest.self
+                    ])
+                    
+                    // Use App Group for shared storage with main app
+                    // This is CRITICAL - without this, the extension can't access the main app's data
+                    let appGroupIdentifier = "group.com.khandoba.securedocs"
+                    
+                    // Ensure Application Support directory exists in App Group
+                    // This prevents CoreData errors about missing directories
+                    if let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
+                        let appSupportURL = appGroupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
+                        try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
+                        print("📦 iMessage Extension: Ensured Application Support directory exists")
+                    }
+                    
                     let modelConfiguration = ModelConfiguration(
                         schema: schema,
                         isStoredInMemoryOnly: false,
+                        groupContainer: .identifier(appGroupIdentifier),
                         cloudKitDatabase: .automatic
                     )
                     
                     let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
                     let context = container.mainContext
+                    
+                    print("📦 iMessage Extension: ModelContainer created with App Group: \(appGroupIdentifier)")
+                    
+                    // Give CloudKit a moment to sync if needed
+                    try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                     
                     let descriptor = FetchDescriptor<Vault>(
                         sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
@@ -174,9 +209,15 @@ struct NomineeInvitationMessageView: View {
                     
                     let fetchedVaults = try context.fetch(descriptor)
                     
+                    print("📦 iMessage Extension: Fetched \(fetchedVaults.count) vault(s) from shared container")
+                    for vault in fetchedVaults {
+                        print("   - \(vault.name) (ID: \(vault.id), System: \(vault.isSystemVault))")
+                    }
+                    
                     await MainActor.run {
                         vaults = fetchedVaults.filter { !$0.isSystemVault }
                         isLoadingVaults = false
+                        print("📦 iMessage Extension: Filtered to \(vaults.count) non-system vault(s)")
                         
                         // Check if there's a pending vault ID from main app
                         let appGroupID = "group.com.khandoba.securedocs"
@@ -213,10 +254,21 @@ struct NomineeInvitationMessageView: View {
                 }
             } catch {
                 print("❌ Failed to load vaults: \(error.localizedDescription)")
-                await MainActor.run {
-                    isLoadingVaults = false
-                    errorMessage = "Failed to load vaults. Please try again or create a vault in the main app first."
-                    showError = true
+                print("❌ Error details: \(error)")
+                
+                // Check if it's a timeout error
+                if error is TimeoutError {
+                    await MainActor.run {
+                        isLoadingVaults = false
+                        errorMessage = "Loading vaults timed out. Please check your connection and try again."
+                        showError = true
+                    }
+                } else {
+                    await MainActor.run {
+                        isLoadingVaults = false
+                        errorMessage = "Failed to load vaults. Please ensure you have created a vault in the main app first, then try again."
+                        showError = true
+                    }
                 }
             }
         }
