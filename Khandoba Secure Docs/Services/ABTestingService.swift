@@ -184,13 +184,13 @@ final class ABTestingService: ObservableObject {
         for variant in test.variants {
             let assigned = events.filter {
                 $0.name == "test_assigned" &&
-                $0.properties["test_id"] as? String == testID &&
-                $0.properties["variant_id"] as? String == variant.id
+                ($0.properties["test_id"] as? String) == testID &&
+                ($0.properties["variant_id"] as? String) == variant.id
             }.count
             
             let conversions = events.filter {
                 $0.name == "conversion" &&
-                $0.properties["test_\(testID)"] as? String == variant.id
+                ($0.properties["test_\(testID)"] as? String) == variant.id
             }.count
             
             let conversionRate = assigned > 0 ? Double(conversions) / Double(assigned) : 0.0

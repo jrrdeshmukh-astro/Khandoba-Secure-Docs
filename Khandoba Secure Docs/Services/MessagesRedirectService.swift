@@ -20,7 +20,13 @@ final class MessagesRedirectService {
     /// Open Messages app and store vault context for iMessage extension
     /// - Parameter vaultID: The UUID of the vault to nominate
     /// - Returns: Success status
+    @available(iOSApplicationExtension, unavailable)
     func openMessagesAppForNomination(vaultID: UUID) async -> Bool {
+        // This service should only be used in the main app, not in extensions
+        #if APP_EXTENSION
+        print("❌ MessagesRedirectService: Cannot open Messages app from extension")
+        return false
+        #else
         // Store vault context in App Group UserDefaults
         guard let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier) else {
             print("❌ MessagesRedirectService: Failed to access App Group UserDefaults")
@@ -28,7 +34,8 @@ final class MessagesRedirectService {
             return false
         }
         
-        sharedDefaults.set(vaultID.uuidString, forKey: pendingNominationVaultIDKey)
+        let key = self.pendingNominationVaultIDKey
+        sharedDefaults.set(vaultID.uuidString, forKey: key)
         sharedDefaults.synchronize()
         
         print("📱 MessagesRedirectService: Stored vault ID \(vaultID.uuidString) for nomination")
@@ -38,30 +45,40 @@ final class MessagesRedirectService {
         guard let messagesURL = URL(string: "sms:") else {
             print("❌ MessagesRedirectService: Failed to create Messages URL")
             // Clear the stored vault ID if URL creation failed
-            sharedDefaults.removeObject(forKey: pendingNominationVaultIDKey)
+            sharedDefaults.removeObject(forKey: key)
             return false
         }
         
-        // Check if Messages app is available
-        guard await UIApplication.shared.canOpenURL(messagesURL) else {
+        // Check if Messages app is available and open it
+        // Note: UIApplication.shared is only available in main app, not extensions
+        return await Self.openURL(messagesURL, sharedDefaults: sharedDefaults, key: key)
+        #endif
+    }
+    
+    /// Open URL using UIApplication (only available in main app)
+    @available(iOSApplicationExtension, unavailable)
+    private static func openURL(_ url: URL, sharedDefaults: UserDefaults, key: String) async -> Bool {
+        // Check if Messages app is available (synchronous call)
+        guard UIApplication.shared.canOpenURL(url) else {
             print("❌ MessagesRedirectService: Messages app is not available on this device")
             // Clear the stored vault ID
-            sharedDefaults.removeObject(forKey: pendingNominationVaultIDKey)
+            sharedDefaults.removeObject(forKey: key)
             return false
         }
         
-        // Open Messages app
-        let success = await UIApplication.shared.open(messagesURL)
-        
-        if success {
-            print("✅ MessagesRedirectService: Successfully opened Messages app")
-        } else {
-            print("❌ MessagesRedirectService: Failed to open Messages app")
-            // Clear the stored vault ID if opening failed
-            sharedDefaults.removeObject(forKey: pendingNominationVaultIDKey)
+        // Open Messages app using completion handler (convert to async)
+        return await withCheckedContinuation { continuation in
+            UIApplication.shared.open(url) { success in
+                if success {
+                    print("✅ MessagesRedirectService: Successfully opened Messages app")
+                } else {
+                    print("❌ MessagesRedirectService: Failed to open Messages app")
+                    // Clear the stored vault ID if opening failed
+                    sharedDefaults.removeObject(forKey: key)
+                }
+                continuation.resume(returning: success)
+            }
         }
-        
-        return success
     }
     
     /// Read pending nomination vault ID from App Group UserDefaults

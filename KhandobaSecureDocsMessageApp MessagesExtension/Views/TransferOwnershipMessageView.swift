@@ -91,7 +91,7 @@ struct TransferOwnershipMessageView: View {
                                 .padding(UnifiedTheme.Spacing.md)
                                 .background(colors.surface)
                                 .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                                .onChange(of: selectedVault) { newValue in
+                                .onChange(of: selectedVault) { oldValue, newValue in
                                     if let vault = newValue {
                                         vaultName = vault.name
                                     }

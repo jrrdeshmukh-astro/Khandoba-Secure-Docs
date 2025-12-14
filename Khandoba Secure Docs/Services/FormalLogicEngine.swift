@@ -355,6 +355,14 @@ final class FormalLogicEngine: ObservableObject {
                                  ((likelihoodIfBreach * priorBreach) + 
                                   (likelihoodIfNoBreach * (1 - priorBreach)))
             
+            // Determine actionable message based on probability
+            let actionableMessage: String
+            if posteriorBreach > 0.5 {
+                actionableMessage = "High probability of breach. Initiate incident response immediately."
+            } else {
+                actionableMessage = "Monitor closely for additional indicators."
+            }
+            
             inferences.append(LogicalInference(
                 type: .statistical,
                 method: "Bayesian Inference",
@@ -363,9 +371,7 @@ final class FormalLogicEngine: ObservableObject {
                 conclusion: "Probability of active breach: \(Int(posteriorBreach * 100))%",
                 confidence: posteriorBreach,
                 formula: "P(H|E) = P(E|H)×P(H) / P(E)",
-                actionable: posteriorBreach > 0.5 ? 
-                    "High probability of breach. Initiate incident response immediately." :
-                    "Monitor closely for additional indicators."
+                actionable: actionableMessage
             ))
         } else {
             // No evidence provided - return neutral inference

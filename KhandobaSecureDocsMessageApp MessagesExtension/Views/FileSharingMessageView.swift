@@ -326,7 +326,7 @@ struct FileSharingMessageView: View {
     }
     
     private func shareFiles() {
-        guard let vault = selectedVault else { return }
+        guard selectedVault != nil else { return }
         
         isLoading = true
         

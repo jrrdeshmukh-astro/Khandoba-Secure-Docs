@@ -21,7 +21,6 @@ struct WalletCard: View {
     @State private var isPressed = false
     
     var body: some View {
-        let colors = theme.colors(for: colorScheme)
         let shadow = UnifiedTheme.Shadow.md(for: colorScheme)
         let isSharedVault = isVaultShared
         
