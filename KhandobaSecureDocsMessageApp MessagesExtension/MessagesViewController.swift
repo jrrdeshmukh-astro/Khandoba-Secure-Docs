@@ -10,6 +10,7 @@ import Messages
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import Foundation
 
 class MessagesViewController: MSMessagesAppViewController {
     
@@ -63,9 +64,9 @@ class MessagesViewController: MSMessagesAppViewController {
         let menuView = MainMenuMessageView(
             conversation: conversation,
             onInviteNominee: { [weak self] in
-                print("📱 onInviteNominee closure called")
+                print("📱 onInviteNominee closure called - sending invitation immediately")
                 DispatchQueue.main.async {
-                    self?.presentNomineeInvitationView(for: conversation)
+                    self?.sendInvitationImmediately(in: conversation)
                 }
             },
             onTransferOwnership: { [weak self] in
@@ -87,6 +88,109 @@ class MessagesViewController: MSMessagesAppViewController {
     }
     
     // MARK: - Nominee Invitation
+    
+    /// Send invitation immediately (Apple Pay style) - no form, just send the interactive message
+    private func sendInvitationImmediately(in conversation: MSConversation) {
+        print("📱 sendInvitationImmediately called")
+        
+        Task {
+            do {
+                // Load vaults from shared container
+                let schema = Schema([
+                    User.self,
+                    Vault.self,
+                    Nominee.self
+                ])
+                
+                let appGroupIdentifier = "group.com.khandoba.securedocs"
+                
+                // Ensure Application Support directory exists
+                if let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
+                    let appSupportURL = appGroupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
+                    try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
+                }
+                
+                let modelConfiguration = ModelConfiguration(
+                    schema: schema,
+                    isStoredInMemoryOnly: false,
+                    groupContainer: .identifier(appGroupIdentifier),
+                    cloudKitDatabase: .automatic
+                )
+                
+                let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+                let context = container.mainContext
+                
+                // Get first available vault
+                let descriptor = FetchDescriptor<Vault>(
+                    sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+                )
+                let vaults = try context.fetch(descriptor).filter { !$0.isSystemVault }
+                
+                guard let vault = vaults.first else {
+                    await MainActor.run {
+                        // Show error - no vaults available
+                        let alert = UIAlertController(
+                            title: "No Vaults",
+                            message: "Please create a vault in the main app first.",
+                            preferredStyle: .alert
+                        )
+                        alert.addAction(UIAlertAction(title: "OK", style: .default))
+                        self.present(alert, animated: true)
+                    }
+                    return
+                }
+                
+                // Get current user name or use default
+                let userDescriptor = FetchDescriptor<User>()
+                let users = try context.fetch(userDescriptor)
+                let currentUser = users.first
+                let senderName = currentUser?.fullName ?? "You"
+                
+                // Create nominee with default name (will be updated when recipient accepts)
+                let inviteToken = UUID().uuidString
+                let nominee = Nominee(
+                    name: "Recipient", // Default name, can be updated later
+                    phoneNumber: nil,
+                    email: nil
+                )
+                nominee.vault = vault
+                nominee.invitedByUserID = currentUser?.id
+                nominee.inviteToken = inviteToken
+                
+                if vault.nomineeList == nil {
+                    vault.nomineeList = []
+                }
+                vault.nomineeList?.append(nominee)
+                
+                context.insert(nominee)
+                try context.save()
+                
+                print("✅ Nominee created with token: \(inviteToken)")
+                
+                // Send interactive message immediately
+                await MainActor.run {
+                    self.sendNomineeInvitationMessage(
+                        inviteToken: inviteToken,
+                        vaultName: vault.name,
+                        senderName: senderName,
+                        in: conversation
+                    )
+                }
+                
+            } catch {
+                print("❌ Failed to send invitation immediately: \(error.localizedDescription)")
+                await MainActor.run {
+                    let alert = UIAlertController(
+                        title: "Error",
+                        message: "Failed to send invitation: \(error.localizedDescription)",
+                        preferredStyle: .alert
+                    )
+                    alert.addAction(UIAlertAction(title: "OK", style: .default))
+                    self.present(alert, animated: true)
+                }
+            }
+        }
+    }
     
     private func presentNomineeInvitationView(for conversation: MSConversation) {
         print("📱 presentNomineeInvitationView called")
@@ -148,10 +252,11 @@ class MessagesViewController: MSMessagesAppViewController {
         }
     }
     
-    private func sendNomineeInvitation(
+    /// Send the interactive message (Apple Pay style banner)
+    private func sendNomineeInvitationMessage(
         inviteToken: String,
         vaultName: String,
-        recipientName: String,
+        senderName: String,
         in conversation: MSConversation
     ) {
         // Create invitation URL
@@ -160,7 +265,7 @@ class MessagesViewController: MSMessagesAppViewController {
             URLQueryItem(name: "token", value: inviteToken),
             URLQueryItem(name: "vault", value: vaultName),
             URLQueryItem(name: "status", value: "pending"),
-            URLQueryItem(name: "sender", value: recipientName)
+            URLQueryItem(name: "sender", value: senderName)
         ]
         
         guard let url = components?.url else {
@@ -181,18 +286,31 @@ class MessagesViewController: MSMessagesAppViewController {
         message.url = url
         message.summaryText = "Vault Invitation: \(vaultName) - Tap to accept"
         
-        // Note: MSMessage.session is read-only. Messages framework manages sessions automatically.
-        // For message updates, create new messages and insert them - framework handles replacement.
-        
-        // Insert message
-        conversation.insert(message) { error in
+        // Insert message immediately (Apple Pay style - sends banner right away)
+        conversation.insert(message) { [weak self] error in
             if let error = error {
                 print("❌ Failed to send invitation: \(error.localizedDescription)")
             } else {
-                print("✅ Nominee invitation sent via iMessage")
-                self.requestPresentationStyle(.compact)
+                print("✅ Nominee invitation sent via iMessage (Apple Pay style)")
+                // Collapse extension immediately after sending
+                self?.requestPresentationStyle(.compact)
             }
         }
+    }
+    
+    private func sendNomineeInvitation(
+        inviteToken: String,
+        vaultName: String,
+        recipientName: String,
+        in conversation: MSConversation
+    ) {
+        // Legacy method - now just calls the message sending method
+        sendNomineeInvitationMessage(
+            inviteToken: inviteToken,
+            vaultName: vaultName,
+            senderName: recipientName,
+            in: conversation
+        )
     }
     
     // MARK: - File Sharing
