@@ -258,12 +258,12 @@ final class VaultService: ObservableObject {
                 // Use the existing request for ML processing
                 // Configure service on MainActor (configure is @MainActor)
                 // modelContext is already unwrapped at function start
-                // Avoid capturing non-Sendable modelContext in Task closure
-                let approvalService = await MainActor.run {
+                // Use Task with @MainActor to avoid Sendable requirement
+                let approvalService = await Task { @MainActor in
                     let service = DualKeyApprovalService()
                     service.configure(modelContext: modelContext)
                     return service
-                }
+                }.value
                 
                 do {
                     let decision = try await approvalService.processDualKeyRequest(existingRequest, vault: vault)
@@ -311,12 +311,12 @@ final class VaultService: ObservableObject {
                 
                 // Configure service on MainActor (configure is @MainActor)
                 // modelContext is already unwrapped at function start
-                // Avoid capturing non-Sendable modelContext in Task closure
-                let approvalService = await MainActor.run {
+                // Use Task with @MainActor to avoid Sendable requirement
+                let approvalService = await Task { @MainActor in
                     let service = DualKeyApprovalService()
                     service.configure(modelContext: modelContext)
                     return service
-                }
+                }.value
                 
                 do {
                     // Process with ML + Formal Logic

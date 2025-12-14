@@ -357,14 +357,9 @@ final class FormalLogicEngine: ObservableObject {
             
             // Determine actionable message based on probability
             // Note: posteriorBreach can exceed 0.5 with different evidence values
-            // Compiler warning about unreachable code is acceptable - this is a compiler optimization
-            // based on constant values, but the logic is correct for variable evidence
-            let actionableMessage: String
-            if posteriorBreach > 0.5 {
-                actionableMessage = "High probability of breach. Initiate incident response immediately."
-            } else {
-                actionableMessage = "Monitor closely for additional indicators."
-            }
+            let actionableMessage = posteriorBreach > 0.5
+                ? "High probability of breach. Initiate incident response immediately."
+                : "Monitor closely for additional indicators."
             
             inferences.append(LogicalInference(
                 type: .statistical,

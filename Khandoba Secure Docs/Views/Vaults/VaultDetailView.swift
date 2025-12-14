@@ -487,8 +487,13 @@ struct VaultDetailView: View {
     
     private func lockVault() {
         Task {
-            await vaultService.closeVault(vault)
-            print(" Vault locked by owner")
+            do {
+                try await vaultService.closeVault(vault)
+                print(" Vault locked by owner")
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
         }
     }
     

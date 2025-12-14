@@ -23,9 +23,7 @@ final class NomineeService: ObservableObject {
     private let container: CKContainer
     
     nonisolated init() {
-        // Store container identifier to avoid main actor isolation issue
-        let containerID = "iCloud.com.khandoba.securedocs"
-        self.container = CKContainer(identifier: containerID)
+        self.container = CKContainer(identifier: AppConfig.cloudKitContainer)
     }
     
     func configure(modelContext: ModelContext, currentUserID: UUID? = nil) {

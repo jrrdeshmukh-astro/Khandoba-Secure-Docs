@@ -46,7 +46,7 @@ final class AutomaticTriageService: ObservableObject {
     
     /// Validates if an action can be executed based on app workflow constraints
     func canExecuteAction(_ action: RemediationAction, for result: TriageResult) async -> (canExecute: Bool, reason: String?) {
-        guard modelContext != nil, let userID = currentUserID else {
+        guard let modelContext = modelContext, let userID = currentUserID else {
             return (false, "Service not configured")
         }
         
@@ -301,13 +301,10 @@ final class AutomaticTriageService: ObservableObject {
         
         // 1. Screen Monitoring Detection
         // Note: UIScreen.main deprecated in iOS 26.0, but still functional
-        // TODO: Refactor to use UIScreen from view context when available
-        // For now, suppress deprecation warning as this is a service without view context
         let isCaptured: Bool
         if #available(iOS 26.0, *) {
             // For iOS 26+, use alternative approach if available
             // For now, fall back to deprecated API
-            // swiftlint:disable:next deprecated_api
             isCaptured = UIScreen.main.isCaptured
         } else {
             isCaptured = UIScreen.main.isCaptured

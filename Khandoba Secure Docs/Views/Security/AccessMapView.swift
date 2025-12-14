@@ -73,10 +73,7 @@ struct AccessMapView: View {
                 
                 // Map with Enhanced Annotations
                 // Note: Using deprecated Map API for compatibility - will update to MapContentBuilder in future
-                // TODO: Migrate to MapContentBuilder API when time permits
-                // swiftlint:disable:next deprecated_api
                 Map(coordinateRegion: $region, annotationItems: filteredAnnotations) { annotation in
-                    // swiftlint:disable:next deprecated_api
                     MapAnnotation(coordinate: annotation.coordinate) {
                         Button {
                             selectedAnnotation = annotation
