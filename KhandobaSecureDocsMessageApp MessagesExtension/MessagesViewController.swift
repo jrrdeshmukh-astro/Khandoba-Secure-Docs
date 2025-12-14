@@ -61,30 +61,142 @@ class MessagesViewController: MSMessagesAppViewController {
     }
     
     private func presentMainMenuView(conversation: MSConversation) {
-        let menuView = MainMenuMessageView(
+        // Show vault selection interface immediately (Apple Pay style)
+        presentVaultSelectionView(for: conversation)
+    }
+    
+    private func presentVaultSelectionView(for conversation: MSConversation) {
+        removeAllChildViewControllers()
+        view.subviews.forEach { $0.removeFromSuperview() }
+        
+        let vaultSelectionView = VaultSelectionMessageView(
             conversation: conversation,
-            onInviteNominee: { [weak self] in
-                print("📱 onInviteNominee closure called - sending invitation immediately")
-                DispatchQueue.main.async {
-                    self?.sendInvitationImmediately(in: conversation)
-                }
+            onTransfer: { [weak self] vault in
+                print("📱 Transfer selected for vault: \(vault.name)")
+                self?.presentTransferOwnershipView(for: conversation, vault: vault)
             },
-            onTransferOwnership: { [weak self] in
-                print("📱 onTransferOwnership closure called")
-                DispatchQueue.main.async {
-                    self?.presentTransferOwnershipView(for: conversation)
-                }
+            onNominate: { [weak self] vault in
+                print("📱 Nominate selected for vault: \(vault.name)")
+                self?.sendNominationForVault(vault, in: conversation)
+            },
+            onCancel: { [weak self] in
+                print("📱 Vault selection cancelled")
+                self?.requestPresentationStyle(.compact)
             }
         )
         
         let hostingController = UIHostingController(
-            rootView: menuView.environment(\.unifiedTheme, UnifiedTheme())
+            rootView: vaultSelectionView.environment(\.unifiedTheme, UnifiedTheme())
         )
+        
+        hostingController.view.backgroundColor = .systemBackground
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        
         addChild(hostingController)
-        hostingController.view.frame = view.bounds
-        hostingController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(hostingController.view)
+        
+        NSLayoutConstraint.activate([
+            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
+            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+        
         hostingController.didMove(toParent: self)
+    }
+    
+    /// Send nomination for a specific vault (Apple Pay style - immediate message)
+    private func sendNominationForVault(_ vault: Vault, in conversation: MSConversation) {
+        print("📱 sendNominationForVault called for vault: \(vault.name)")
+        
+        Task {
+            do {
+                // Get model context from vault (it should have one)
+                guard let context = vault.modelContext else {
+                    // Create new context if needed
+                    let schema = Schema([User.self, Vault.self, Nominee.self])
+                    let appGroupIdentifier = "group.com.khandoba.securedocs"
+                    
+                    if let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
+                        let appSupportURL = appGroupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
+                        try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
+                    }
+                    
+                    let modelConfiguration = ModelConfiguration(
+                        schema: schema,
+                        isStoredInMemoryOnly: false,
+                        groupContainer: .identifier(appGroupIdentifier),
+                        cloudKitDatabase: .automatic
+                    )
+                    
+                    let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+                    let newContext = container.mainContext
+                    
+                    // Re-fetch vault in new context - use simpler predicate
+                    let vaultDescriptor = FetchDescriptor<Vault>()
+                    let allVaults = try newContext.fetch(vaultDescriptor)
+                    guard let fetchedVault = allVaults.first(where: { $0.id == vault.id }) else {
+                        throw NSError(domain: "MessageApp", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault not found"])
+                    }
+                    
+                    try await createAndSendNomination(for: fetchedVault, context: newContext, in: conversation)
+                    return
+                }
+                
+                try await createAndSendNomination(for: vault, context: context, in: conversation)
+                
+            } catch {
+                print("❌ Failed to send nomination: \(error.localizedDescription)")
+                await MainActor.run {
+                    let alert = UIAlertController(
+                        title: "Error",
+                        message: "Failed to send nomination: \(error.localizedDescription)",
+                        preferredStyle: .alert
+                    )
+                    alert.addAction(UIAlertAction(title: "OK", style: .default))
+                    self.present(alert, animated: true)
+                }
+            }
+        }
+    }
+    
+    private func createAndSendNomination(for vault: Vault, context: ModelContext, in conversation: MSConversation) async throws {
+        // Get current user
+        let userDescriptor = FetchDescriptor<User>()
+        let users = try context.fetch(userDescriptor)
+        let currentUser = users.first
+        let senderName = currentUser?.fullName ?? "You"
+        
+        // Create nominee
+        let inviteToken = UUID().uuidString
+        let nominee = Nominee(
+            name: "Recipient",
+            phoneNumber: nil,
+            email: nil
+        )
+        nominee.vault = vault
+        nominee.invitedByUserID = currentUser?.id
+        nominee.inviteToken = inviteToken
+        
+        if vault.nomineeList == nil {
+            vault.nomineeList = []
+        }
+        vault.nomineeList?.append(nominee)
+        
+        context.insert(nominee)
+        try context.save()
+        
+        print("✅ Nominee created with token: \(inviteToken)")
+        
+        // Send interactive message immediately
+        await MainActor.run {
+            self.sendNomineeInvitationMessage(
+                inviteToken: inviteToken,
+                vaultName: vault.name,
+                senderName: senderName,
+                in: conversation
+            )
+        }
     }
     
     // MARK: - Nominee Invitation
@@ -632,11 +744,12 @@ class MessagesViewController: MSMessagesAppViewController {
     
     // MARK: - Transfer Ownership
     
-    private func presentTransferOwnershipView(for conversation: MSConversation) {
+    private func presentTransferOwnershipView(for conversation: MSConversation, vault: Vault? = nil) {
         removeAllChildViewControllers()
-        
+
         let transferView = TransferOwnershipMessageView(
             conversation: conversation,
+            preselectedVault: vault,
             onSendTransfer: { [weak self] transferToken, vaultName, recipientName in
                 self?.sendTransferOwnershipRequest(
                     transferToken: transferToken,

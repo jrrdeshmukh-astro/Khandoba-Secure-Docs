@@ -11,8 +11,16 @@ import SwiftData
 
 struct TransferOwnershipMessageView: View {
     let conversation: MSConversation
+    let preselectedVault: Vault?
     let onSendTransfer: (String, String, String) -> Void
     let onCancel: () -> Void
+    
+    init(conversation: MSConversation, preselectedVault: Vault? = nil, onSendTransfer: @escaping (String, String, String) -> Void, onCancel: @escaping () -> Void) {
+        self.conversation = conversation
+        self.preselectedVault = preselectedVault
+        self.onSendTransfer = onSendTransfer
+        self.onCancel = onCancel
+    }
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
@@ -201,7 +209,13 @@ struct TransferOwnershipMessageView: View {
                 
                 await MainActor.run {
                     vaults = fetchedVaults.filter { !$0.isSystemVault }
-                    if let firstVault = vaults.first {
+                    
+                    // Use preselected vault if provided, otherwise use first vault
+                    if let preselected = preselectedVault,
+                       let matchingVault = vaults.first(where: { $0.id == preselected.id }) {
+                        selectedVault = matchingVault
+                        vaultName = matchingVault.name
+                    } else if let firstVault = vaults.first {
                         selectedVault = firstVault
                         vaultName = firstVault.name
                     }
