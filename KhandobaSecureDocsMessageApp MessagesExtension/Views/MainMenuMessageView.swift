@@ -2,7 +2,7 @@
 //  MainMenuMessageView.swift
 //  Khandoba Secure Docs
 //
-//  Main menu for iMessage app (invite nominee or share file)
+//  Main menu for iMessage app (vault nomination and ownership transfer only)
 //
 
 import SwiftUI
@@ -12,7 +12,6 @@ struct MainMenuMessageView: View {
     let conversation: MSConversation
     let onInviteNominee: () -> Void
     let onTransferOwnership: () -> Void
-    let onShareFile: () -> Void
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
@@ -36,7 +35,7 @@ struct MainMenuMessageView: View {
                                 .font(theme.typography.title)
                                 .foregroundColor(colors.textPrimary)
                             
-                            Text("Share vaults and documents securely")
+                            Text("Manage vault access and ownership")
                                 .font(theme.typography.body)
                                 .foregroundColor(colors.textSecondary)
                                 .multilineTextAlignment(.center)
@@ -92,30 +91,6 @@ struct MainMenuMessageView: View {
                                 .background(colors.surface)
                                 .cornerRadius(UnifiedTheme.CornerRadius.lg)
                             }
-                            
-                            // Share File Button
-                            Button {
-                                onShareFile()
-                            } label: {
-                                HStack {
-                                    Image(systemName: "square.and.arrow.up")
-                                        .font(.title2)
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Share File")
-                                            .font(theme.typography.headline)
-                                        Text("Send document to vault")
-                                            .font(theme.typography.caption)
-                                            .foregroundColor(colors.textSecondary)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                }
-                                .foregroundColor(colors.textPrimary)
-                                .padding()
-                                .frame(maxWidth: .infinity)
-                                .background(colors.surface)
-                                .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                            }
                         }
                         .padding(.horizontal)
                         
@@ -131,7 +106,7 @@ struct MainMenuMessageView: View {
                                         .fontWeight(.semibold)
                                 }
                                 
-                                Text("Invite others to access your vaults, transfer ownership, or share files directly. All sharing is secure and encrypted.")
+                                Text("Invite others to access your vaults or transfer vault ownership. All sharing is secure and encrypted.")
                                     .font(theme.typography.caption)
                                     .foregroundColor(colors.textSecondary)
                             }

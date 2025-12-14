@@ -19,9 +19,8 @@ struct NomineeInvitationMessageView: View {
     
     @State private var vaultName: String = ""
     @State private var recipientName: String = ""
-    @State private var phoneNumber: String = ""
-    @State private var email: String = ""
     @State private var isLoading = false
+    @State private var isLoadingVaults = true
     @State private var vaults: [Vault] = []
     @State private var selectedVault: Vault?
     @State private var showError = false
@@ -43,7 +42,7 @@ struct NomineeInvitationMessageView: View {
                                 .font(theme.typography.subheadline)
                                 .foregroundColor(colors.textSecondary)
                             
-                            if vaults.isEmpty {
+                            if isLoadingVaults {
                                 HStack {
                                     ProgressView()
                                         .scaleEffect(0.8)
@@ -55,6 +54,22 @@ struct NomineeInvitationMessageView: View {
                                 .frame(maxWidth: .infinity)
                                 .background(colors.surface)
                                 .cornerRadius(UnifiedTheme.CornerRadius.lg)
+                            } else if vaults.isEmpty {
+                                StandardCard {
+                                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                                        Image(systemName: "lock.shield.fill")
+                                            .font(.title2)
+                                            .foregroundColor(colors.textTertiary)
+                                        Text("No Vaults Available")
+                                            .font(theme.typography.subheadline)
+                                            .foregroundColor(colors.textPrimary)
+                                        Text("Create a vault in the main app first")
+                                            .font(theme.typography.caption)
+                                            .foregroundColor(colors.textSecondary)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, UnifiedTheme.Spacing.md)
+                                }
                             } else {
                                 Picker("Vault", selection: $selectedVault) {
                                     ForEach(vaults) { vault in
@@ -81,33 +96,6 @@ struct NomineeInvitationMessageView: View {
                             
                             TextField("Recipient name", text: $recipientName)
                                 .font(theme.typography.body)
-                                .padding(UnifiedTheme.Spacing.md)
-                                .background(colors.surface)
-                                .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                            Text("Phone Number (Optional)")
-                                .font(theme.typography.subheadline)
-                                .foregroundColor(colors.textSecondary)
-                            
-                            TextField("+1 (555) 123-4567", text: $phoneNumber)
-                                .font(theme.typography.body)
-                                .keyboardType(.phonePad)
-                                .padding(UnifiedTheme.Spacing.md)
-                                .background(colors.surface)
-                                .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                            Text("Email (Optional)")
-                                .font(theme.typography.subheadline)
-                                .foregroundColor(colors.textSecondary)
-                            
-                            TextField("email@example.com", text: $email)
-                                .font(theme.typography.body)
-                                .keyboardType(.emailAddress)
-                                .textInputAutocapitalization(.never)
                                 .padding(UnifiedTheme.Spacing.md)
                                 .background(colors.surface)
                                 .cornerRadius(UnifiedTheme.CornerRadius.lg)
@@ -163,66 +151,94 @@ struct NomineeInvitationMessageView: View {
     }
     
     private func loadVaults() {
+        isLoadingVaults = true
+        
         Task {
+            // Add timeout to prevent infinite loading
             do {
-                let schema = Schema([Vault.self, User.self, Nominee.self])
-                let modelConfiguration = ModelConfiguration(
-                    schema: schema,
-                    isStoredInMemoryOnly: false,
-                    cloudKitDatabase: .automatic
-                )
-                
-                let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-                let context = container.mainContext
-                
-                let descriptor = FetchDescriptor<Vault>(
-                    sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-                )
-                
-                let fetchedVaults = try context.fetch(descriptor)
-                
-                await MainActor.run {
-                    vaults = fetchedVaults.filter { !$0.isSystemVault }
+                // Try to load with timeout
+                try await withTimeout(seconds: 10) {
+                    let schema = Schema([Vault.self, User.self, Nominee.self])
+                    let modelConfiguration = ModelConfiguration(
+                        schema: schema,
+                        isStoredInMemoryOnly: false,
+                        cloudKitDatabase: .automatic
+                    )
                     
-                    // Check if there's a pending vault ID from main app
-                    let appGroupID = "group.com.khandoba.securedocs"
-                    if let sharedDefaults = UserDefaults(suiteName: appGroupID),
-                       let vaultIDString = sharedDefaults.string(forKey: "pending_nominee_vault_id"),
-                       let vaultID = UUID(uuidString: vaultIDString) {
-                        // Find the vault with matching ID
-                        if let pendingVault = vaults.first(where: { $0.id == vaultID }) {
-                            selectedVault = pendingVault
-                            vaultName = pendingVault.name
-                            print("✅ Pre-selected vault from main app: \(pendingVault.name)")
-                            
-                            // Clear the stored vault ID after using it
-                            sharedDefaults.removeObject(forKey: "pending_nominee_vault_id")
-                            sharedDefaults.removeObject(forKey: "pending_nominee_vault_name")
-                            sharedDefaults.synchronize()
+                    let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+                    let context = container.mainContext
+                    
+                    let descriptor = FetchDescriptor<Vault>(
+                        sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+                    )
+                    
+                    let fetchedVaults = try context.fetch(descriptor)
+                    
+                    await MainActor.run {
+                        vaults = fetchedVaults.filter { !$0.isSystemVault }
+                        isLoadingVaults = false
+                        
+                        // Check if there's a pending vault ID from main app
+                        let appGroupID = "group.com.khandoba.securedocs"
+                        if let sharedDefaults = UserDefaults(suiteName: appGroupID),
+                           let vaultIDString = sharedDefaults.string(forKey: "pending_nominee_vault_id"),
+                           let vaultID = UUID(uuidString: vaultIDString) {
+                            // Find the vault with matching ID
+                            if let pendingVault = vaults.first(where: { $0.id == vaultID }) {
+                                selectedVault = pendingVault
+                                vaultName = pendingVault.name
+                                print("✅ Pre-selected vault from main app: \(pendingVault.name)")
+                                
+                                // Clear the stored vault ID after using it
+                                sharedDefaults.removeObject(forKey: "pending_nominee_vault_id")
+                                sharedDefaults.removeObject(forKey: "pending_nominee_vault_name")
+                                sharedDefaults.synchronize()
+                            } else {
+                                // Vault not found, use first vault as fallback
+                                if let firstVault = vaults.first {
+                                    selectedVault = firstVault
+                                    vaultName = firstVault.name
+                                }
+                            }
                         } else {
-                            // Vault not found, use first vault as fallback
+                            // No pending vault, use first vault
                             if let firstVault = vaults.first {
                                 selectedVault = firstVault
                                 vaultName = firstVault.name
                             }
                         }
-                    } else {
-                        // No pending vault, use first vault
-                        if let firstVault = vaults.first {
-                            selectedVault = firstVault
-                            vaultName = firstVault.name
-                        }
+                        
+                        modelContext = context
                     }
-                    
-                    modelContext = context
                 }
             } catch {
                 print("❌ Failed to load vaults: \(error.localizedDescription)")
                 await MainActor.run {
-                    errorMessage = "Failed to load vaults: \(error.localizedDescription)"
+                    isLoadingVaults = false
+                    errorMessage = "Failed to load vaults. Please try again or create a vault in the main app first."
                     showError = true
                 }
             }
+        }
+    }
+    
+    // Helper function for timeout
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw TimeoutError()
+            }
+            
+            guard let result = try await group.next() else {
+                throw TimeoutError()
+            }
+            group.cancelAll()
+            return result
         }
     }
     
@@ -255,8 +271,8 @@ struct NomineeInvitationMessageView: View {
                     
                     let nominee = Nominee(
                         name: recipientName,
-                        phoneNumber: phoneNumber.isEmpty ? nil : phoneNumber,
-                        email: email.isEmpty ? nil : email
+                        phoneNumber: nil,
+                        email: nil
                     )
                     nominee.vault = vault
                     nominee.invitedByUserID = currentUser.id
@@ -284,5 +300,12 @@ struct NomineeInvitationMessageView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Timeout Error
+private struct TimeoutError: Error {
+    var localizedDescription: String {
+        "Operation timed out"
     }
 }

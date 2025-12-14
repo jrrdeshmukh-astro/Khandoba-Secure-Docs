@@ -44,7 +44,7 @@ struct AccountDeletionServiceTests {
     func testUserOwnVaultsAccessLogsDeleted() async throws {
         // Setup
         let container = try createTestModelContainer()
-        let context = container.mainContext
+        let context = await MainActor.run { container.mainContext }
         
         // Create test user
         let user = User(
@@ -89,8 +89,10 @@ struct AccountDeletionServiceTests {
         #expect(logsBefore.count == 2)
         
         // Perform account deletion
-        let deletionService = AccountDeletionService()
-        deletionService.configure(modelContext: context)
+        let deletionService = await MainActor.run { AccountDeletionService() }
+        await MainActor.run {
+            deletionService.configure(modelContext: context)
+        }
         
         try await deletionService.deleteAccount(user: user)
         
@@ -113,7 +115,7 @@ struct AccountDeletionServiceTests {
     func testSharedVaultsAccessLogsPreserved() async throws {
         // Setup
         let container = try createTestModelContainer()
-        let context = container.mainContext
+        let context = await MainActor.run { container.mainContext }
         
         // Create vault owner
         let owner = User(
@@ -174,8 +176,10 @@ struct AccountDeletionServiceTests {
         #expect(logsBefore.count == 2)
         
         // Delete nominee's account
-        let deletionService = AccountDeletionService()
-        deletionService.configure(modelContext: context)
+        let deletionService = await MainActor.run { AccountDeletionService() }
+        await MainActor.run {
+            deletionService.configure(modelContext: context)
+        }
         
         try await deletionService.deleteAccount(user: nomineeUser)
         
@@ -209,7 +213,7 @@ struct AccountDeletionServiceTests {
     func testCompleteUserDataDeletion() async throws {
         // Setup
         let container = try createTestModelContainer()
-        let context = container.mainContext
+        let context = await MainActor.run { container.mainContext }
         
         // Create user with all related data
         let user = User(
@@ -290,8 +294,10 @@ struct AccountDeletionServiceTests {
         #expect(try context.fetch(FetchDescriptor<ChatMessage>()).count == 1)
         
         // Delete account
-        let deletionService = AccountDeletionService()
-        deletionService.configure(modelContext: context)
+        let deletionService = await MainActor.run { AccountDeletionService() }
+        await MainActor.run {
+            deletionService.configure(modelContext: context)
+        }
         
         try await deletionService.deleteAccount(user: user)
         
@@ -311,7 +317,7 @@ struct AccountDeletionServiceTests {
     func testMultipleVaultsAllAccessLogsDeleted() async throws {
         // Setup
         let container = try createTestModelContainer()
-        let context = container.mainContext
+        let context = await MainActor.run { container.mainContext }
         
         let user = User(
             appleUserID: "test-user-789",
@@ -351,8 +357,10 @@ struct AccountDeletionServiceTests {
         #expect(logsBefore.count == totalLogs)
         
         // Delete account
-        let deletionService = AccountDeletionService()
-        deletionService.configure(modelContext: context)
+        let deletionService = await MainActor.run { AccountDeletionService() }
+        await MainActor.run {
+            deletionService.configure(modelContext: context)
+        }
         
         try await deletionService.deleteAccount(user: user)
         
@@ -371,7 +379,7 @@ struct AccountDeletionServiceTests {
     func testNomineeAccessTermination() async throws {
         // Setup
         let container = try createTestModelContainer()
-        let context = container.mainContext
+        let context = await MainActor.run { container.mainContext }
         
         let owner = User(
             appleUserID: "owner-456",
@@ -415,8 +423,10 @@ struct AccountDeletionServiceTests {
         try context.save()
         
         // Delete nominee account
-        let deletionService = AccountDeletionService()
-        deletionService.configure(modelContext: context)
+        let deletionService = await MainActor.run { AccountDeletionService() }
+        await MainActor.run {
+            deletionService.configure(modelContext: context)
+        }
         
         try await deletionService.deleteAccount(user: nominee)
         
@@ -440,7 +450,7 @@ struct AccountDeletionServiceTests {
     func testEmptyUserDeletion() async throws {
         // Setup
         let container = try createTestModelContainer()
-        let context = container.mainContext
+        let context = await MainActor.run { container.mainContext }
         
         let user = User(
             appleUserID: "empty-user",
@@ -451,8 +461,10 @@ struct AccountDeletionServiceTests {
         try context.save()
         
         // Delete account
-        let deletionService = AccountDeletionService()
-        deletionService.configure(modelContext: context)
+        let deletionService = await MainActor.run { AccountDeletionService() }
+        await MainActor.run {
+            deletionService.configure(modelContext: context)
+        }
         
         // Should not throw
         try await deletionService.deleteAccount(user: user)
@@ -466,7 +478,7 @@ struct AccountDeletionServiceTests {
     
     @Test("Error handling - context not available")
     func testErrorHandlingContextNotAvailable() async throws {
-        let deletionService = AccountDeletionService()
+        let deletionService = await MainActor.run { AccountDeletionService() }
         // Don't configure modelContext
         
         let user = User(
@@ -492,7 +504,7 @@ struct AccountDeletionServiceTests {
     func testCloudKitOrphanedVaultsCleanup() async throws {
         // Setup
         let container = try createTestModelContainer()
-        let context = container.mainContext
+        let context = await MainActor.run { container.mainContext }
         
         // Create a user (simulating CloudKit restored user)
         let restoredUser = User(
@@ -554,15 +566,24 @@ struct AccountDeletionServiceTests {
             context.delete(vault)
         }
         
+        // Also delete the restored user (duplicate with same Apple ID)
+        // This simulates the cleanup that happens in AuthenticationService
+        let duplicateUsers = allUsers.filter { 
+            $0.appleUserID == currentUser.appleUserID && $0.id != currentUser.id 
+        }
+        for duplicateUser in duplicateUsers {
+            context.delete(duplicateUser)
+        }
+        
         try context.save()
         
         // Verify orphaned vault is deleted
         let vaultsAfter = try context.fetch(FetchDescriptor<Vault>())
         #expect(vaultsAfter.isEmpty, "Orphaned vault should be deleted")
         
-        // Verify current user still exists
+        // Verify current user still exists and restored user is deleted
         let usersAfter = try context.fetch(FetchDescriptor<User>())
-        #expect(usersAfter.count == 1, "Current user should still exist")
+        #expect(usersAfter.count == 1, "Only current user should remain after cleanup")
         #expect(usersAfter.first?.id == currentUser.id, "Current user should be the one that remains")
     }
 }

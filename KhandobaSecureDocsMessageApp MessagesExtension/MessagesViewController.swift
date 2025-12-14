@@ -15,11 +15,20 @@ class MessagesViewController: MSMessagesAppViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        // Clear any storyboard subviews immediately
+        view.subviews.forEach { $0.removeFromSuperview() }
+        
+        // Set up view for SwiftUI
+        view.backgroundColor = .systemBackground
     }
     
     // MARK: - Conversation Handling
     
     override func willBecomeActive(with conversation: MSConversation) {
+        // Request expanded presentation style to show full interface
+        requestPresentationStyle(.expanded)
+        
         // Show main interface when extension becomes active
         presentMainInterface(for: conversation)
     }
@@ -41,17 +50,13 @@ class MessagesViewController: MSMessagesAppViewController {
     // MARK: - Main Interface
     
     private func presentMainInterface(for conversation: MSConversation) {
+        // Remove all child view controllers and subviews
         removeAllChildViewControllers()
+        view.subviews.forEach { $0.removeFromSuperview() }
         
-        // Check if we have shared items (from Share Sheet)
-        if let items = extensionContext?.inputItems as? [NSExtensionItem],
-           !items.isEmpty {
-            // Show file sharing interface
-            presentFileSharingView(items: items, conversation: conversation)
-        } else {
-            // Show main menu (invitations or file sharing)
-            presentMainMenuView(conversation: conversation)
-        }
+        // Always show main menu (vault nomination and ownership transfer only)
+        // File sharing is handled by the Share Extension, not the iMessage extension
+        presentMainMenuView(conversation: conversation)
     }
     
     private func presentMainMenuView(conversation: MSConversation) {
@@ -62,9 +67,6 @@ class MessagesViewController: MSMessagesAppViewController {
             },
             onTransferOwnership: { [weak self] in
                 self?.presentTransferOwnershipView(for: conversation)
-            },
-            onShareFile: { [weak self] in
-                self?.presentFileSharingView(items: [], conversation: conversation)
             }
         )
         
@@ -739,5 +741,7 @@ class MessagesViewController: MSMessagesAppViewController {
             child.view.removeFromSuperview()
             child.removeFromParent()
         }
+        // Also remove any remaining subviews
+        view.subviews.forEach { $0.removeFromSuperview() }
     }
 }

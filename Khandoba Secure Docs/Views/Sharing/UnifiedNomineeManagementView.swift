@@ -114,17 +114,47 @@ struct UnifiedNomineeManagementView: View {
                                         .font(theme.typography.subheadline)
                                         .foregroundColor(colors.textSecondary)
                                     
-                                    Button {
-                                        showAddNominee = true
-                                    } label: {
-                                        HStack {
-                                            Image(systemName: "person.badge.plus")
-                                            Text("Invite Nominee")
+                                    // Info card about using iMessage app
+                                    StandardCard {
+                                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                                            HStack {
+                                                Image(systemName: "message.fill")
+                                                    .foregroundColor(colors.info)
+                                                Text("Use iMessage App")
+                                                    .font(theme.typography.subheadline)
+                                                    .foregroundColor(colors.textPrimary)
+                                                    .fontWeight(.semibold)
+                                            }
+                                            
+                                            Text("To invite nominees, use the Khandoba iMessage app:")
+                                                .font(theme.typography.caption)
+                                                .foregroundColor(colors.textSecondary)
+                                            
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                HStack(alignment: .top, spacing: 8) {
+                                                    Text("1.")
+                                                        .foregroundColor(colors.primary)
+                                                    Text("Open Messages app")
+                                                        .foregroundColor(colors.textSecondary)
+                                                }
+                                                
+                                                HStack(alignment: .top, spacing: 8) {
+                                                    Text("2.")
+                                                        .foregroundColor(colors.primary)
+                                                    Text("Tap the App Store icon (📱)")
+                                                        .foregroundColor(colors.textSecondary)
+                                                }
+                                                
+                                                HStack(alignment: .top, spacing: 8) {
+                                                    Text("3.")
+                                                        .foregroundColor(colors.primary)
+                                                    Text("Select 'Khandoba' → 'Invite to Vault'")
+                                                        .foregroundColor(colors.textSecondary)
+                                                }
+                                            }
+                                            .font(theme.typography.caption2)
                                         }
                                         .padding()
-                                        .background(colors.primary)
-                                        .foregroundColor(.white)
-                                        .cornerRadius(UnifiedTheme.CornerRadius.md)
                                     }
                                 }
                                 .frame(maxWidth: .infinity)
@@ -208,12 +238,101 @@ struct UnifiedNomineeManagementView: View {
             }
         }
         .sheet(isPresented: $showAddNominee) {
-            UnifiedAddNomineeView(vault: vault)
-                .onDisappear {
-                    Task {
-                        try? await nomineeService.loadNominees(for: vault)
+            // Show info about using iMessage app instead of old flow
+            NavigationStack {
+                ZStack {
+                    colors.background.ignoresSafeArea()
+                    
+                    ScrollView {
+                        VStack(spacing: UnifiedTheme.Spacing.xl) {
+                            // Header
+                            VStack(spacing: UnifiedTheme.Spacing.md) {
+                                Image(systemName: "message.fill")
+                                    .font(.system(size: 60))
+                                    .foregroundColor(colors.primary)
+                                
+                                Text("Invite via iMessage")
+                                    .font(theme.typography.title)
+                                    .foregroundColor(colors.textPrimary)
+                            }
+                            .padding(.top, UnifiedTheme.Spacing.xl)
+                            
+                            // Instructions
+                            StandardCard {
+                                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                                    Text("How to Invite Nominees")
+                                        .font(theme.typography.headline)
+                                        .foregroundColor(colors.textPrimary)
+                                    
+                                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                                        InstructionStep(
+                                            number: "1",
+                                            text: "Open the Messages app",
+                                            colors: colors,
+                                            theme: theme
+                                        )
+                                        
+                                        InstructionStep(
+                                            number: "2",
+                                            text: "Start or open a conversation",
+                                            colors: colors,
+                                            theme: theme
+                                        )
+                                        
+                                        InstructionStep(
+                                            number: "3",
+                                            text: "Tap the App Store icon (📱) at the bottom",
+                                            colors: colors,
+                                            theme: theme
+                                        )
+                                        
+                                        InstructionStep(
+                                            number: "4",
+                                            text: "Select 'Khandoba' → 'Invite to Vault'",
+                                            colors: colors,
+                                            theme: theme
+                                        )
+                                        
+                                        InstructionStep(
+                                            number: "5",
+                                            text: "Select vault and enter recipient name",
+                                            colors: colors,
+                                            theme: theme
+                                        )
+                                    }
+                                }
+                                .padding()
+                            }
+                            .padding(.horizontal)
+                            
+                            // Note
+                            StandardCard {
+                                HStack(alignment: .top, spacing: UnifiedTheme.Spacing.sm) {
+                                    Image(systemName: "info.circle.fill")
+                                        .foregroundColor(colors.info)
+                                    
+                                    Text("All nominee invitations are now handled through the iMessage app for a seamless, secure experience.")
+                                        .font(theme.typography.caption)
+                                        .foregroundColor(colors.textSecondary)
+                                }
+                                .padding()
+                            }
+                            .padding(.horizontal)
+                        }
+                        .padding(.vertical)
                     }
                 }
+                .navigationTitle("Invite Nominee")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") {
+                            showAddNominee = false
+                        }
+                        .foregroundColor(colors.primary)
+                    }
+                }
+            }
         }
         .sheet(isPresented: $showCloudKitSharing) {
             if let share = cloudKitShare {
@@ -375,6 +494,26 @@ struct NomineeManagementRow: View {
         case .pending: return colors.warning
         case .accepted, .active: return colors.success
         case .inactive, .revoked: return colors.textTertiary
+        }
+    }
+}
+
+// MARK: - Instruction Step Helper
+struct InstructionStep: View {
+    let number: String
+    let text: String
+    let colors: UnifiedTheme.Colors
+    let theme: UnifiedTheme
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(number)
+                .font(theme.typography.caption)
+                .foregroundColor(colors.primary)
+                .fontWeight(.semibold)
+            Text(text)
+                .font(theme.typography.caption)
+                .foregroundColor(colors.textSecondary)
         }
     }
 }

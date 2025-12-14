@@ -44,26 +44,56 @@ struct FileSharingMessageView: View {
                     }
                 } else if sharedFiles.isEmpty {
                     VStack(spacing: UnifiedTheme.Spacing.lg) {
-                        Image(systemName: "square.and.arrow.up")
+                        Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 60))
                             .foregroundColor(colors.textTertiary)
                         
-                        Text("No Files to Share")
+                        Text("No Files Detected")
                             .font(theme.typography.headline)
                             .foregroundColor(colors.textPrimary)
                         
-                        Text("Share files from Photos or Files app to add them to a vault")
-                            .font(theme.typography.body)
-                            .foregroundColor(colors.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
+                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                            Text("To save media to a vault:")
+                                .font(theme.typography.subheadline)
+                                .foregroundColor(colors.textPrimary)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text("1.")
+                                        .foregroundColor(colors.primary)
+                                    Text("In the conversation, long-press a photo or video")
+                                        .foregroundColor(colors.textSecondary)
+                                }
+                                
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text("2.")
+                                        .foregroundColor(colors.primary)
+                                    Text("Tap 'Share' → Select 'Khandoba'")
+                                        .foregroundColor(colors.textSecondary)
+                                }
+                                
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text("3.")
+                                        .foregroundColor(colors.primary)
+                                    Text("Choose a vault to save to")
+                                        .foregroundColor(colors.textSecondary)
+                                }
+                            }
+                            .font(theme.typography.caption)
+                        }
+                        .padding()
+                        .background(colors.surface)
+                        .cornerRadius(UnifiedTheme.CornerRadius.lg)
+                        .padding(.horizontal)
                         
                         Button("Cancel") {
                             onCancel()
                         }
-                        .buttonStyle(PrimaryButtonStyle())
+                        .buttonStyle(SecondaryButtonStyle())
                         .padding(.horizontal)
                     }
+                    .padding(.vertical)
                 } else {
                     ScrollView {
                         VStack(spacing: UnifiedTheme.Spacing.lg) {
@@ -149,7 +179,7 @@ struct FileSharingMessageView: View {
                     }
                 }
             }
-            .navigationTitle("Share Files")
+            .navigationTitle("Save Media to Vault")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -181,21 +211,39 @@ struct FileSharingMessageView: View {
                 guard let attachments = item.attachments else { continue }
                 
                 for attachment in attachments {
-                    // Try to load as data
-                    if attachment.hasItemConformingToTypeIdentifier(UTType.data.identifier) {
-                        do {
-                            if let data = try await loadAttachment(attachment, type: UTType.data.identifier) {
-                                let fileName = item.attributedContentText?.string ?? "file_\(Date().timeIntervalSince1970)"
-                                files.append(SharedFile(
-                                    id: UUID(),
-                                    name: fileName,
-                                    data: data,
-                                    type: "data",
-                                    size: data.count
-                                ))
+                    // Try different type identifiers in order of preference
+                    let typeIdentifiers: [String] = [
+                        UTType.image.identifier,
+                        UTType.movie.identifier,
+                        UTType.video.identifier,
+                        UTType.audio.identifier,
+                        UTType.pdf.identifier,
+                        UTType.data.identifier
+                    ]
+                    
+                    for typeIdentifier in typeIdentifiers {
+                        if attachment.hasItemConformingToTypeIdentifier(typeIdentifier) {
+                            do {
+                                if let data = try await loadAttachment(attachment, type: typeIdentifier) {
+                                    let fileName = item.attributedContentText?.string ?? 
+                                        attachment.suggestedName ?? 
+                                        "file_\(Date().timeIntervalSince1970)"
+                                    
+                                    // Determine file type from identifier
+                                    let fileType = determineFileType(from: typeIdentifier)
+                                    
+                                    files.append(SharedFile(
+                                        id: UUID(),
+                                        name: fileName,
+                                        data: data,
+                                        type: fileType,
+                                        size: data.count
+                                    ))
+                                    break // Found a matching type, move to next attachment
+                                }
+                            } catch {
+                                print("⚠️ Error loading file with type \(typeIdentifier): \(error)")
                             }
-                        } catch {
-                            print("⚠️ Error loading file: \(error)")
                         }
                     }
                 }
@@ -205,6 +253,20 @@ struct FileSharingMessageView: View {
                 sharedFiles = files
                 isLoading = false
             }
+        }
+    }
+    
+    private func determineFileType(from typeIdentifier: String) -> String {
+        if typeIdentifier.contains("image") {
+            return "image"
+        } else if typeIdentifier.contains("movie") || typeIdentifier.contains("video") {
+            return "video"
+        } else if typeIdentifier.contains("audio") {
+            return "audio"
+        } else if typeIdentifier.contains("pdf") {
+            return "pdf"
+        } else {
+            return "data"
         }
     }
     

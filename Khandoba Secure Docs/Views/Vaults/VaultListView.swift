@@ -252,14 +252,16 @@ struct VaultRow: View {
         return colors.error
     }
     
-    /// Check if this vault is shared (not owned by current user)
+    /// Check if this vault is shared (has active nominees)
     private var isVaultShared: Bool {
-        guard let currentUser = authService.currentUser,
-              let vaultOwner = vault.owner else {
+        // Check if vault has any active nominees
+        guard let nominees = vault.nomineeList, !nominees.isEmpty else {
             return false
         }
-        // Vault is shared if owner is different from current user
-        return vaultOwner.id != currentUser.id
+        // Vault is shared if it has at least one active nominee
+        return nominees.contains { nominee in
+            nominee.status == .accepted || nominee.status == .pending
+        }
     }
 }
 
