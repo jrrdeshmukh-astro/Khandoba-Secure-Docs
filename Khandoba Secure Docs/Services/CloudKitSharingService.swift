@@ -431,7 +431,9 @@ final class CloudKitSharingService: ObservableObject {
                 // Fallback to deprecated API only if hierarchical is nil
                 // Note: rootRecordID deprecated in iOS 16.0+ but needed for backward compatibility
                 // This is intentional - we need to support older iOS versions
+                // Compiler warning is acceptable - this API is still functional
                 // swiftlint:disable:next deprecated_api
+                // swift:suppress:deprecated
                 rootRecordID = metadata.rootRecordID
             }
         } else {

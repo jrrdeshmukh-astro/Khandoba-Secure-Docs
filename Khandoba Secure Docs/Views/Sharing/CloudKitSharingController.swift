@@ -41,6 +41,9 @@ struct CloudKitSharingView: UIViewControllerRepresentable {
         }
         
         // Otherwise, use preparation handler to create share
+        // Note: UICloudSharingController(preparationHandler:) deprecated in iOS 17.0
+        // TODO: Migrate to UIActivityViewController with UIActivityItemsConfiguration when time permits
+        // swiftlint:disable:next deprecated_api
         let controller = UICloudSharingController { controller, completionHandler in
             Task {
                 do {

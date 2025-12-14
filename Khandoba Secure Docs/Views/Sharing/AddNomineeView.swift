@@ -466,7 +466,7 @@ struct AddNomineeView: View {
         // Try to get or create share first
         // If it fails, show error and suggest using token-based invitation
         do {
-            if let share = try await sharingService.getOrCreateShare(for: vault) {
+            if try await sharingService.getOrCreateShare(for: vault) != nil {
                 // We have a share, present the controller
                 await MainActor.run {
                     showCloudKitSharing = true
