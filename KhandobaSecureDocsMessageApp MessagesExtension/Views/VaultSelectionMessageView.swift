@@ -162,8 +162,8 @@ struct VaultSelectionMessageView: View {
         } message: {
             Text(errorMessage)
         }
-        .onAppear {
-            loadVaults()
+        .task {
+            await loadVaults()
         }
     }
     
@@ -181,73 +181,131 @@ struct VaultSelectionMessageView: View {
         }
     }
     
-    private func loadVaults() {
-        isLoading = true
+    private func loadVaults() async {
+        await MainActor.run {
+            isLoading = true
+        }
         
-        Task {
-            do {
-                // Use the same schema as main app
-                let schema = Schema([
-                    User.self,
-                    Vault.self,
-                    Nominee.self
-                ])
-                
-                let appGroupIdentifier = "group.com.khandoba.securedocs"
-                
-                // Ensure Application Support directory exists
-                if let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
-                    let appSupportURL = appGroupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
-                    try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
-                }
-                
-                let modelConfiguration = ModelConfiguration(
-                    schema: schema,
-                    isStoredInMemoryOnly: false,
-                    groupContainer: .identifier(appGroupIdentifier),
-                    cloudKitDatabase: .automatic
-                )
-                
-                let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-                let context = container.mainContext
-                
-                // Check authentication - verify user exists
-                let userDescriptor = FetchDescriptor<User>()
-                let users = try context.fetch(userDescriptor)
-                
-                if users.isEmpty {
-                    await MainActor.run {
-                        isLoading = false
-                        errorMessage = "Please sign in to the main app first"
-                        showError = true
-                    }
-                    return
-                }
-                
-                // Load vaults
-                let vaultDescriptor = FetchDescriptor<Vault>(
-                    sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-                )
-                let allVaults = try context.fetch(vaultDescriptor)
-                let availableVaults = allVaults.filter { !$0.isSystemVault }
-                
-                print("📦 VaultSelectionMessageView: Loaded \(availableVaults.count) vault(s)")
-                
-                await MainActor.run {
-                    vaults = availableVaults
-                    selectedIndex = 0
-                    isLoading = false
-                    isAuthenticated = true
-                    modelContext = context
-                }
-            } catch {
-                print("❌ Failed to load vaults: \(error.localizedDescription)")
-                await MainActor.run {
-                    isLoading = false
-                    errorMessage = "Failed to load vaults: \(error.localizedDescription)"
-                    showError = true
-                }
+        // Add timeout to prevent infinite hanging
+        do {
+            try await withTimeout(seconds: 8) {
+                try await performVaultLoad()
+            }
+        } catch is TimeoutError {
+            print("⏱️ Vault loading timed out")
+            await MainActor.run {
+                isLoading = false
+                errorMessage = "Loading vaults timed out. Please try again."
+                showError = true
+            }
+        } catch {
+            print("❌ Failed to load vaults: \(error.localizedDescription)")
+            await MainActor.run {
+                isLoading = false
+                errorMessage = "Failed to load vaults: \(error.localizedDescription)"
+                showError = true
             }
         }
+    }
+    
+    private func performVaultLoad() async throws {
+        // Use the same schema as main app
+        let schema = Schema([
+            User.self,
+            Vault.self,
+            Nominee.self
+        ])
+        
+        let appGroupIdentifier = "group.com.khandoba.securedocs"
+        
+        // Verify App Group is accessible (check entitlements)
+        guard let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
+            let error = NSError(
+                domain: "VaultSelectionError",
+                code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "App Group not accessible. Please ensure the iMessage extension has the App Group capability enabled in Xcode (Signing & Capabilities)."
+                ]
+            )
+            throw error
+        }
+        
+        // Ensure Application Support directory exists
+        let appSupportURL = appGroupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
+        try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
+        
+        print("📦 App Group URL verified: \(appGroupURL.path)")
+        
+        // Create ModelContainer (this can be slow with CloudKit)
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            groupContainer: .identifier(appGroupIdentifier),
+            cloudKitDatabase: .automatic
+        )
+        
+        // Run container creation in background to avoid blocking
+        let container = try await Task.detached(priority: .userInitiated) {
+            try ModelContainer(for: schema, configurations: [modelConfiguration])
+        }.value
+        
+        let context = container.mainContext
+        
+        // Check authentication - verify user exists
+        let userDescriptor = FetchDescriptor<User>()
+        let users = try context.fetch(userDescriptor)
+        
+        if users.isEmpty {
+            await MainActor.run {
+                isLoading = false
+                errorMessage = "Please sign in to the main app first"
+                showError = true
+            }
+            return
+        }
+        
+        // Load vaults
+        let vaultDescriptor = FetchDescriptor<Vault>(
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        let allVaults = try context.fetch(vaultDescriptor)
+        let availableVaults = allVaults.filter { !$0.isSystemVault }
+        
+        print("📦 VaultSelectionMessageView: Loaded \(availableVaults.count) vault(s)")
+        
+        await MainActor.run {
+            vaults = availableVaults
+            selectedIndex = 0
+            isLoading = false
+            isAuthenticated = true
+            modelContext = context
+        }
+    }
+    
+    // Helper function for timeout
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw TimeoutError()
+            }
+            
+            guard let result = try await group.next() else {
+                throw TimeoutError()
+            }
+            group.cancelAll()
+            return result
+        }
+    }
+}
+
+// MARK: - Timeout Error
+private struct TimeoutError: Error {
+    var localizedDescription: String {
+        "Operation timed out"
     }
 }

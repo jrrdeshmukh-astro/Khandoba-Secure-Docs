@@ -17,6 +17,9 @@ struct StoreView: View {
     
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showRestoreSuccess = false
+    @State private var isRestoring = false
+    @State private var restoreSuccessMessage = ""
     
     var body: some View {
         NavigationView {
@@ -50,6 +53,11 @@ struct StoreView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
+        }
+        .alert("Purchases Restored", isPresented: $showRestoreSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(restoreSuccessMessage)
         }
         .onAppear {
             // Configure subscription service with model context
@@ -183,18 +191,51 @@ struct StoreView: View {
                                 .foregroundColor(colors.textSecondary)
                                 .multilineTextAlignment(.center)
                             
-                            Button("Restore Purchases") {
+                            Button {
                                 Task {
+                                    isRestoring = true
                                     do {
                                         try await subscriptionService.restorePurchases()
+                                        
+                                        // Wait a moment for status to update
+                                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                                        
+                                        // Force refresh subscription status
+                                        await subscriptionService.updatePurchasedProducts()
+                                        
+                                        await MainActor.run {
+                                            isRestoring = false
+                                            
+                                            if subscriptionService.subscriptionStatus == .active {
+                                                restoreSuccessMessage = "Your premium subscription has been restored successfully!"
+                                            } else {
+                                                restoreSuccessMessage = "No active subscriptions found to restore."
+                                            }
+                                            showRestoreSuccess = true
+                                        }
                                     } catch {
-                                        errorMessage = error.localizedDescription
-                                        showError = true
+                                        await MainActor.run {
+                                            isRestoring = false
+                                            errorMessage = error.localizedDescription
+                                            showError = true
+                                        }
                                     }
+                                }
+                            } label: {
+                                HStack {
+                                    if isRestoring {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                            .tint(colors.secondary)
+                                    } else {
+                                        Image(systemName: "arrow.clockwise")
+                                    }
+                                    Text("Restore Purchases")
                                 }
                             }
                             .font(theme.typography.caption)
                             .foregroundColor(colors.secondary)
+                            .disabled(isRestoring)
                         }
                     }
                     .padding(UnifiedTheme.Spacing.md)

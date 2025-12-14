@@ -66,43 +66,58 @@ class MessagesViewController: MSMessagesAppViewController {
     }
     
     private func presentVaultSelectionView(for conversation: MSConversation) {
-        removeAllChildViewControllers()
-        view.subviews.forEach { $0.removeFromSuperview() }
+        print("📱 presentVaultSelectionView called")
         
-        let vaultSelectionView = VaultSelectionMessageView(
-            conversation: conversation,
-            onTransfer: { [weak self] vault in
-                print("📱 Transfer selected for vault: \(vault.name)")
-                self?.presentTransferOwnershipView(for: conversation, vault: vault)
-            },
-            onNominate: { [weak self] vault in
-                print("📱 Nominate selected for vault: \(vault.name)")
-                self?.sendNominationForVault(vault, in: conversation)
-            },
-            onCancel: { [weak self] in
-                print("📱 Vault selection cancelled")
-                self?.requestPresentationStyle(.compact)
-            }
-        )
-        
-        let hostingController = UIHostingController(
-            rootView: vaultSelectionView.environment(\.unifiedTheme, UnifiedTheme())
-        )
-        
-        hostingController.view.backgroundColor = .systemBackground
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
-        
-        addChild(hostingController)
-        view.addSubview(hostingController.view)
-        
-        NSLayoutConstraint.activate([
-            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
-            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-        ])
-        
-        hostingController.didMove(toParent: self)
+        // Ensure this runs on main thread and doesn't block
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.removeAllChildViewControllers()
+            self.view.subviews.forEach { $0.removeFromSuperview() }
+            
+            let vaultSelectionView = VaultSelectionMessageView(
+                conversation: conversation,
+                onTransfer: { [weak self] vault in
+                    print("📱 Transfer selected for vault: \(vault.name)")
+                    DispatchQueue.main.async {
+                        self?.presentTransferOwnershipView(for: conversation, vault: vault)
+                    }
+                },
+                onNominate: { [weak self] vault in
+                    print("📱 Nominate selected for vault: \(vault.name)")
+                    DispatchQueue.main.async {
+                        self?.sendNominationForVault(vault, in: conversation)
+                    }
+                },
+                onCancel: { [weak self] in
+                    print("📱 Vault selection cancelled")
+                    DispatchQueue.main.async {
+                        self?.requestPresentationStyle(.compact)
+                    }
+                }
+            )
+            
+            let hostingController = UIHostingController(
+                rootView: vaultSelectionView.environment(\.unifiedTheme, UnifiedTheme())
+            )
+            
+            hostingController.view.backgroundColor = .systemBackground
+            hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+            
+            self.addChild(hostingController)
+            self.view.addSubview(hostingController.view)
+            
+            NSLayoutConstraint.activate([
+                hostingController.view.topAnchor.constraint(equalTo: self.view.topAnchor),
+                hostingController.view.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                hostingController.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+                hostingController.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
+            ])
+            
+            hostingController.didMove(toParent: self)
+            
+            print("📱 VaultSelectionMessageView presented successfully")
+        }
     }
     
     /// Send nomination for a specific vault (Apple Pay style - immediate message)
@@ -113,38 +128,26 @@ class MessagesViewController: MSMessagesAppViewController {
             do {
                 // Get model context from vault (it should have one)
                 guard let context = vault.modelContext else {
-                    // Create new context if needed
-                    let schema = Schema([User.self, Vault.self, Nominee.self])
-                    let appGroupIdentifier = "group.com.khandoba.securedocs"
-                    
-                    if let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
-                        let appSupportURL = appGroupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
-                        try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
+                    // Create new context if needed - with timeout to prevent hanging
+                    try await self.withTimeout(seconds: 8) {
+                        try await self.createModelContainerAndSendNomination(for: vault, in: conversation)
                     }
-                    
-                    let modelConfiguration = ModelConfiguration(
-                        schema: schema,
-                        isStoredInMemoryOnly: false,
-                        groupContainer: .identifier(appGroupIdentifier),
-                        cloudKitDatabase: .automatic
-                    )
-                    
-                    let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-                    let newContext = container.mainContext
-                    
-                    // Re-fetch vault in new context - use simpler predicate
-                    let vaultDescriptor = FetchDescriptor<Vault>()
-                    let allVaults = try newContext.fetch(vaultDescriptor)
-                    guard let fetchedVault = allVaults.first(where: { $0.id == vault.id }) else {
-                        throw NSError(domain: "MessageApp", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault not found"])
-                    }
-                    
-                    try await createAndSendNomination(for: fetchedVault, context: newContext, in: conversation)
                     return
                 }
                 
                 try await createAndSendNomination(for: vault, context: context, in: conversation)
                 
+            } catch is TimeoutError {
+                print("⏱️ Nomination timed out - CloudKit may still be syncing")
+                await MainActor.run {
+                    let alert = UIAlertController(
+                        title: "Syncing...",
+                        message: "The vault is still syncing. Please wait a moment and try again.",
+                        preferredStyle: .alert
+                    )
+                    alert.addAction(UIAlertAction(title: "OK", style: .default))
+                    self.present(alert, animated: true)
+                }
             } catch {
                 print("❌ Failed to send nomination: \(error.localizedDescription)")
                 await MainActor.run {
@@ -157,6 +160,74 @@ class MessagesViewController: MSMessagesAppViewController {
                     self.present(alert, animated: true)
                 }
             }
+        }
+    }
+    
+    private func createModelContainerAndSendNomination(for vault: Vault, in conversation: MSConversation) async throws {
+        let schema = Schema([User.self, Vault.self, Nominee.self])
+        let appGroupIdentifier = "group.com.khandoba.securedocs"
+        
+        // Verify App Group is accessible
+        guard let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
+            throw NSError(
+                domain: "MessageApp",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "App Group not accessible. Please ensure the iMessage extension has the App Group capability enabled."]
+            )
+        }
+        
+        // Ensure Application Support directory exists
+        let appSupportURL = appGroupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
+        try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
+        
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            groupContainer: .identifier(appGroupIdentifier),
+            cloudKitDatabase: .automatic
+        )
+        
+        // Create container in background to avoid blocking
+        let container = try await Task.detached(priority: .userInitiated) {
+            try ModelContainer(for: schema, configurations: [modelConfiguration])
+        }.value
+        
+        let newContext = container.mainContext
+        
+        // Re-fetch vault in new context - use simpler predicate
+        let vaultDescriptor = FetchDescriptor<Vault>()
+        let allVaults = try newContext.fetch(vaultDescriptor)
+        guard let fetchedVault = allVaults.first(where: { $0.id == vault.id }) else {
+            throw NSError(domain: "MessageApp", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault not found. It may still be syncing."])
+        }
+        
+        try await createAndSendNomination(for: fetchedVault, context: newContext, in: conversation)
+    }
+    
+    // Helper function for timeout
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw TimeoutError()
+            }
+            
+            guard let result = try await group.next() else {
+                throw TimeoutError()
+            }
+            group.cancelAll()
+            return result
+        }
+    }
+    
+    // MARK: - Timeout Error
+    private struct TimeoutError: Error {
+        var localizedDescription: String {
+            "Operation timed out"
         }
     }
     
