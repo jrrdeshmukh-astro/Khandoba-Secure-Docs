@@ -30,6 +30,11 @@ struct VaultDetailView: View {
     
     @EnvironmentObject var authService: AuthenticationService
     
+    // Face ID gate
+    @State private var isBiometricallyUnlocked = false
+    @State private var attemptedAutoUnlock = false
+    @State private var authInProgress = false
+    
     private var isIntelVault: Bool {
         vault.name == "Intel Vault"
     }
@@ -46,7 +51,6 @@ struct VaultDetailView: View {
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
-        // Use @State to prevent recalculation glitches - cache the session state
         let hasActiveSession = vaultService.hasActiveSession(for: vault.id)
         let hasPendingRequest = hasPendingDualKeyRequest
         
@@ -56,7 +60,6 @@ struct VaultDetailView: View {
             
             ScrollView {
                 VStack(spacing: UnifiedTheme.Spacing.lg) {
-                    // Dual-Key Unlock Request Pending Banner
                     if vault.keyType == "dual" && hasPendingRequest {
                         StandardCard {
                             HStack(spacing: UnifiedTheme.Spacing.md) {
@@ -82,13 +85,10 @@ struct VaultDetailView: View {
                         .padding(.horizontal)
                     }
                     
-                    // Status Card
                     StandardCard {
                         VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
                             HStack {
-                                // Dual-key or single-key icon
                                 if vault.keyType == "dual" {
-                                    // Two keys icon for dual-key vaults
                                     HStack(spacing: -4) {
                                         Image(systemName: "key.fill")
                                             .font(.title3)
@@ -147,9 +147,8 @@ struct VaultDetailView: View {
                                     .frame(maxWidth: .infinity)
                                 }
                                 .buttonStyle(PrimaryButtonStyle())
-                                .disabled(isLoading)
+                                .disabled(isLoading || !isBiometricallyUnlocked)
                             } else {
-                                // Lock button - always visible when vault is unlocked
                                 Button {
                                     lockVault()
                                 } label: {
@@ -165,7 +164,6 @@ struct VaultDetailView: View {
                     }
                     .padding(.horizontal)
                     
-                    // Active Session Timer
                     if let session = vaultService.activeSessions[vault.id] {
                         SessionTimerView(session: session) {
                             await extendSession()
@@ -173,7 +171,6 @@ struct VaultDetailView: View {
                         .padding(.horizontal)
                     }
                     
-                    // Security & Intelligence Section
                     VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                         Text("Security & Intelligence")
                             .font(theme.typography.headline)
@@ -205,14 +202,11 @@ struct VaultDetailView: View {
                                         color: colors.warning
                                     )
                                 }
-                                
-                                // Intel Reports - ARCHIVED
                             }
                         }
                         .padding(.horizontal)
                     }
                     
-                    // Sharing & Collaboration
                     VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                         Text("Sharing & Collaboration")
                             .font(theme.typography.headline)
@@ -221,7 +215,6 @@ struct VaultDetailView: View {
                         
                         StandardCard {
                             VStack(spacing: 0) {
-                                // Access Control (Owner only)
                                 if isOwner {
                                     NavigationLink {
                                         VaultAccessControlView(vault: vault)
@@ -265,7 +258,6 @@ struct VaultDetailView: View {
                         .padding(.horizontal)
                     }
                     
-                    // Media Actions - Hidden for system vaults like Intel Reports
                     if hasActiveSession && !vault.isSystemVault {
                         VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                             Text("Media Actions")
@@ -279,10 +271,10 @@ struct VaultDetailView: View {
                                         VideoRecordingView(vault: vault)
                                     } label: {
                                         SecurityActionRow(
-                                        icon: "video.fill",
-                                        title: "Record Video",
-                                        subtitle: "Premium",
-                                        color: colors.error
+                                            icon: "video.fill",
+                                            title: "Record Video",
+                                            subtitle: "Premium",
+                                            color: colors.error
                                         )
                                     }
                                     
@@ -292,11 +284,11 @@ struct VaultDetailView: View {
                                         VoiceRecordingView(vault: vault)
                                     } label: {
                                         SecurityActionRow(
-                                        icon: "waveform",
-                                        title: "Voice Memo",
-                                        subtitle: "Premium",
-                                        color: colors.secondary
-                                    )
+                                            icon: "waveform",
+                                            title: "Voice Memo",
+                                            subtitle: "Premium",
+                                            color: colors.secondary
+                                        )
                                     }
                                     
                                     Divider()
@@ -330,7 +322,6 @@ struct VaultDetailView: View {
                         }
                     }
                     
-                    // Emergency
                     VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                         Text("Emergency")
                             .font(theme.typography.headline)
@@ -352,7 +343,6 @@ struct VaultDetailView: View {
                         .padding(.horizontal)
                     }
                     
-                    // Documents Section
                     VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                         Text("Documents")
                             .font(theme.typography.headline)
@@ -413,11 +403,17 @@ struct VaultDetailView: View {
                 }
                 .padding(.vertical)
             }
+            
+            // Face ID overlay gate (solid, non-translucent)
+            if !isBiometricallyUnlocked {
+                gateOverlay
+            }
         }
         .navigationTitle(vault.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             if isOwner {
+                #if !APP_EXTENSION
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Task {
@@ -432,6 +428,7 @@ struct VaultDetailView: View {
                         .foregroundColor(colors.primary)
                     }
                 }
+                #endif
             }
         }
         .sheet(isPresented: $showUploadSheet) {
@@ -445,34 +442,126 @@ struct VaultDetailView: View {
         } message: {
             Text(errorMessage)
         }
+        .task {
+            await ensureBiometricGate()
+        }
+        .onAppear {
+            // If we navigated back and there is no active session, re‑prompt biometrics
+            if !vaultService.hasActiveSession(for: vault.id) && isBiometricallyUnlocked == false {
+                Task { await ensureBiometricGate() }
+            }
+        }
     }
     
+    // MARK: - Biometric Gate UI
+    
+    private var gateOverlay: some View {
+        let colors = theme.colors(for: colorScheme)
+        return ZStack {
+            colors.background // solid, no translucency
+                .ignoresSafeArea()
+            
+            VStack(spacing: UnifiedTheme.Spacing.lg) {
+                Image(systemName: LocalAuthService.shared.biometricType() == .faceID ? "faceid" : "touchid")
+                    .font(.system(size: 48, weight: .regular, design: .rounded))
+                    .foregroundColor(colors.primary)
+                
+                Text("Unlock Vault")
+                    .font(theme.typography.title2)
+                    .foregroundColor(colors.textPrimary)
+                
+                Text("Authenticate to view \(vault.name)")
+                    .font(theme.typography.subheadline)
+                    .foregroundColor(colors.textSecondary)
+                
+                Button {
+                    Task { await promptBiometricsAndOpenIfNeeded() }
+                } label: {
+                    HStack {
+                        if authInProgress {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "lock.open.fill")
+                        }
+                        Text(authInProgress ? "Authenticating..." : "Unlock with Face ID")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(authInProgress)
+                .padding(.horizontal, UnifiedTheme.Spacing.lg)
+            }
+            .padding()
+        }
+        .transition(.opacity.combined(with: .scale))
+        .animation(.spring(), value: isBiometricallyUnlocked)
+        .accessibilityAddTraits(.isModal)
+    }
+    
+    // MARK: - Biometric Flow
+    
+    private func ensureBiometricGate() async {
+        guard !attemptedAutoUnlock else { return }
+        attemptedAutoUnlock = true
+        await promptBiometricsAndOpenIfNeeded()
+    }
+    
+    private func promptBiometricsAndOpenIfNeeded() async {
+        guard !authInProgress else { return }
+        authInProgress = true
+        let reason = "Authenticate to access this vault"
+        let success = await LocalAuthService.shared.authenticate(reason: reason)
+        await MainActor.run {
+            authInProgress = false
+            if success {
+                isBiometricallyUnlocked = true
+                // If no active session, open now
+                if !vaultService.hasActiveSession(for: vault.id) {
+                    openVault()
+                }
+            } else {
+                isBiometricallyUnlocked = false
+            }
+        }
+    }
+    
+    // MARK: - Existing Actions
+    
     private func openMessagesForNomination() async {
-        // Open Messages app with vault context
+        #if !APP_EXTENSION
         let success = await MessagesRedirectService.shared.openMessagesAppForNomination(vaultID: vault.id)
-        
         if !success {
             await MainActor.run {
                 errorMessage = "Unable to open Messages app. Please make sure Messages is installed and try again."
                 showError = true
             }
         }
+        #else
+        await MainActor.run {
+            errorMessage = "Inviting via Messages isn’t available in this extension."
+            showError = true
+        }
+        #endif
     }
     
     private func openVault() {
-        // Prevent multiple simultaneous unlock attempts
+        guard isBiometricallyUnlocked else {
+            // Soft guidance: require Face ID first
+            errorMessage = "Authenticate with Face ID to unlock this vault."
+            showError = true
+            return
+        }
         guard !isLoading else {
             print("⚠️ Vault unlock already in progress, ignoring duplicate tap")
             return
         }
-        
         isLoading = true
         
         Task { @MainActor in
             do {
                 try await vaultService.openVault(vault)
-                // Small delay to ensure UI updates smoothly
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                try? await Task.sleep(nanoseconds: 100_000_000)
             } catch VaultError.awaitingApproval {
                 errorMessage = "Dual-key approval requested. ML is analyzing..."
                 showError = true
@@ -480,7 +569,6 @@ struct VaultDetailView: View {
                 errorMessage = error.localizedDescription
                 showError = true
             }
-            
             isLoading = false
         }
     }
@@ -498,7 +586,6 @@ struct VaultDetailView: View {
     }
     
     private func extendSession() async {
-        // Extend session by 15 minutes
         if let session = vaultService.activeSessions[vault.id] {
             session.expiresAt = Date().addingTimeInterval(15 * 60)
             session.wasExtended = true
@@ -512,9 +599,7 @@ struct VaultDetailView: View {
                 guard url.startAccessingSecurityScopedResource() else {
                     return
                 }
-                defer {
-                    url.stopAccessingSecurityScopedResource()
-                }
+                defer { url.stopAccessingSecurityScopedResource() }
                 
                 let data = try Data(contentsOf: url)
                 let fileName = url.lastPathComponent
@@ -547,7 +632,6 @@ struct VaultDetailView: View {
                 return true
             }
         }
-        
         return false
     }
 }
@@ -563,14 +647,12 @@ struct DocumentRow: View {
         
         StandardCard {
             HStack(spacing: UnifiedTheme.Spacing.md) {
-                // Document Icon with Source/Sink Badge
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: iconForDocumentType(document.documentType))
                         .font(.title2)
                         .foregroundColor(colors.primary)
                         .frame(width: 40)
                     
-                    // Source/Sink Badge
                     if let sourceSinkType = document.sourceSinkType {
                         Circle()
                             .fill(sourceSinkBadgeColor(sourceSinkType))
@@ -602,7 +684,6 @@ struct DocumentRow: View {
                             .foregroundColor(colors.textSecondary)
                     }
                     
-                    // AI Tags
                     if !document.aiTags.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 4) {
@@ -639,11 +720,10 @@ struct DocumentRow: View {
     private func sourceSinkBadgeColor(_ type: String) -> Color {
         let colors = theme.colors(for: colorScheme)
         switch type {
-        case "source": return colors.info // Blue for source (created by you)
-        case "sink": return colors.success // Green for sink (received)
-        case "both": return colors.warning // Amber for both
+        case "source": return colors.info
+        case "sink": return colors.success
+        case "both": return colors.warning
         default: return colors.textTertiary
         }
     }
 }
-

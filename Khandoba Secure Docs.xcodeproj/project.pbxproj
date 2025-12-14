@@ -198,10 +198,12 @@
 				Views/Subscription/SubscriptionRequiredView.swift,
 				Views/Support/SupportChatView.swift,
 				Views/Vaults/CreateVaultView.swift,
+				Views/Vaults/LocalAuthService.swift,
 				Views/Vaults/SessionTimerView.swift,
 				Views/Vaults/VaultAccessControlView.swift,
 				Views/Vaults/VaultDetailView.swift,
 				Views/Vaults/VaultListView.swift,
+				Views/Vaults/WalletCard.swift,
 			);
 			target = 24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */;
 		};

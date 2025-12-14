@@ -19,10 +19,17 @@ struct VaultListView: View {
     @State private var navigateToVaultID: UUID?
     @State private var cardsAppeared = false
     
+    // Rolodex state
+    @Namespace private var cardNamespace
+    @State private var scrollOffset: CGFloat = 0
+    @State private var isDragging = false
+    private let cardHeight: CGFloat = 220
+    private let cardSpacing: CGFloat = -160 // overlap
+    private let snapThreshold: CGFloat = 0.33
+    
     // Filter out system vaults (Intel Reports, etc.)
     private var userVaults: [Vault] {
         vaultService.vaults.filter { vault in
-            // Hide "Intel Reports" vault and any system vaults
             vault.name != "Intel Reports" && !vault.isSystemVault
         }
     }
@@ -38,26 +45,27 @@ struct VaultListView: View {
                 if isLoading {
                     LoadingView("Loading vaults...")
                 } else if userVaults.isEmpty {
-                    // Empty state styled as wallet card
                     VStack(spacing: UnifiedTheme.Spacing.xl) {
-                        // Create a temporary vault for display only
                         let emptyVault = Vault(
                             name: "Create Your First Vault",
                             vaultDescription: "Tap to get started",
                             status: "locked",
                             keyType: "single"
                         )
-                        
                         WalletCard(
                             vault: emptyVault,
                             index: 0,
                             totalCount: 1,
                             hasActiveSession: false,
-                            onTap: {
-                                showCreateVault = true
-                            },
-                            onLongPress: nil
+                            onTap: { showCreateVault = true },
+                            onLongPress: nil,
+                            rotation: 0,
+                            scale: 1.0,
+                            yOffset: 0,
+                            z: 1,
+                            namespace: cardNamespace
                         )
+                        .frame(height: cardHeight)
                         .padding(.horizontal, UnifiedTheme.Spacing.lg)
                         .padding(.top, UnifiedTheme.Spacing.xl)
                         
@@ -74,43 +82,86 @@ struct VaultListView: View {
                         .padding(.horizontal, UnifiedTheme.Spacing.xl)
                     }
                 } else {
-                    // Wallet-style card stack
-                    ScrollView {
-                        VStack(spacing: -160) { // Negative spacing for card stacking effect
-                            ForEach(Array(userVaults.enumerated()), id: \.element.id) { index, vault in
-                                NavigationLink(
-                                    destination: VaultDetailView(vault: vault),
-                                    tag: vault.id,
-                                    selection: $selectedVaultID
-                                ) {
-                                    WalletCard(
-                                        vault: vault,
-                                        index: index,
-                                        totalCount: userVaults.count,
-                                        hasActiveSession: vaultService.hasActiveSession(for: vault.id),
-                                        onTap: {
-                                            selectedVaultID = vault.id
-                                        },
-                                        onLongPress: {
-                                            // Context menu will be added in Phase 4
-                                        }
+                    GeometryReader { geo in
+                        ScrollView {
+                            VStack(spacing: cardSpacing) {
+                                ForEach(Array(userVaults.enumerated()), id: \.element.id) { index, vault in
+                                    GeometryReader { cardGeo in
+                                        let cardTop = cardGeo.frame(in: .global).minY
+                                        let viewTop = geo.safeAreaInsets.top + 100 // header area
+                                        let relative = (cardTop - viewTop) / cardHeight
+                                        
+                                        // 3D rotation: tilt away when above, toward when below
+                                        let clamped = max(-1.0, min(1.0, relative))
+                                        let rotation = Double(-clamped * 15) // degrees
+                                        
+                                        // Scale slightly for depth
+                                        let scale = CGFloat(1.0 - abs(clamped) * 0.05)
+                                        
+                                        // Lift top-most card a touch
+                                        let offsetY: CGFloat = clamped < 0 ? clamped * 10 : clamped * 6
+                                        
+                                        // zIndex so the most centered card is on top
+                                        let z = Double(1000 - Int(abs(clamped) * 1000)) + Double(index) * 0.001
+                                        
+                                        WalletCard(
+                                            vault: vault,
+                                            index: index,
+                                            totalCount: userVaults.count,
+                                            hasActiveSession: vaultService.hasActiveSession(for: vault.id),
+                                            onTap: {
+                                                selectedVaultID = vault.id
+                                            },
+                                            onLongPress: nil,
+                                            rotation: rotation,
+                                            scale: scale,
+                                            yOffset: offsetY,
+                                            z: z,
+                                            namespace: cardNamespace
+                                        )
+                                        .frame(height: cardHeight)
+                                        .opacity(cardsAppeared ? 1 : 0)
+                                        .scaleEffect(cardsAppeared ? 1 : 0.96)
+                                        .animation(
+                                            .spring(response: 0.6, dampingFraction: 0.85)
+                                                .delay(Double(index) * 0.06),
+                                            value: cardsAppeared
+                                        )
+                                    }
+                                    .frame(height: cardHeight)
+                                    .padding(.horizontal, UnifiedTheme.Spacing.lg)
+                                    .padding(.top, index == 0 ? UnifiedTheme.Spacing.lg : 0)
+                                    .background(
+                                        NavigationLink(
+                                            destination: VaultDetailView(vault: vault),
+                                            tag: vault.id,
+                                            selection: $selectedVaultID
+                                        ) { EmptyView() }
+                                        .opacity(0)
                                     )
                                 }
-                                .buttonStyle(PlainButtonStyle())
-                                .padding(.horizontal, UnifiedTheme.Spacing.lg)
-                                .padding(.top, index == 0 ? UnifiedTheme.Spacing.lg : 0)
-                                .opacity(cardsAppeared ? 1 : 0)
-                                .scaleEffect(cardsAppeared ? 1 : 0.9)
-                                .animation(
-                                    .spring(response: 0.6, dampingFraction: 0.8)
-                                    .delay(Double(index) * 0.1),
-                                    value: cardsAppeared
-                                )
                             }
+                            .padding(.bottom, UnifiedTheme.Spacing.xxl)
+                            .background(
+                                GeometryReader { scrollGeo in
+                                    Color.clear
+                                        .preference(key: ScrollOffsetKey.self, value: scrollGeo.frame(in: .global).minY)
+                                }
+                            )
                         }
-                        .padding(.bottom, UnifiedTheme.Spacing.xxl)
+                        .onPreferenceChange(ScrollOffsetKey.self) { value in
+                            // Track to detect drag end for snapping
+                            scrollOffset = value
+                        }
+                        .gesture(
+                            DragGesture()
+                                .onChanged { _ in isDragging = true }
+                                .onEnded { _ in
+                                    isDragging = false
+                                    snapToNearestCard(containerTop: geo.safeAreaInsets.top + 100)
+                                }
+                        )
                     }
-                    .background(colors.background)
                 }
             }
             .navigationTitle("Vaults")
@@ -135,14 +186,12 @@ struct VaultListView: View {
         }
         .task {
             await loadVaults()
-            // Trigger card appear animation after a brief delay
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            try? await Task.sleep(nanoseconds: 100_000_000)
             withAnimation {
                 cardsAppeared = true
             }
         }
         .onChange(of: userVaults.count) { oldValue, newValue in
-            // Reset and re-trigger animation when vaults change
             if newValue > 0 {
                 cardsAppeared = false
                 Task {
@@ -159,10 +208,7 @@ struct VaultListView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .cloudKitShareInvitationReceived)) { _ in
-            // Refresh vaults when CloudKit share is received
-            Task {
-                await loadVaults()
-            }
+            Task { await loadVaults() }
         }
         .onChange(of: navigateToVaultID) { oldValue, newValue in
             if let vaultID = newValue {
@@ -172,20 +218,23 @@ struct VaultListView: View {
         }
     }
     
+    private func snapToNearestCard(containerTop: CGFloat) {
+        // The system ScrollView doesn’t expose programmatic offset directly;
+        // for a simple snap feel, we rely on natural spring + overlap values.
+        // If you want precise snapping, consider ScrollViewReader with anchor IDs
+        // and compute the nearest index to scroll to. Keeping it lightweight now.
+    }
+    
     private func navigateToVault(vaultID: UUID) {
-        // Reload vaults first to ensure the vault is in the list
         Task {
             await loadVaults()
-            // Wait a moment for vaults to load
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            try? await Task.sleep(nanoseconds: 500_000_000)
             await MainActor.run {
-                // Check if vault exists in the list
                 if userVaults.contains(where: { $0.id == vaultID }) {
                     selectedVaultID = vaultID
                 } else {
-                    // If vault not found, try again after a longer delay
                     Task {
-                        try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 more seconds
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
                         await MainActor.run {
                             if userVaults.contains(where: { $0.id == vaultID }) {
                                 selectedVaultID = vaultID
@@ -200,7 +249,6 @@ struct VaultListView: View {
     private func loadVaults() async {
         isLoading = true
         defer { isLoading = false }
-        
         do {
             try await vaultService.loadVaults()
         } catch {
@@ -209,125 +257,10 @@ struct VaultListView: View {
     }
 }
 
-struct VaultRow: View {
-    let vault: Vault
-    
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @EnvironmentObject var vaultService: VaultService
-    @EnvironmentObject var authService: AuthenticationService
-    
-    var body: some View {
-        let colors = theme.colors(for: colorScheme)
-        let hasActiveSession = vaultService.hasActiveSession(for: vault.id)
-        let isSharedVault = isVaultShared
-        
-        HStack(spacing: UnifiedTheme.Spacing.md) {
-            // Status Icon
-            ZStack {
-                Circle()
-                    .fill(statusColor.opacity(0.2))
-                    .frame(width: 50, height: 50)
-                
-                // Show dual-key icon if applicable
-                if vault.keyType == "dual" {
-                    HStack(spacing: -2) {
-                        Image(systemName: "key.fill")
-                            .font(.caption)
-                        Image(systemName: "key.fill")
-                            .font(.caption)
-                            .rotationEffect(.degrees(15))
-                    }
-                    .foregroundColor(statusColor)
-                } else {
-                    Image(systemName: hasActiveSession ? "lock.open.fill" : "lock.fill")
-                        .foregroundColor(statusColor)
-                }
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(vault.name)
-                        .font(theme.typography.headline)
-                        .foregroundColor(colors.textPrimary)
-                    
-                    // Shared Vault Badge
-                    if isSharedVault {
-                        HStack(spacing: 2) {
-                            Image(systemName: "person.2.fill")
-                                .font(.caption2)
-                            Text("SHARED")
-                                .font(.system(size: 9, weight: .bold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(colors.info)
-                        .cornerRadius(4)
-                    }
-                    
-                    // Dual-Key Badge
-                    if vault.keyType == "dual" {
-                        HStack(spacing: 2) {
-                            HStack(spacing: -2) {
-                                Image(systemName: "key.fill")
-                                    .font(.caption2)
-                                Image(systemName: "key.fill")
-                                    .font(.caption2)
-                                    .rotationEffect(.degrees(15))
-                            }
-                            Text("DUAL-KEY")
-                                .font(.system(size: 9, weight: .bold))
-                        }
-                        .foregroundColor(colors.textPrimary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(colors.warning)
-                        .cornerRadius(4)
-                    }
-                }
-                
-                if let description = vault.vaultDescription, !description.isEmpty {
-                    Text(description)
-                        .font(theme.typography.caption)
-                        .foregroundColor(colors.textSecondary)
-                        .lineLimit(1)
-                }
-                
-                HStack(spacing: UnifiedTheme.Spacing.xs) {
-                    Image(systemName: "doc.fill")
-                        .font(.caption2)
-                        .foregroundColor(colors.textTertiary)
-                    
-                    Text("\(vault.documents?.count ?? 0) documents")
-                        .font(theme.typography.caption2)
-                        .foregroundColor(colors.textTertiary)
-                }
-            }
-            
-            Spacer()
-        }
-        .padding(.vertical, UnifiedTheme.Spacing.xs)
-    }
-    
-    private var statusColor: Color {
-        let colors = theme.colors(for: colorScheme)
-        if vaultService.hasActiveSession(for: vault.id) {
-            return colors.success
-        }
-        return colors.error
-    }
-    
-    /// Check if this vault is shared (has active nominees)
-    private var isVaultShared: Bool {
-        // Check if vault has any active nominees
-        guard let nominees = vault.nomineeList, !nominees.isEmpty else {
-            return false
-        }
-        // Vault is shared if it has at least one active nominee
-        return nominees.contains { nominee in
-            nominee.status == .accepted || nominee.status == .pending
-        }
+// Preference key for scroll offset tracking
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
-
