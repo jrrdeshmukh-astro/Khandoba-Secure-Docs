@@ -213,8 +213,30 @@ struct ContentView: View {
                 } else {
                     print("   ❌ Failed to extract token from transfer URL")
                 }
+            } else if url.host == "messages" && url.path == "/nominate" {
+                // Messages nomination format: khandoba://messages/nominate?vaultID=UUID
+                if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                   let vaultIDString = components.queryItems?.first(where: { $0.name == "vaultID" })?.value,
+                   let vaultID = UUID(uuidString: vaultIDString) {
+                    print("   ✅ Found messages nomination vault ID: \(vaultID)")
+                    handleMessagesNomination(vaultID: vaultID)
+                } else {
+                    print("   ❌ Failed to extract vaultID from messages nomination URL")
+                }
             } else {
                 print("   ⚠️ Unknown deep link host: \(url.host ?? "nil")")
+            }
+        } else if url.scheme == "messages" {
+            // Handle messages:// URL scheme
+            print("   ✅ Messages URL scheme detected")
+            if url.host == "compose" {
+                // messages://compose?body=...&vaultID=...
+                if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                   let vaultIDString = components.queryItems?.first(where: { $0.name == "vaultID" })?.value,
+                   let vaultID = UUID(uuidString: vaultIDString) {
+                    print("   ✅ Found vaultID in messages compose URL: \(vaultID)")
+                    handleMessagesNomination(vaultID: vaultID)
+                }
             }
         } else {
             print("   ⚠️ Unknown URL scheme: \(url.scheme ?? "nil")")
@@ -399,6 +421,21 @@ struct ContentView: View {
             // Store token for later (after authentication/setup)
             UserDefaults.standard.set(token, forKey: "pending_transfer_token")
         }
+    }
+    
+    private func handleMessagesNomination(vaultID: UUID) {
+        print("📱 Handling messages nomination for vault: \(vaultID)")
+        
+        // Navigate to the vault and open nominee management
+        // Post notification to navigate to vault
+        NotificationCenter.default.post(
+            name: .navigateToVault,
+            object: nil,
+            userInfo: ["vaultID": vaultID, "action": "nominate"]
+        )
+        
+        // Store vault ID for nominee management
+        UserDefaults.standard.set(vaultID.uuidString, forKey: "pending_nominate_vault_id")
     }
     
     private func setupNotificationObservers() {

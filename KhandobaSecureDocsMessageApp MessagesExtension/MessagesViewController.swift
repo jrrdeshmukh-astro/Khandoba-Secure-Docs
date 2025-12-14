@@ -12,6 +12,37 @@ import SwiftData
 import UniformTypeIdentifiers
 import Foundation
 
+// MARK: - App Group Helper for iMessage Extension
+extension MessagesViewController {
+    /// Read pending nomination vault ID from App Group UserDefaults
+    func readPendingNominationVaultID() -> UUID? {
+        let appGroupIdentifier = "group.com.khandoba.securedocs"
+        guard let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier) else {
+            return nil
+        }
+        
+        guard let vaultIDString = sharedDefaults.string(forKey: "pendingNominationVaultID"),
+              let vaultID = UUID(uuidString: vaultIDString) else {
+            return nil
+        }
+        
+        return vaultID
+    }
+    
+    /// Clear pending nomination vault ID
+    func clearPendingNominationVaultID() {
+        let appGroupIdentifier = "group.com.khandoba.securedocs"
+        guard let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier) else {
+            return
+        }
+        
+        sharedDefaults.removeObject(forKey: "pendingNominationVaultID")
+        sharedDefaults.synchronize()
+        
+        print("📱 MessagesViewController: Cleared pending nomination vault ID")
+    }
+}
+
 class MessagesViewController: MSMessagesAppViewController {
     
     override func viewDidLoad() {
@@ -29,6 +60,11 @@ class MessagesViewController: MSMessagesAppViewController {
     override func willBecomeActive(with conversation: MSConversation) {
         // Request expanded presentation style to show full interface
         requestPresentationStyle(.expanded)
+        
+        // Check for pending nomination from main app
+        if let pendingVaultID = readPendingNominationVaultID() {
+            print("📱 MessagesViewController: Found pending nomination for vault: \(pendingVaultID)")
+        }
         
         // Show main interface when extension becomes active
         presentMainInterface(for: conversation)
@@ -142,7 +178,7 @@ class MessagesViewController: MSMessagesAppViewController {
                 await MainActor.run {
                     let alert = UIAlertController(
                         title: "Syncing...",
-                        message: "The vault is still syncing. Please wait a moment and try again.",
+                        message: "The vault is still syncing with iCloud. Please wait a moment and try again. You can also manually select the vault from the list.",
                         preferredStyle: .alert
                     )
                     alert.addAction(UIAlertAction(title: "OK", style: .default))

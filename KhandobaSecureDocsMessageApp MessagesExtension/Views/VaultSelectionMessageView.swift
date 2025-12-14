@@ -195,14 +195,21 @@ struct VaultSelectionMessageView: View {
             print("⏱️ Vault loading timed out")
             await MainActor.run {
                 isLoading = false
-                errorMessage = "Loading vaults timed out. Please try again."
+                errorMessage = "Loading vaults timed out. This may happen if CloudKit is still syncing. Please wait a moment and try again."
                 showError = true
             }
         } catch {
             print("❌ Failed to load vaults: \(error.localizedDescription)")
             await MainActor.run {
                 isLoading = false
-                errorMessage = "Failed to load vaults: \(error.localizedDescription)"
+                // Provide user-friendly error message
+                if error.localizedDescription.contains("App Group") {
+                    errorMessage = "App Group not accessible. Please ensure the iMessage extension has the App Group capability enabled in Xcode."
+                } else if error.localizedDescription.contains("sync") || error.localizedDescription.contains("CloudKit") {
+                    errorMessage = "Vaults are still syncing. Please wait a moment and try again."
+                } else {
+                    errorMessage = "Failed to load vaults: \(error.localizedDescription)"
+                }
                 showError = true
             }
         }
@@ -273,9 +280,30 @@ struct VaultSelectionMessageView: View {
         
         print("📦 VaultSelectionMessageView: Loaded \(availableVaults.count) vault(s)")
         
+        // Check for pending nomination vault ID from main app
+        var initialSelectedIndex = 0
+        if let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier),
+           let pendingVaultIDString = sharedDefaults.string(forKey: "pendingNominationVaultID"),
+           let pendingVaultID = UUID(uuidString: pendingVaultIDString) {
+            
+            // Find the vault index
+            if let vaultIndex = availableVaults.firstIndex(where: { $0.id == pendingVaultID }) {
+                initialSelectedIndex = vaultIndex
+                print("📦 VaultSelectionMessageView: Auto-selecting vault at index \(vaultIndex) from pending nomination")
+                
+                // Clear the pending nomination after reading
+                sharedDefaults.removeObject(forKey: "pendingNominationVaultID")
+                sharedDefaults.synchronize()
+            } else {
+                print("⚠️ VaultSelectionMessageView: Pending vault ID not found in loaded vaults (may still be syncing)")
+                // Keep the vault ID stored so we can retry when vaults finish syncing
+                // Don't clear it yet - let the user manually select or wait for sync
+            }
+        }
+        
         await MainActor.run {
             vaults = availableVaults
-            selectedIndex = 0
+            selectedIndex = initialSelectedIndex
             isLoading = false
             isAuthenticated = true
             modelContext = context

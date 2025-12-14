@@ -114,48 +114,31 @@ struct UnifiedNomineeManagementView: View {
                                         .font(theme.typography.subheadline)
                                         .foregroundColor(colors.textSecondary)
                                     
-                                    // Info card about using iMessage app
-                                    StandardCard {
-                                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                                            HStack {
-                                                Image(systemName: "message.fill")
-                                                    .foregroundColor(colors.info)
-                                                Text("Use iMessage App")
-                                                    .font(theme.typography.subheadline)
-                                                    .foregroundColor(colors.textPrimary)
-                                                    .fontWeight(.semibold)
-                                            }
-                                            
-                                            Text("To invite nominees, use the Khandoba iMessage app:")
-                                                .font(theme.typography.caption)
-                                                .foregroundColor(colors.textSecondary)
-                                            
-                                            VStack(alignment: .leading, spacing: 6) {
-                                                HStack(alignment: .top, spacing: 8) {
-                                                    Text("1.")
-                                                        .foregroundColor(colors.primary)
-                                                    Text("Open Messages app")
-                                                        .foregroundColor(colors.textSecondary)
-                                                }
-                                                
-                                                HStack(alignment: .top, spacing: 8) {
-                                                    Text("2.")
-                                                        .foregroundColor(colors.primary)
-                                                    Text("Tap the App Store icon (📱)")
-                                                        .foregroundColor(colors.textSecondary)
-                                                }
-                                                
-                                                HStack(alignment: .top, spacing: 8) {
-                                                    Text("3.")
-                                                        .foregroundColor(colors.primary)
-                                                    Text("Select 'Khandoba' → 'Invite to Vault'")
-                                                        .foregroundColor(colors.textSecondary)
-                                                }
-                                            }
-                                            .font(theme.typography.caption2)
+                                    // Invite via iMessage button (Apple Cash style)
+                                    Button {
+                                        Task {
+                                            await openMessagesForNomination()
                                         }
-                                        .padding()
+                                    } label: {
+                                        HStack(spacing: UnifiedTheme.Spacing.sm) {
+                                            Image(systemName: "message.fill")
+                                                .font(.title3)
+                                            Text("Invite via iMessage")
+                                                .font(theme.typography.headline)
+                                        }
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, UnifiedTheme.Spacing.md)
+                                        .background(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: [colors.primary, colors.secondary]),
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                        .cornerRadius(UnifiedTheme.CornerRadius.lg)
                                     }
+                                    .padding(.top, UnifiedTheme.Spacing.md)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, UnifiedTheme.Spacing.xl)
@@ -344,6 +327,11 @@ struct UnifiedNomineeManagementView: View {
                 )
             }
         }
+        .alert("Messages App Error", isPresented: $showMessagesError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(messagesErrorMessage)
+        }
         .task {
             // Configure services
             if let userID = authService.currentUser?.id {
@@ -372,6 +360,22 @@ struct UnifiedNomineeManagementView: View {
     
     private func removeNominee(_ nominee: Nominee) async {
         try? await nomineeService.removeNominee(nominee)
+    }
+    
+    @State private var showMessagesError = false
+    @State private var messagesErrorMessage = ""
+    
+    private func openMessagesForNomination() async {
+        // Open Messages app with vault context
+        let success = await MessagesRedirectService.shared.openMessagesAppForNomination(vaultID: vault.id)
+        
+        if !success {
+            // Show error alert if Messages app couldn't be opened
+            await MainActor.run {
+                messagesErrorMessage = "Unable to open Messages app. Please make sure Messages is installed and try again."
+                showMessagesError = true
+            }
+        }
     }
     
     private func presentCloudKitSharing() async {

@@ -416,6 +416,24 @@ struct VaultDetailView: View {
         }
         .navigationTitle(vault.name)
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            if isOwner {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task {
+                            await openMessagesForNomination()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "message.fill")
+                            Text("Invite")
+                        }
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(colors.primary)
+                    }
+                }
+            }
+        }
         .sheet(isPresented: $showUploadSheet) {
             DocumentUploadView(vault: vault)
         }
@@ -426,6 +444,18 @@ struct VaultDetailView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
+        }
+    }
+    
+    private func openMessagesForNomination() async {
+        // Open Messages app with vault context
+        let success = await MessagesRedirectService.shared.openMessagesAppForNomination(vaultID: vault.id)
+        
+        if !success {
+            await MainActor.run {
+                errorMessage = "Unable to open Messages app. Please make sure Messages is installed and try again."
+                showError = true
+            }
         }
     }
     

@@ -17,6 +17,7 @@ struct VaultListView: View {
     @State private var isLoading = false
     @State private var selectedVaultID: UUID?
     @State private var navigateToVaultID: UUID?
+    @State private var cardsAppeared = false
     
     // Filter out system vaults (Intel Reports, etc.)
     private var userVaults: [Vault] {
@@ -37,31 +38,77 @@ struct VaultListView: View {
                 if isLoading {
                     LoadingView("Loading vaults...")
                 } else if userVaults.isEmpty {
-                    EmptyStateView(
-                        icon: "lock.shield",
-                        title: "No Vaults Yet",
-                        message: "Create your first secure vault to store documents",
-                        actionTitle: "Create Vault"
-                    ) {
-                        showCreateVault = true
+                    // Empty state styled as wallet card
+                    VStack(spacing: UnifiedTheme.Spacing.xl) {
+                        // Create a temporary vault for display only
+                        let emptyVault = Vault(
+                            name: "Create Your First Vault",
+                            vaultDescription: "Tap to get started",
+                            status: "locked",
+                            keyType: "single"
+                        )
+                        
+                        WalletCard(
+                            vault: emptyVault,
+                            index: 0,
+                            totalCount: 1,
+                            onTap: {
+                                showCreateVault = true
+                            },
+                            onLongPress: nil
+                        )
+                        .padding(.horizontal, UnifiedTheme.Spacing.lg)
+                        .padding(.top, UnifiedTheme.Spacing.xl)
+                        
+                        VStack(spacing: UnifiedTheme.Spacing.sm) {
+                            Text("No Vaults Yet")
+                                .font(theme.typography.headline)
+                                .foregroundColor(colors.textPrimary)
+                            
+                            Text("Create your first secure vault to store documents")
+                                .font(theme.typography.caption)
+                                .foregroundColor(colors.textSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.horizontal, UnifiedTheme.Spacing.xl)
                     }
                 } else {
-                    List {
-                        ForEach(userVaults) { vault in
-                            NavigationLink(
-                                destination: VaultDetailView(vault: vault),
-                                tag: vault.id,
-                                selection: $selectedVaultID
-                            ) {
-                                VaultRow(vault: vault)
+                    // Wallet-style card stack
+                    ScrollView {
+                        VStack(spacing: -160) { // Negative spacing for card stacking effect
+                            ForEach(Array(userVaults.enumerated()), id: \.element.id) { index, vault in
+                                NavigationLink(
+                                    destination: VaultDetailView(vault: vault),
+                                    tag: vault.id,
+                                    selection: $selectedVaultID
+                                ) {
+                                    WalletCard(
+                                        vault: vault,
+                                        index: index,
+                                        totalCount: userVaults.count,
+                                        onTap: {
+                                            selectedVaultID = vault.id
+                                        },
+                                        onLongPress: {
+                                            // Context menu will be added in Phase 4
+                                        }
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                .padding(.horizontal, UnifiedTheme.Spacing.lg)
+                                .padding(.top, index == 0 ? UnifiedTheme.Spacing.lg : 0)
+                                .opacity(cardsAppeared ? 1 : 0)
+                                .scaleEffect(cardsAppeared ? 1 : 0.9)
+                                .animation(
+                                    .spring(response: 0.6, dampingFraction: 0.8)
+                                    .delay(Double(index) * 0.1),
+                                    value: cardsAppeared
+                                )
                             }
-                            .listRowBackground(colors.surface)
                         }
+                        .padding(.bottom, UnifiedTheme.Spacing.xxl)
                     }
-                    .listStyle(.insetGrouped)
-                    .scrollContentBackground(.hidden)
                     .background(colors.background)
-                    .tint(colors.primary) // Override iOS default tint
                 }
             }
             .navigationTitle("Vaults")
@@ -86,6 +133,23 @@ struct VaultListView: View {
         }
         .task {
             await loadVaults()
+            // Trigger card appear animation after a brief delay
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            withAnimation {
+                cardsAppeared = true
+            }
+        }
+        .onChange(of: userVaults.count) { oldValue, newValue in
+            // Reset and re-trigger animation when vaults change
+            if newValue > 0 {
+                cardsAppeared = false
+                Task {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    withAnimation {
+                        cardsAppeared = true
+                    }
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToVault)) { notification in
             if let vaultID = notification.userInfo?["vaultID"] as? UUID {
