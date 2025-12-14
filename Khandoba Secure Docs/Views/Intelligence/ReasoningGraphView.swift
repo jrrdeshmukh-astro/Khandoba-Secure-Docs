@@ -97,7 +97,7 @@ struct ReasoningGraphView: View {
     }
     
     private func nodePosition(_ nodeID: UUID, in size: CGSize) -> CGPoint? {
-        guard let node = graph.nodes.first(where: { $0.id == nodeID }) else { return nil }
+        guard graph.nodes.contains(where: { $0.id == nodeID }) else { return nil }
         
         // Simple circular layout
         let nodeCount = graph.nodes.count

@@ -58,11 +58,16 @@ final class MessagesRedirectService {
     /// Open URL using UIApplication (only available in main app)
     @available(iOSApplicationExtension, unavailable)
     private static func openURL(_ url: URL, sharedDefaults: UserDefaults, key: String) async -> Bool {
+        let appGroupID = "group.com.khandoba.securedocs"
+        let keyToUse = key
+        
         // Check if Messages app is available (synchronous call)
         guard UIApplication.shared.canOpenURL(url) else {
             print("❌ MessagesRedirectService: Messages app is not available on this device")
             // Clear the stored vault ID
-            sharedDefaults.removeObject(forKey: key)
+            if let defaults = UserDefaults(suiteName: appGroupID) {
+                defaults.removeObject(forKey: keyToUse)
+            }
             return false
         }
         
@@ -74,7 +79,9 @@ final class MessagesRedirectService {
                 } else {
                     print("❌ MessagesRedirectService: Failed to open Messages app")
                     // Clear the stored vault ID if opening failed
-                    sharedDefaults.removeObject(forKey: key)
+                    if let defaults = UserDefaults(suiteName: appGroupID) {
+                        defaults.removeObject(forKey: keyToUse)
+                    }
                 }
                 continuation.resume(returning: success)
             }

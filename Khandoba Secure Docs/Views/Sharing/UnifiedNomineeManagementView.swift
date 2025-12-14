@@ -115,6 +115,7 @@ struct UnifiedNomineeManagementView: View {
                                         .foregroundColor(colors.textSecondary)
                                     
                                     // Invite via iMessage button (Apple Cash style)
+                                    #if !APP_EXTENSION
                                     Button {
                                         Task {
                                             await openMessagesForNomination()
@@ -139,6 +140,7 @@ struct UnifiedNomineeManagementView: View {
                                         .cornerRadius(UnifiedTheme.CornerRadius.lg)
                                     }
                                     .padding(.top, UnifiedTheme.Spacing.md)
+                                    #endif
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, UnifiedTheme.Spacing.xl)
@@ -366,6 +368,7 @@ struct UnifiedNomineeManagementView: View {
     @State private var messagesErrorMessage = ""
     
     private func openMessagesForNomination() async {
+        #if !APP_EXTENSION
         // Open Messages app with vault context
         let success = await MessagesRedirectService.shared.openMessagesAppForNomination(vaultID: vault.id)
         
@@ -376,6 +379,13 @@ struct UnifiedNomineeManagementView: View {
                 showMessagesError = true
             }
         }
+        #else
+        // Not available in extensions
+        await MainActor.run {
+            messagesErrorMessage = "This feature is not available in extensions."
+            showMessagesError = true
+        }
+        #endif
     }
     
     private func presentCloudKitSharing() async {

@@ -262,7 +262,9 @@ class VoiceMemoPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     
     private func startTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            self?.updateProgress()
+            Task { @MainActor in
+                self?.updateProgress()
+            }
         }
     }
     
