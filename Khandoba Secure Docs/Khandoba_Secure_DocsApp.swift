@@ -38,17 +38,28 @@ struct Khandoba_Secure_DocsApp: App {
         // Use App Group for shared storage with extensions
         let appGroupIdentifier = "group.com.khandoba.securedocs"
         
+        // Explicitly specify CloudKit container for sync
+        let cloudKitContainer = AppConfig.cloudKitContainer
+        
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
             groupContainer: .identifier(appGroupIdentifier),
-            cloudKitDatabase: .automatic  // Enable CloudKit sync for nominee invitations and cross-device sync
+            cloudKitDatabase: .private(cloudKitContainer)  // Explicitly use private CloudKit database with container identifier
         )
 
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            print(" ModelContainer created successfully with CloudKit sync enabled")
-            print("   CloudKit Container: \(AppConfig.cloudKitContainer)")
+            print("✅ ModelContainer created successfully with CloudKit sync enabled")
+            print("   CloudKit Container: \(cloudKitContainer)")
+            print("   App Group: \(appGroupIdentifier)")
+            
+            // Verify CloudKit is actually enabled
+            if let config = container.configurations.first {
+                let cloudKitDB = config.cloudKitDatabase
+                print("   ✅ CloudKit Database: \(cloudKitDB)")
+            }
+            
             return container
         } catch {
             // Log error and provide fallback
@@ -94,6 +105,7 @@ struct Khandoba_Secure_DocsApp: App {
                 .onAppear {
                     authService.configure(modelContext: sharedModelContainer.mainContext)
                     setupPushNotifications()
+                    verifyCloudKitSetup()
                 }
                 .preferredColorScheme(.dark) // Force dark theme
         }
@@ -109,6 +121,46 @@ struct Khandoba_Secure_DocsApp: App {
                 }
             } catch {
                 print(" Push notification setup failed: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    // MARK: - CloudKit Verification
+    
+    private func verifyCloudKitSetup() {
+        Task {
+            let containerIdentifier = AppConfig.cloudKitContainer
+            let container = CKContainer(identifier: containerIdentifier)
+            
+            // Check account status
+            do {
+                let accountStatus = try await container.accountStatus()
+                switch accountStatus {
+                case .available:
+                    print("✅ iCloud account is available - CloudKit sync should work")
+                case .noAccount:
+                    print("⚠️ No iCloud account signed in - CloudKit sync will not work")
+                    print("   User needs to sign in to iCloud in Settings")
+                case .restricted:
+                    print("⚠️ iCloud account is restricted - CloudKit sync may be limited")
+                case .couldNotDetermine:
+                    print("⚠️ Could not determine iCloud account status")
+                @unknown default:
+                    print("⚠️ Unknown iCloud account status")
+                }
+                
+                // Try to fetch user record to verify container is accessible
+                if accountStatus == .available {
+                    do {
+                        let _ = try await container.userRecordID()
+                        print("✅ CloudKit container is accessible and configured correctly")
+                    } catch {
+                        print("⚠️ Could not access CloudKit user record: \(error.localizedDescription)")
+                        print("   This might indicate a configuration issue")
+                    }
+                }
+            } catch {
+                print("❌ Error checking CloudKit account status: \(error.localizedDescription)")
             }
         }
     }

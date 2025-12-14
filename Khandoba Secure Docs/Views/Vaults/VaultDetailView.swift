@@ -26,7 +26,6 @@ struct VaultDetailView: View {
     @State private var errorMessage = ""
     @State private var showUploadSheet = false
     @State private var showDocumentPicker = false
-    @State private var showTransferView = false
     
     @EnvironmentObject var authService: AuthenticationService
     
@@ -226,32 +225,6 @@ struct VaultDetailView: View {
                                             color: colors.primary
                                         )
                                     }
-                                    
-                                    Divider()
-                                }
-                                
-                                NavigationLink {
-                                    UnifiedNomineeManagementView(vault: vault)
-                                } label: {
-                                    SecurityActionRow(
-                                        icon: "person.badge.plus.fill",
-                                        title: "Manage Nominees",
-                                        subtitle: "Invite, chat, and manage access",
-                                        color: colors.info
-                                    )
-                                }
-                                
-                                Divider()
-                                
-                                Button {
-                                    showTransferView = true
-                                } label: {
-                                    SecurityActionRow(
-                                        icon: "arrow.triangle.2.circlepath",
-                                        title: "Transfer Ownership",
-                                        subtitle: "Transfer vault ownership",
-                                        color: colors.warning
-                                    )
                                 }
                             }
                         }
@@ -404,9 +377,10 @@ struct VaultDetailView: View {
                 .padding(.vertical)
             }
             
-            // Face ID overlay gate (solid, non-translucent)
-            if !isBiometricallyUnlocked {
-                gateOverlay
+            // Face ID is now handled before navigation in VaultListView
+            // If we reach here without an active session, show unlock button
+            if !hasActiveSession {
+                unlockOverlay
             }
         }
         .navigationTitle(vault.name)
@@ -434,28 +408,22 @@ struct VaultDetailView: View {
         .sheet(isPresented: $showUploadSheet) {
             DocumentUploadView(vault: vault)
         }
-        .sheet(isPresented: $showTransferView) {
-            TransferOwnershipView(vault: vault)
-        }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
         }
-        .task {
-            await ensureBiometricGate()
-        }
         .onAppear {
-            // If we navigated back and there is no active session, re‑prompt biometrics
-            if !vaultService.hasActiveSession(for: vault.id) && isBiometricallyUnlocked == false {
-                Task { await ensureBiometricGate() }
+            // If vault already has an active session, mark as unlocked
+            if hasActiveSession {
+                isBiometricallyUnlocked = true
             }
         }
     }
     
-    // MARK: - Biometric Gate UI
+    // MARK: - Unlock Overlay UI
     
-    private var gateOverlay: some View {
+    private var unlockOverlay: some View {
         let colors = theme.colors(for: colorScheme)
         return ZStack {
             colors.background // solid, no translucency
@@ -501,11 +469,8 @@ struct VaultDetailView: View {
     
     // MARK: - Biometric Flow
     
-    private func ensureBiometricGate() async {
-        guard !attemptedAutoUnlock else { return }
-        attemptedAutoUnlock = true
-        await promptBiometricsAndOpenIfNeeded()
-    }
+    // Removed ensureBiometricGate() - Face ID now only triggers on explicit button tap
+    // No automatic unlock on vault selection
     
     private func promptBiometricsAndOpenIfNeeded() async {
         guard !authInProgress else { return }
@@ -516,12 +481,12 @@ struct VaultDetailView: View {
             authInProgress = false
             if success {
                 isBiometricallyUnlocked = true
-                // If no active session, open now
-                if !vaultService.hasActiveSession(for: vault.id) {
-                    openVault()
-                }
+                // Always open vault after successful authentication
+                openVault()
             } else {
                 isBiometricallyUnlocked = false
+                errorMessage = "Authentication failed. Please try again."
+                showError = true
             }
         }
     }
