@@ -11,19 +11,18 @@ struct WalletCard: View {
     let vault: Vault
     let index: Int
     let totalCount: Int
+    let hasActiveSession: Bool
     let onTap: () -> Void
     let onLongPress: (() -> Void)?
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
-    @EnvironmentObject var vaultService: VaultService
     
     @State private var isPressed = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         let shadow = UnifiedTheme.Shadow.md(for: colorScheme)
-        let hasActiveSession = vaultService.hasActiveSession(for: vault.id)
         let isSharedVault = isVaultShared
         
         // Card stacking effect - offset and scale based on index

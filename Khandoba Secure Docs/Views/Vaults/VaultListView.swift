@@ -52,6 +52,7 @@ struct VaultListView: View {
                             vault: emptyVault,
                             index: 0,
                             totalCount: 1,
+                            hasActiveSession: false,
                             onTap: {
                                 showCreateVault = true
                             },
@@ -86,6 +87,7 @@ struct VaultListView: View {
                                         vault: vault,
                                         index: index,
                                         totalCount: userVaults.count,
+                                        hasActiveSession: vaultService.hasActiveSession(for: vault.id),
                                         onTap: {
                                             selectedVaultID = vault.id
                                         },
