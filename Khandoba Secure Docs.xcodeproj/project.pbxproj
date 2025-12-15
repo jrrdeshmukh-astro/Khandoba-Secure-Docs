@@ -126,11 +126,14 @@
 		OWRZA7VISHT0FFJ857KLAZAO /* Exceptions for "Khandoba Secure Docs" folder in "KhandobaSecureDocsMessageApp MessagesExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Config/AppConfig.swift,
 				ContentView.swift,
 				Info.plist,
 				Khandoba_Secure_DocsApp.swift,
 				Services/AuthenticationService.swift,
 				Services/AutomaticTriageService.swift,
+				Services/CloudKitAPIService.swift,
+				Services/ContactDiscoveryService.swift,
 				Services/DualKeyApprovalService.swift,
 				Services/MessageInvitationService.swift,
 				Services/PushNotificationService.swift,
@@ -141,6 +144,7 @@
 				Services/ThreatRemediationAIService.swift,
 				Services/VaultService.swift,
 				Theme/AnimationStyles.swift,
+				Utils/ContactPickerView.swift,
 				Views/Authentication/AccountSetupView.swift,
 				Views/Authentication/PermissionsSetupView.swift,
 				Views/Authentication/WelcomeView.swift,

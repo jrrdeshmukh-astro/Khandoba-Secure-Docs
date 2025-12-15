@@ -186,154 +186,54 @@ struct VaultSelectionMessageView: View {
             isLoading = true
         }
         
-        // Add timeout to prevent infinite hanging
+        // Use shared container with timeout
         do {
-            try await withTimeout(seconds: 8) {
-                try await performVaultLoad()
-            }
-        } catch is TimeoutError {
-            print("⏱️ Vault loading timed out")
-            await MainActor.run {
-                isLoading = false
-                errorMessage = "Loading vaults timed out. This may happen if CloudKit is still syncing. Please wait a moment and try again."
-                showError = true
-            }
-        } catch {
-            print("❌ Failed to load vaults: \(error.localizedDescription)")
-            await MainActor.run {
-                isLoading = false
-                // Provide user-friendly error message
-                if error.localizedDescription.contains("App Group") {
-                    errorMessage = "App Group not accessible. Please ensure the iMessage extension has the App Group capability enabled in Xcode."
-                } else if error.localizedDescription.contains("sync") || error.localizedDescription.contains("CloudKit") {
-                    errorMessage = "Vaults are still syncing. Please wait a moment and try again."
-                } else {
-                    errorMessage = "Failed to load vaults: \(error.localizedDescription)"
-                }
-                showError = true
-            }
-        }
-    }
-    
-    private func performVaultLoad() async throws {
-        // Use the same schema as main app
-        let schema = Schema([
-            User.self,
-            Vault.self,
-            Nominee.self
-        ])
-        
-        let appGroupIdentifier = "group.com.khandoba.securedocs"
-        
-        // Verify App Group is accessible (check entitlements)
-        guard let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
-            let error = NSError(
-                domain: "VaultSelectionError",
-                code: 1,
-                userInfo: [
-                    NSLocalizedDescriptionKey: "App Group not accessible. Please ensure the iMessage extension has the App Group capability enabled in Xcode (Signing & Capabilities)."
-                ]
-            )
-            throw error
-        }
-        
-        // Ensure Application Support directory exists
-        let appSupportURL = appGroupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
-        try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
-        
-        print("📦 App Group URL verified: \(appGroupURL.path)")
-        
-        // Create ModelContainer (this can be slow with CloudKit)
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: false,
-            groupContainer: .identifier(appGroupIdentifier),
-            cloudKitDatabase: .automatic
-        )
-        
-        // Run container creation in background to avoid blocking
-        let container = try await Task.detached(priority: .userInitiated) {
-            try ModelContainer(for: schema, configurations: [modelConfiguration])
-        }.value
-        
-        let context = container.mainContext
-        
-        // Check authentication - verify user exists
-        let userDescriptor = FetchDescriptor<User>()
-        let users = try context.fetch(userDescriptor)
-        
-        if users.isEmpty {
-            await MainActor.run {
-                isLoading = false
-                errorMessage = "Please sign in to the main app first"
-                showError = true
-            }
-            return
-        }
-        
-        // Load vaults
-        let vaultDescriptor = FetchDescriptor<Vault>(
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-        )
-        let allVaults = try context.fetch(vaultDescriptor)
-        let availableVaults = allVaults.filter { !$0.isSystemVault }
-        
-        print("📦 VaultSelectionMessageView: Loaded \(availableVaults.count) vault(s)")
-        
-        // Check for pending nomination vault ID from main app
-        var initialSelectedIndex = 0
-        if let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier),
-           let pendingVaultIDString = sharedDefaults.string(forKey: "pendingNominationVaultID"),
-           let pendingVaultID = UUID(uuidString: pendingVaultIDString) {
+            let container = try await SharedModelContainer.containerWithTimeout(seconds: 8)
+            let context = container.mainContext
             
-            // Find the vault index
-            if let vaultIndex = availableVaults.firstIndex(where: { $0.id == pendingVaultID }) {
+            // Check authentication - verify user exists
+            let users = try context.fetch(FetchDescriptor<User>())
+            if users.isEmpty {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = "Please sign in to the main app first"
+                    showError = true
+                }
+                return
+            }
+            
+            // Load vaults
+            let vaultDescriptor = FetchDescriptor<Vault>(
+                sortBy: [SortDescriptor<Vault>(\.createdAt, order: .reverse)]
+            )
+            let allVaults = try context.fetch(vaultDescriptor)
+            let availableVaults = allVaults.filter { !$0.isSystemVault }
+            
+            // Pending nomination selection (if any)
+            var initialSelectedIndex = 0
+            if let sharedDefaults = UserDefaults(suiteName: MessageAppConfig.appGroupIdentifier),
+               let pendingVaultIDString = sharedDefaults.string(forKey: "pendingNominationVaultID"),
+               let pendingVaultID = UUID(uuidString: pendingVaultIDString),
+               let vaultIndex = availableVaults.firstIndex(where: { $0.id == pendingVaultID }) {
                 initialSelectedIndex = vaultIndex
-                print("📦 VaultSelectionMessageView: Auto-selecting vault at index \(vaultIndex) from pending nomination")
-                
-                // Clear the pending nomination after reading
                 sharedDefaults.removeObject(forKey: "pendingNominationVaultID")
                 sharedDefaults.synchronize()
-            } else {
-                print("⚠️ VaultSelectionMessageView: Pending vault ID not found in loaded vaults (may still be syncing)")
-                // Keep the vault ID stored so we can retry when vaults finish syncing
-                // Don't clear it yet - let the user manually select or wait for sync
-            }
-        }
-        
-        await MainActor.run {
-            vaults = availableVaults
-            selectedIndex = initialSelectedIndex
-            isLoading = false
-            isAuthenticated = true
-            modelContext = context
-        }
-    }
-    
-    // Helper function for timeout
-    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
-        return try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask {
-                try await operation()
             }
             
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                throw TimeoutError()
+            await MainActor.run {
+                vaults = availableVaults
+                selectedIndex = initialSelectedIndex
+                isLoading = false
+                isAuthenticated = true
+                modelContext = context
             }
-            
-            guard let result = try await group.next() else {
-                throw TimeoutError()
+        } catch {
+            await MainActor.run {
+                isLoading = false
+                errorMessage = "Failed to load vaults: \(error.localizedDescription)"
+                showError = true
             }
-            group.cancelAll()
-            return result
         }
     }
 }
 
-// MARK: - Timeout Error
-private struct TimeoutError: Error {
-    var localizedDescription: String {
-        "Operation timed out"
-    }
-}

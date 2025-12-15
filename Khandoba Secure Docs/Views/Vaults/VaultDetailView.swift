@@ -314,6 +314,23 @@ struct VaultDetailView: View {
                             }
                         }
                         .padding(.horizontal)
+                        
+                        // Show pending emergency approvals if user is vault owner
+                        if vault.owner?.id == authService.currentUser?.id {
+                            StandardCard {
+                                NavigationLink {
+                                    EmergencyApprovalView()
+                                } label: {
+                                    SecurityActionRow(
+                                        icon: "checkmark.shield.fill",
+                                        title: "Emergency Approvals",
+                                        subtitle: "Review pending requests",
+                                        color: colors.warning
+                                    )
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
                     }
                     
                     VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {

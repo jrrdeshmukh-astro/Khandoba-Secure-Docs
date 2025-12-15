@@ -43,5 +43,8 @@ struct AppConfig {
     static let devUserEmail = "dev@khandoba.local"
     
     // Admin role removed - autopilot mode (ML handles everything)
+    
+    // App Group Identifier (must match extension)
+    static let appGroupIdentifier = "group.com.khandoba.securedocs"
 }
 

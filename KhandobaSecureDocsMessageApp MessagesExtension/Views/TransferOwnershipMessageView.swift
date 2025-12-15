@@ -91,7 +91,7 @@ struct TransferOwnershipMessageView: View {
                                 .padding(UnifiedTheme.Spacing.md)
                                 .background(colors.surface)
                                 .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                                .onChange(of: selectedVault) { oldValue, newValue in
+                                .onChange(of: selectedVault) { _, newValue in
                                     if let vault = newValue {
                                         vaultName = vault.name
                                     }
@@ -191,50 +191,17 @@ struct TransferOwnershipMessageView: View {
     private func loadVaults() {
         Task {
             do {
-                // Use the same schema as main app for compatibility
-                let schema = Schema([
-                    User.self,
-                    UserRole.self,
-                    Vault.self,
-                    VaultSession.self,
-                    VaultAccessLog.self,
-                    DualKeyRequest.self,
-                    Document.self,
-                    DocumentVersion.self,
-                    ChatMessage.self,
-                    Nominee.self,
-                    VaultTransferRequest.self,
-                    VaultAccessRequest.self,
-                    EmergencyAccessRequest.self
-                ])
-                
-                // Use App Group for shared storage with main app (CRITICAL FIX)
-                let appGroupIdentifier = "group.com.khandoba.securedocs"
-                
-                // Ensure Application Support directory exists in App Group
-                if let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
-                    let appSupportURL = appGroupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
-                    try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
-                    print("📦 iMessage Extension (Transfer): Ensured Application Support directory exists")
-                }
-                
-                let modelConfiguration = ModelConfiguration(
-                    schema: schema,
-                    isStoredInMemoryOnly: false,
-                    groupContainer: .identifier(appGroupIdentifier),
-                    cloudKitDatabase: .automatic
-                )
-                
-                let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+                // Use shared container
+                let container = try await SharedModelContainer.containerWithTimeout(seconds: 8)
                 let context = container.mainContext
                 
-                print("📦 iMessage Extension (Transfer): ModelContainer created with App Group: \(appGroupIdentifier)")
+                print("📦 iMessage Extension (Transfer): ModelContainer created with App Group: \(MessageAppConfig.appGroupIdentifier)")
                 
                 // Give CloudKit a moment to sync if needed
-                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                try await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
                 
                 let descriptor = FetchDescriptor<Vault>(
-                    sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+                    sortBy: [SortDescriptor<Vault>(\.createdAt, order: .reverse)]
                 )
                 
                 let fetchedVaults = try context.fetch(descriptor)

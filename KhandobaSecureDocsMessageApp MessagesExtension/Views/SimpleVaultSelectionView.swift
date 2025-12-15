@@ -134,23 +134,7 @@ struct SimpleVaultSelectionView: View {
         errorMessage = nil
         
         do {
-            let schema = Schema([Vault.self, User.self])
-            let appGroupIdentifier = "group.com.khandoba.securedocs"
-            
-            // Ensure Application Support directory exists
-            if let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
-                let appSupportURL = appGroupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
-                try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
-            }
-            
-            let modelConfiguration = ModelConfiguration(
-                schema: schema,
-                isStoredInMemoryOnly: false,
-                groupContainer: .identifier(appGroupIdentifier),
-                cloudKitDatabase: .automatic
-            )
-            
-            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try await SharedModelContainer.containerWithTimeout(seconds: 8)
             let context = container.mainContext
             
             // Fetch vaults (excluding system vaults)

@@ -22,7 +22,12 @@ final class CloudKitSharingService: ObservableObject {
     private var modelContext: ModelContext?
     
     init() {
-        self.container = CKContainer(identifier: AppConfig.cloudKitContainer)
+        // Both main app and extension use the same CloudKit container
+        // Use MessageAppConfig for extension, AppConfig for main app
+        // Both main app and extension use the same CloudKit container
+        // Container ID: "iCloud.com.khandoba.securedocs"
+        let containerID = "iCloud.com.khandoba.securedocs"
+        self.container = CKContainer(identifier: containerID)
     }
     
     func configure(modelContext: ModelContext) {

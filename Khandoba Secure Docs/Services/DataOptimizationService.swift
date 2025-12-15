@@ -110,7 +110,7 @@ final class DataOptimizationService: ObservableObject {
             predicate: #Predicate { vault in
                 vault.owner?.id == userID
             },
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            sortBy: [SortDescriptor<Vault>(\.createdAt, order: .reverse)]
         )
         
         let vaults = try context.fetch(descriptor)
@@ -142,7 +142,7 @@ final class DataOptimizationService: ObservableObject {
         
         // Prefetch recent access logs
         let logDescriptor = FetchDescriptor<VaultAccessLog>(
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+            sortBy: [SortDescriptor<VaultAccessLog>(\.timestamp, order: .reverse)]
         )
         let logs = try context.fetch(logDescriptor)
         _ = logs.prefix(20) // Only recent
@@ -251,3 +251,4 @@ enum DataOptimizationError: LocalizedError {
         }
     }
 }
+

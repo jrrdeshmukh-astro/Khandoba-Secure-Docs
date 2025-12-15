@@ -13,7 +13,7 @@ struct SimpleMenuMessageView: View {
     
     let onSelectVault: () -> Void
     let onTransfer: () -> Void
-    let onTestMessage: () -> Void
+    let onEmergency: () -> Void
     let onCancel: () -> Void
     
     var body: some View {
@@ -32,25 +32,6 @@ struct SimpleMenuMessageView: View {
             
             // Menu Options
             VStack(spacing: 12) {
-                // Test Message (Mock Data)
-                Button(action: {
-                    onTestMessage()
-                }) {
-                    HStack {
-                        Image(systemName: "message.badge")
-                            .font(.system(size: 20))
-                        Text("Test Message (Mock)")
-                            .font(theme.typography.headline)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14))
-                    }
-                    .foregroundColor(colors.textPrimary)
-                    .padding()
-                    .background(colors.surface)
-                    .cornerRadius(12)
-                }
-                
                 // Invite Nominee
                 Button(action: {
                     onSelectVault()
@@ -78,6 +59,26 @@ struct SimpleMenuMessageView: View {
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.system(size: 20))
                         Text("Transfer Ownership")
+                            .font(theme.typography.headline)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14))
+                    }
+                    .foregroundColor(colors.textPrimary)
+                    .padding()
+                    .background(colors.surface)
+                    .cornerRadius(12)
+                }
+                
+                // Emergency Protocol
+                Button(action: {
+                    onEmergency()
+                }) {
+                    HStack {
+                        Image(systemName: "exclamationmark.shield.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(.red)
+                        Text("Emergency Protocol")
                             .font(theme.typography.headline)
                         Spacer()
                         Image(systemName: "chevron.right")

@@ -15,11 +15,14 @@ struct SuccessMessageView: View {
     let vaultName: String?
     let onDismiss: () -> Void
     
+    @State private var scale: CGFloat = 0.5
+    @State private var opacity: Double = 0
+    
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         
         VStack(spacing: 24) {
-            // Success Icon
+            // Success Icon with animation
             ZStack {
                 Circle()
                     .fill(colors.success.opacity(0.2))
@@ -29,7 +32,15 @@ struct SuccessMessageView: View {
                     .font(.system(size: 50))
                     .foregroundColor(colors.success)
             }
+            .scaleEffect(scale)
+            .opacity(opacity)
             .padding(.top, 40)
+            .onAppear {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.6)) {
+                    scale = 1.0
+                    opacity = 1.0
+                }
+            }
             
             // Success Message
             VStack(spacing: 8) {

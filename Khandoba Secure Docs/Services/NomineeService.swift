@@ -23,7 +23,10 @@ final class NomineeService: ObservableObject {
     private let container: CKContainer
     
     nonisolated init() {
-        self.container = CKContainer(identifier: AppConfig.cloudKitContainer)
+        // Both main app and extension use the same CloudKit container
+        // Container ID: "iCloud.com.khandoba.securedocs"
+        let containerID = "iCloud.com.khandoba.securedocs"
+        self.container = CKContainer(identifier: containerID)
     }
     
     func configure(modelContext: ModelContext, currentUserID: UUID? = nil) {
