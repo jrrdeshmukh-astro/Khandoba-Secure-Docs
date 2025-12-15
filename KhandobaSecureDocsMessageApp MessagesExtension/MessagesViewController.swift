@@ -294,6 +294,11 @@ class MessagesViewController: MSMessagesAppViewController {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         self.presentEmergencyFlow(conversation: conversation)
                     }
+                },
+                onCancel: { [weak self] in
+                    guard let self = self else { return }
+                    logInfo("Menu cancelled")
+                    self.requestPresentationStyle(.compact)
                 }
             )
             
@@ -314,8 +319,9 @@ class MessagesViewController: MSMessagesAppViewController {
             ])
             
             hostingController.didMove(toParent: self)
-        } catch {
-            logError("Failed to present menu: \(error.localizedDescription)")
+            } catch {
+                logError("Failed to present menu: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -345,8 +351,17 @@ class MessagesViewController: MSMessagesAppViewController {
     private func createAndSendTransfer(vault: Vault, recipientName: String, conversation: MSConversation) {
         Task {
             do {
+                // Get model context
+                let container = try await SharedModelContainer.containerWithTimeout(seconds: 8)
+                let context = container.mainContext
+                
                 // Use existing transfer creation logic
-                await createAndSendTransferRequest(vault: vault, recipientName: recipientName, conversation: conversation)
+                await createAndSendTransferRequest(
+                    for: vault,
+                    context: context,
+                    recipientName: recipientName,
+                    in: conversation
+                )
             } catch {
                 await MainActor.run {
                     presentErrorView(
@@ -372,12 +387,12 @@ class MessagesViewController: MSMessagesAppViewController {
                 
                 // Create EmergencyAccessRequest
                 let request = EmergencyAccessRequest(
-                    vaultID: vault.id,
-                    requesterName: "Recipient", // From conversation
                     reason: reason,
                     urgency: urgency,
-                    status: .pending
+                    status: "pending"
                 )
+                request.vault = vault
+                request.requesterID = nil // Will be set when recipient accepts
                 
                 context.insert(request)
                 try context.save()
