@@ -20,11 +20,17 @@
 		<string>MainInterface</string>
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.message-payload-provider</string>
-		<key>NSExtensionActivationRule</key>
-		<dict>
-			<key>NSExtensionActivationSupportsText</key>
-			<true/>
-		</dict>
+	<key>NSExtensionActivationRule</key>
+	<dict>
+		<key>NSExtensionActivationSupportsText</key>
+		<true/>
+		<key>NSExtensionActivationSupportsAttachmentsWithMaxCount</key>
+		<integer>10</integer>
+		<key>NSExtensionActivationSupportsFileWithMaxCount</key>
+		<integer>10</integer>
+		<key>NSExtensionActivationSupportsImageWithMaxCount</key>
+		<integer>10</integer>
+	</dict>
 	</dict>
 </dict>
 </plist>

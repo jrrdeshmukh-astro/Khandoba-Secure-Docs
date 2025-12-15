@@ -58,6 +58,10 @@ class MessagesViewController: MSMessagesAppViewController {
     // MARK: - Conversation Handling
     
     override func willBecomeActive(with conversation: MSConversation) {
+        print("📱 willBecomeActive called")
+        print("   Conversation local participant: \(conversation.localParticipantIdentifier)")
+        print("   Conversation remote participants: \(conversation.remoteParticipantIdentifiers.count)")
+        
         // Request expanded presentation style to show full interface
         requestPresentationStyle(.expanded)
         
@@ -91,14 +95,218 @@ class MessagesViewController: MSMessagesAppViewController {
         removeAllChildViewControllers()
         view.subviews.forEach { $0.removeFromSuperview() }
         
-        // Always show main menu (vault nomination and ownership transfer only)
-        // File sharing is handled by the Share Extension, not the iMessage extension
-        presentMainMenuView(conversation: conversation)
+        // Show simple menu first
+        presentSimpleMenu(conversation: conversation)
     }
     
-    private func presentMainMenuView(conversation: MSConversation) {
-        // Show vault selection interface immediately (Apple Pay style)
-        presentVaultSelectionView(for: conversation)
+    private func presentSimpleMenu(conversation: MSConversation) {
+        print("📱 presentSimpleMenu called")
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.removeAllChildViewControllers()
+            self.view.subviews.forEach { $0.removeFromSuperview() }
+            
+            let menuView = SimpleMenuMessageView(
+                onSelectVault: {
+                    print("📱 Invite Nominee selected")
+                    self.presentSimpleVaultSelection(for: conversation)
+                },
+                onTransfer: {
+                    print("📱 Transfer Ownership selected")
+                    // For now, show a simple message
+                    self.presentHelloWorldView()
+                },
+                onTestMessage: {
+                    print("📱 Test Message selected")
+                    self.sendTestMessage(in: conversation)
+                },
+                onCancel: {
+                    print("📱 Menu cancelled")
+                    self.requestPresentationStyle(.compact)
+                }
+            )
+            
+            let hostingController = UIHostingController(
+                rootView: menuView.environment(\.unifiedTheme, UnifiedTheme())
+            )
+            
+            hostingController.view.backgroundColor = .systemBackground
+            hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+            
+            self.addChild(hostingController)
+            self.view.addSubview(hostingController.view)
+            
+            NSLayoutConstraint.activate([
+                hostingController.view.topAnchor.constraint(equalTo: self.view.topAnchor),
+                hostingController.view.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                hostingController.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+                hostingController.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
+            ])
+            
+            hostingController.didMove(toParent: self)
+            
+            print("✅ SimpleMenuMessageView presented successfully")
+        }
+    }
+    
+    private func presentSimpleVaultSelection(for conversation: MSConversation) {
+        print("📱 presentSimpleVaultSelection called")
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.removeAllChildViewControllers()
+            self.view.subviews.forEach { $0.removeFromSuperview() }
+            
+            let vaultSelectionView = SimpleVaultSelectionView(
+                onVaultSelected: { [weak self] vault in
+                    guard let self = self else { return }
+                    print("📱 Vault selected: \(vault.name)")
+                    // Show recipient input screen
+                    self.presentRecipientInputView(for: vault, conversation: conversation)
+                },
+                onCancel: {
+                    print("📱 Vault selection cancelled")
+                    self.presentSimpleMenu(conversation: conversation)
+                }
+            )
+            
+            let hostingController = UIHostingController(
+                rootView: vaultSelectionView.environment(\.unifiedTheme, UnifiedTheme())
+            )
+            
+            hostingController.view.backgroundColor = .systemBackground
+            hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+            
+            self.addChild(hostingController)
+            self.view.addSubview(hostingController.view)
+            
+            NSLayoutConstraint.activate([
+                hostingController.view.topAnchor.constraint(equalTo: self.view.topAnchor),
+                hostingController.view.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                hostingController.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+                hostingController.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
+            ])
+            
+            hostingController.didMove(toParent: self)
+            
+            print("✅ SimpleVaultSelectionView presented successfully")
+        }
+    }
+    
+    private func presentRecipientInputView(for vault: Vault, conversation: MSConversation) {
+        print("📱 presentRecipientInputView called for vault: \(vault.name)")
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.removeAllChildViewControllers()
+            self.view.subviews.forEach { $0.removeFromSuperview() }
+            
+            let recipientInputView = RecipientInputView(
+                vaultName: vault.name,
+                onSend: { [weak self] name, phone, email in
+                    guard let self = self else { return }
+                    print("📱 Sending invitation to: \(name)")
+                    // Show loading, then send nomination
+                    self.presentLoadingView(message: "Sending invitation...")
+                    
+                    Task { @MainActor [weak self] in
+                        guard let self = self else { return }
+                        do {
+                            try await self.sendNominationForVault(
+                                vault,
+                                recipientName: name,
+                                recipientPhone: phone,
+                                recipientEmail: email,
+                                in: conversation
+                            )
+                            // Show success before collapsing
+                            self.presentSuccessView(
+                                message: "Invitation sent to \(name)!",
+                                vaultName: vault.name,
+                                onDismiss: {
+                                    self.requestPresentationStyle(.compact)
+                                }
+                            )
+                        } catch {
+                            // Show error
+                            self.presentErrorView(
+                                message: "Failed to send invitation: \(error.localizedDescription)",
+                                onRetry: {
+                                    self.presentRecipientInputView(for: vault, conversation: conversation)
+                                },
+                                onCancel: {
+                                    self.presentSimpleVaultSelection(for: conversation)
+                                }
+                            )
+                        }
+                    }
+                },
+                onCancel: { [weak self] in
+                    guard let self = self else { return }
+                    print("📱 Recipient input cancelled")
+                    self.presentSimpleVaultSelection(for: conversation)
+                }
+            )
+            
+            let hostingController = UIHostingController(
+                rootView: recipientInputView.environment(\.unifiedTheme, UnifiedTheme())
+            )
+            hostingController.view.backgroundColor = .systemBackground
+            hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+            
+            self.addChild(hostingController)
+            self.view.addSubview(hostingController.view)
+            
+            NSLayoutConstraint.activate([
+                hostingController.view.topAnchor.constraint(equalTo: self.view.topAnchor),
+                hostingController.view.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                hostingController.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+                hostingController.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
+            ])
+            
+            hostingController.didMove(toParent: self)
+            
+            print("✅ RecipientInputView presented successfully")
+        }
+    }
+    
+    private func presentHelloWorldView() {
+        print("📱 presentHelloWorldView called")
+        
+        // Ensure this runs on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.removeAllChildViewControllers()
+            self.view.subviews.forEach { $0.removeFromSuperview() }
+            
+            let helloWorldView = HelloWorldMessageView()
+            
+            let hostingController = UIHostingController(
+                rootView: helloWorldView.environment(\.unifiedTheme, UnifiedTheme())
+            )
+            
+            hostingController.view.backgroundColor = .systemBackground
+            hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+            
+            self.addChild(hostingController)
+            self.view.addSubview(hostingController.view)
+            
+            NSLayoutConstraint.activate([
+                hostingController.view.topAnchor.constraint(equalTo: self.view.topAnchor),
+                hostingController.view.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                hostingController.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+                hostingController.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
+            ])
+            
+            hostingController.didMove(toParent: self)
+            
+            print("✅ HelloWorldMessageView presented successfully")
+        }
     }
     
     private func presentVaultSelectionView(for conversation: MSConversation) {
@@ -121,8 +329,35 @@ class MessagesViewController: MSMessagesAppViewController {
                 },
                 onNominate: { [weak self] vault in
                     print("📱 Nominate selected for vault: \(vault.name)")
-                    DispatchQueue.main.async {
-                        self?.sendNominationForVault(vault, in: conversation)
+                    guard let self = self else { return }
+                    self.presentLoadingView(message: "Sending invitation...")
+                    
+                    Task { @MainActor [weak self] in
+                        guard let self = self else { return }
+                        do {
+                            try await self.sendNominationForVault(
+                                vault,
+                                recipientName: "Recipient",
+                                in: conversation
+                            )
+                            self.presentSuccessView(
+                                message: "Invitation sent successfully!",
+                                vaultName: vault.name,
+                                onDismiss: {
+                                    self.requestPresentationStyle(.compact)
+                                }
+                            )
+                        } catch {
+                            self.presentErrorView(
+                                message: "Failed to send invitation: \(error.localizedDescription)",
+                                onRetry: {
+                                    self.presentVaultSelectionView(for: conversation)
+                                },
+                                onCancel: {
+                                    self.requestPresentationStyle(.compact)
+                                }
+                            )
+                        }
                     }
                 },
                 onCancel: { [weak self] in
@@ -157,49 +392,47 @@ class MessagesViewController: MSMessagesAppViewController {
     }
     
     /// Send nomination for a specific vault (Apple Pay style - immediate message)
-    private func sendNominationForVault(_ vault: Vault, in conversation: MSConversation) {
-        print("📱 sendNominationForVault called for vault: \(vault.name)")
+    private func sendNominationForVault(
+        _ vault: Vault,
+        recipientName: String,
+        recipientPhone: String? = nil,
+        recipientEmail: String? = nil,
+        in conversation: MSConversation
+    ) async throws {
+        print("📱 sendNominationForVault called for vault: \(vault.name), recipient: \(recipientName)")
         
-        Task {
-            do {
-                // Get model context from vault (it should have one)
-                guard let context = vault.modelContext else {
-                    // Create new context if needed - with timeout to prevent hanging
-                    try await self.withTimeout(seconds: 8) {
-                        try await self.createModelContainerAndSendNomination(for: vault, in: conversation)
-                    }
-                    return
-                }
-                
-                try await createAndSendNomination(for: vault, context: context, in: conversation)
-                
-            } catch is TimeoutError {
-                print("⏱️ Nomination timed out - CloudKit may still be syncing")
-                await MainActor.run {
-                    let alert = UIAlertController(
-                        title: "Syncing...",
-                        message: "The vault is still syncing with iCloud. Please wait a moment and try again. You can also manually select the vault from the list.",
-                        preferredStyle: .alert
-                    )
-                    alert.addAction(UIAlertAction(title: "OK", style: .default))
-                    self.present(alert, animated: true)
-                }
-            } catch {
-                print("❌ Failed to send nomination: \(error.localizedDescription)")
-                await MainActor.run {
-                    let alert = UIAlertController(
-                        title: "Error",
-                        message: "Failed to send nomination: \(error.localizedDescription)",
-                        preferredStyle: .alert
-                    )
-                    alert.addAction(UIAlertAction(title: "OK", style: .default))
-                    self.present(alert, animated: true)
-                }
+        // Get model context from vault (it should have one)
+        guard let context = vault.modelContext else {
+            // Create new context if needed - with timeout to prevent hanging
+            try await withTimeout(seconds: 8) {
+                try await self.createModelContainerAndSendNomination(
+                    for: vault,
+                    recipientName: recipientName,
+                    recipientPhone: recipientPhone,
+                    recipientEmail: recipientEmail,
+                    in: conversation
+                )
             }
+            return
         }
+        
+        try await createAndSendNomination(
+            for: vault,
+            context: context,
+            recipientName: recipientName,
+            recipientPhone: recipientPhone,
+            recipientEmail: recipientEmail,
+            in: conversation
+        )
     }
     
-    private func createModelContainerAndSendNomination(for vault: Vault, in conversation: MSConversation) async throws {
+    private func createModelContainerAndSendNomination(
+        for vault: Vault,
+        recipientName: String,
+        recipientPhone: String? = nil,
+        recipientEmail: String? = nil,
+        in conversation: MSConversation
+    ) async throws {
         let schema = Schema([User.self, Vault.self, Nominee.self])
         let appGroupIdentifier = "group.com.khandoba.securedocs"
         
@@ -237,7 +470,14 @@ class MessagesViewController: MSMessagesAppViewController {
             throw NSError(domain: "MessageApp", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault not found. It may still be syncing."])
         }
         
-        try await createAndSendNomination(for: fetchedVault, context: newContext, in: conversation)
+        try await createAndSendNomination(
+            for: fetchedVault,
+            context: newContext,
+            recipientName: recipientName,
+            recipientPhone: recipientPhone,
+            recipientEmail: recipientEmail,
+            in: conversation
+        )
     }
     
     // Helper function for timeout
@@ -267,19 +507,26 @@ class MessagesViewController: MSMessagesAppViewController {
         }
     }
     
-    private func createAndSendNomination(for vault: Vault, context: ModelContext, in conversation: MSConversation) async throws {
+    private func createAndSendNomination(
+        for vault: Vault,
+        context: ModelContext,
+        recipientName: String,
+        recipientPhone: String? = nil,
+        recipientEmail: String? = nil,
+        in conversation: MSConversation
+    ) async throws {
         // Get current user
         let userDescriptor = FetchDescriptor<User>()
         let users = try context.fetch(userDescriptor)
         let currentUser = users.first
         let senderName = currentUser?.fullName ?? "You"
         
-        // Create nominee
+        // Create nominee with provided recipient information
         let inviteToken = UUID().uuidString
         let nominee = Nominee(
-            name: "Recipient",
-            phoneNumber: nil,
-            email: nil
+            name: recipientName,
+            phoneNumber: recipientPhone,
+            email: recipientEmail
         )
         nominee.vault = vault
         nominee.invitedByUserID = currentUser?.id
@@ -294,9 +541,15 @@ class MessagesViewController: MSMessagesAppViewController {
         try context.save()
         
         print("✅ Nominee created with token: \(inviteToken)")
+        print("   Nominee name: \(recipientName)")
+        print("   Nominee phone: \(recipientPhone ?? "nil")")
+        print("   Nominee email: \(recipientEmail ?? "nil")")
         
         // Send interactive message immediately
+        // Ensure we're on main thread and conversation is active
         await MainActor.run {
+            print("📤 About to send invitation message...")
+            print("   Conversation active: \(conversation.localParticipantIdentifier)")
             self.sendNomineeInvitationMessage(
                 inviteToken: inviteToken,
                 vaultName: vault.name,
@@ -471,6 +724,112 @@ class MessagesViewController: MSMessagesAppViewController {
         }
     }
     
+    // MARK: - Test Message (Mock Data)
+    
+    private func sendTestMessage(in conversation: MSConversation) {
+        print("🧪 sendTestMessage called - Testing with mock data")
+        print("   Conversation local participant: \(conversation.localParticipantIdentifier)")
+        print("   Conversation remote participants: \(conversation.remoteParticipantIdentifiers.count)")
+        
+        // Check if conversation has recipients
+        if conversation.remoteParticipantIdentifiers.isEmpty {
+            print("⚠️ ERROR: Conversation has no remote participants!")
+            DispatchQueue.main.async { [weak self] in
+                let alert = UIAlertController(
+                    title: "No Recipient",
+                    message: "Please select a contact in Messages before sending a test message.",
+                    preferredStyle: .alert
+                )
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                self?.present(alert, animated: true)
+            }
+            return
+        }
+        
+        // Create mock invitation URL
+        let mockToken = UUID().uuidString
+        var components = URLComponents(string: "khandoba://nominee/invite")
+        components?.queryItems = [
+            URLQueryItem(name: "token", value: mockToken),
+            URLQueryItem(name: "vault", value: "Test Vault"),
+            URLQueryItem(name: "status", value: "pending"),
+            URLQueryItem(name: "sender", value: "Test User")
+        ]
+        
+        guard let url = components?.url else {
+            print("❌ Failed to create test invitation URL")
+            return
+        }
+        
+        print("   Test URL: \(url.absoluteString)")
+        
+        // Create interactive message layout
+        let layout = MSMessageTemplateLayout()
+        layout.caption = "🔐 Vault Invitation (Test)"
+        layout.subcaption = "Test Vault"
+        layout.trailingCaption = "Tap to Accept"
+        layout.imageTitle = "Khandoba Secure Docs"
+        
+        // Create message
+        let message = MSMessage()
+        message.layout = layout
+        message.url = url
+        message.summaryText = "Test Vault Invitation - Tap to accept"
+        
+        print("📤 Test message created:")
+        print("   Layout caption: \(layout.caption ?? "nil")")
+        print("   Layout subcaption: \(layout.subcaption ?? "nil")")
+        print("   Message URL: \(message.url?.absoluteString ?? "nil")")
+        print("   Message summary: \(message.summaryText ?? "nil")")
+        
+        // Insert message
+        print("📤 Inserting test message into conversation...")
+        conversation.insert(message) { error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("❌ Failed to send test message: \(error.localizedDescription)")
+                    print("   Error details: \(error)")
+                    if let nsError = error as NSError? {
+                        print("   Error domain: \(nsError.domain)")
+                        print("   Error code: \(nsError.code)")
+                        print("   Error userInfo: \(nsError.userInfo)")
+                    }
+                    
+                    // Show error alert
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self else { return }
+                        let alert = UIAlertController(
+                            title: "Test Failed",
+                            message: "Failed to send test message: \(error.localizedDescription)",
+                            preferredStyle: .alert
+                        )
+                        alert.addAction(UIAlertAction(title: "OK", style: .default))
+                        self.present(alert, animated: true)
+                    }
+                } else {
+                    print("✅ Test message sent successfully!")
+                    print("   Message successfully inserted into conversation")
+                    print("   Check the Messages app to see if the message appears")
+                    
+                    // Show success alert
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self else { return }
+                        let alert = UIAlertController(
+                            title: "Test Success",
+                            message: "Test message sent! Check the Messages conversation to see if it appears.",
+                            preferredStyle: .alert
+                        )
+                        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+                            // Collapse extension after showing success
+                            self.requestPresentationStyle(.compact)
+                        })
+                        self.present(alert, animated: true)
+                    }
+                }
+            }
+        }
+    }
+    
     /// Send the interactive message (Apple Pay style banner)
     private func sendNomineeInvitationMessage(
         inviteToken: String,
@@ -478,6 +837,32 @@ class MessagesViewController: MSMessagesAppViewController {
         senderName: String,
         in conversation: MSConversation
     ) {
+        print("📤 sendNomineeInvitationMessage called")
+        print("   Token: \(inviteToken)")
+        print("   Vault: \(vaultName)")
+        print("   Sender: \(senderName)")
+        print("   Conversation local participant: \(conversation.localParticipantIdentifier)")
+        print("   Conversation remote participants: \(conversation.remoteParticipantIdentifiers.count)")
+        
+        // Check if conversation has recipients - REQUIRED for message to send
+        if conversation.remoteParticipantIdentifiers.isEmpty {
+            print("⚠️ ERROR: Conversation has no remote participants!")
+            print("   Messages can only be sent to conversations with at least one recipient")
+            print("   Please select a contact in Messages first")
+            
+            // Show error to user
+            DispatchQueue.main.async { [weak self] in
+                let alert = UIAlertController(
+                    title: "No Recipient",
+                    message: "Please select a contact in Messages before sending an invitation.",
+                    preferredStyle: .alert
+                )
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                self?.present(alert, animated: true)
+            }
+            return
+        }
+        
         // Create invitation URL
         var components = URLComponents(string: "khandoba://nominee/invite")
         components?.queryItems = [
@@ -492,6 +877,8 @@ class MessagesViewController: MSMessagesAppViewController {
             return
         }
         
+        print("   URL: \(url.absoluteString)")
+        
         // Create interactive message layout (Apple Cash style)
         let layout = MSMessageTemplateLayout()
         layout.caption = "🔐 Vault Invitation"
@@ -505,14 +892,30 @@ class MessagesViewController: MSMessagesAppViewController {
         message.url = url
         message.summaryText = "Vault Invitation: \(vaultName) - Tap to accept"
         
+        print("📤 Message created:")
+        print("   Layout caption: \(layout.caption ?? "nil")")
+        print("   Layout subcaption: \(layout.subcaption ?? "nil")")
+        print("   Message URL: \(message.url?.absoluteString ?? "nil")")
+        print("   Message summary: \(message.summaryText ?? "nil")")
+        
         // Insert message immediately (Apple Pay style - sends banner right away)
-        conversation.insert(message) { [weak self] error in
+        // Must be called on main thread and conversation must be active
+        print("📤 Inserting message into conversation...")
+        conversation.insert(message) { error in
             if let error = error {
                 print("❌ Failed to send invitation: \(error.localizedDescription)")
+                print("   Error details: \(error)")
+                if let nsError = error as NSError? {
+                    print("   Error domain: \(nsError.domain)")
+                    print("   Error code: \(nsError.code)")
+                    print("   Error userInfo: \(nsError.userInfo)")
+                }
             } else {
                 print("✅ Nominee invitation sent via iMessage (Apple Pay style)")
-                // Collapse extension immediately after sending
-                self?.requestPresentationStyle(.compact)
+                print("   Message successfully inserted into conversation")
+                print("   Message URL: \(message.url?.absoluteString ?? "nil")")
+                print("   Message summary: \(message.summaryText ?? "nil")")
+                // Don't collapse immediately - let the success view handle it
             }
         }
     }
@@ -1119,5 +1522,161 @@ class MessagesViewController: MSMessagesAppViewController {
         }
         // Also remove any remaining subviews
         view.subviews.forEach { $0.removeFromSuperview() }
+    }
+    
+    // MARK: - Loading and Success Views
+    
+    private func presentLoadingView(message: String) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.removeAllChildViewControllers()
+            self.view.subviews.forEach { $0.removeFromSuperview() }
+            
+            let loadingView = VStack(spacing: 16) {
+                ProgressView()
+                    .scaleEffect(1.2)
+                Text(message)
+                    .font(UnifiedTheme().typography.body)
+                    .foregroundColor(UnifiedTheme().colors(for: .dark).textSecondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(UnifiedTheme().colors(for: .dark).background)
+            
+            let hostingController = UIHostingController(rootView: loadingView)
+            hostingController.view.backgroundColor = .systemBackground
+            hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+            
+            self.addChild(hostingController)
+            self.view.addSubview(hostingController.view)
+            
+            NSLayoutConstraint.activate([
+                hostingController.view.topAnchor.constraint(equalTo: self.view.topAnchor),
+                hostingController.view.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                hostingController.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+                hostingController.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
+            ])
+            
+            hostingController.didMove(toParent: self)
+        }
+    }
+    
+    private func presentSuccessView(message: String, vaultName: String?, onDismiss: @escaping () -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.removeAllChildViewControllers()
+            self.view.subviews.forEach { $0.removeFromSuperview() }
+            
+            let successView = SuccessMessageView(
+                message: message,
+                vaultName: vaultName,
+                onDismiss: onDismiss
+            )
+            
+            let hostingController = UIHostingController(
+                rootView: successView.environment(\.unifiedTheme, UnifiedTheme())
+            )
+            hostingController.view.backgroundColor = .systemBackground
+            hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+            
+            self.addChild(hostingController)
+            self.view.addSubview(hostingController.view)
+            
+            NSLayoutConstraint.activate([
+                hostingController.view.topAnchor.constraint(equalTo: self.view.topAnchor),
+                hostingController.view.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                hostingController.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+                hostingController.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
+            ])
+            
+            hostingController.didMove(toParent: self)
+        }
+    }
+    
+    private func presentErrorView(message: String, onRetry: @escaping () -> Void, onCancel: @escaping () -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.removeAllChildViewControllers()
+            self.view.subviews.forEach { $0.removeFromSuperview() }
+            
+            let colors = UnifiedTheme().colors(for: .dark)
+            let theme = UnifiedTheme()
+            
+            let errorView = VStack(spacing: 24) {
+                // Error Icon
+                ZStack {
+                    Circle()
+                        .fill(colors.warning.opacity(0.2))
+                        .frame(width: 80, height: 80)
+                    
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 50))
+                        .foregroundColor(colors.warning)
+                }
+                .padding(.top, 40)
+                
+                // Error Message
+                VStack(spacing: 8) {
+                    Text("Error")
+                        .font(theme.typography.title)
+                        .foregroundColor(colors.textPrimary)
+                    
+                    Text(message)
+                        .font(theme.typography.body)
+                        .foregroundColor(colors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                
+                Spacer()
+                
+                // Buttons
+                VStack(spacing: 12) {
+                    Button(action: onRetry) {
+                        Text("Try Again")
+                            .font(theme.typography.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(colors.primary)
+                            .cornerRadius(12)
+                    }
+                    
+                    Button(action: onCancel) {
+                        Text("Cancel")
+                            .font(theme.typography.headline)
+                            .foregroundColor(colors.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(colors.surface)
+                            .cornerRadius(12)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(colors.background)
+            
+            let hostingController = UIHostingController(
+                rootView: errorView.environment(\.unifiedTheme, UnifiedTheme())
+            )
+            hostingController.view.backgroundColor = .systemBackground
+            hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+            
+            self.addChild(hostingController)
+            self.view.addSubview(hostingController.view)
+            
+            NSLayoutConstraint.activate([
+                hostingController.view.topAnchor.constraint(equalTo: self.view.topAnchor),
+                hostingController.view.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                hostingController.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+                hostingController.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
+            ])
+            
+            hostingController.didMove(toParent: self)
+        }
     }
 }
