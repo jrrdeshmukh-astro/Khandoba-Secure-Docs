@@ -11,10 +11,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-
-		};
-
-		};
 		24FB38842EDF354C00BA1227 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 24FB386A2EDF354B00BA1227 /* Project object */;
