@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-
+		24D2EBBC2EE304A9004257B4 /* Reductio in Frameworks */ = {isa = PBXBuildFile; productRef = 24D2EBBB2EE304A9004257B4 /* Reductio */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +59,219 @@
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		24FB386F2EDF354B00BA1227 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				24D2EBBC2EE304A9004257B4 /* Reductio in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		24FB38802EDF354C00BA1227 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		24FB388A2EDF354C00BA1227 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		24FB38692EDF354B00BA1227 = {
+			isa = PBXGroup;
+			children = (
+				24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */,
+				24FB38862EDF354C00BA1227 /* Khandoba Secure DocsTests */,
+				24FB38902EDF354C00BA1227 /* Khandoba Secure DocsUITests */,
+				24FB38732EDF354B00BA1227 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		24FB38732EDF354B00BA1227 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				24FB38722EDF354B00BA1227 /* Khandoba Secure Docs.app */,
+				24FB38832EDF354C00BA1227 /* Khandoba Secure DocsTests.xctest */,
+				24FB388D2EDF354C00BA1227 /* Khandoba Secure DocsUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		24FB38712EDF354B00BA1227 /* Khandoba Secure Docs */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 24FB38962EDF354C00BA1227 /* Build configuration list for PBXNativeTarget "Khandoba Secure Docs" */;
+			buildPhases = (
+				24FB386E2EDF354B00BA1227 /* Sources */,
+				24FB386F2EDF354B00BA1227 /* Frameworks */,
+				24FB38702EDF354B00BA1227 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */,
+			);
+			name = "Khandoba Secure Docs";
+			packageProductDependencies = (
+				24D2EBBB2EE304A9004257B4 /* Reductio */,
+			);
+			productName = "Khandoba Secure Docs";
+			productReference = 24FB38722EDF354B00BA1227 /* Khandoba Secure Docs.app */;
+			productType = "com.apple.product-type.application";
+		};
+		24FB38822EDF354C00BA1227 /* Khandoba Secure DocsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 24FB389B2EDF354C00BA1227 /* Build configuration list for PBXNativeTarget "Khandoba Secure DocsTests" */;
+			buildPhases = (
+				24FB387F2EDF354C00BA1227 /* Sources */,
+				24FB38802EDF354C00BA1227 /* Frameworks */,
+				24FB38812EDF354C00BA1227 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				24FB38852EDF354C00BA1227 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				24FB38862EDF354C00BA1227 /* Khandoba Secure DocsTests */,
+			);
+			name = "Khandoba Secure DocsTests";
+			packageProductDependencies = (
+			);
+			productName = "Khandoba Secure DocsTests";
+			productReference = 24FB38832EDF354C00BA1227 /* Khandoba Secure DocsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		24FB388C2EDF354C00BA1227 /* Khandoba Secure DocsUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 24FB389E2EDF354C00BA1227 /* Build configuration list for PBXNativeTarget "Khandoba Secure DocsUITests" */;
+			buildPhases = (
+				24FB38892EDF354C00BA1227 /* Sources */,
+				24FB388A2EDF354C00BA1227 /* Frameworks */,
+				24FB388B2EDF354C00BA1227 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				24FB388F2EDF354C00BA1227 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				24FB38902EDF354C00BA1227 /* Khandoba Secure DocsUITests */,
+			);
+			name = "Khandoba Secure DocsUITests";
+			packageProductDependencies = (
+			);
+			productName = "Khandoba Secure DocsUITests";
+			productReference = 24FB388D2EDF354C00BA1227 /* Khandoba Secure DocsUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		24FB386A2EDF354B00BA1227 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2610;
+				LastUpgradeCheck = 2610;
+				TargetAttributes = {
+					24FB38712EDF354B00BA1227 = {
+						CreatedOnToolsVersion = 26.1.1;
+					};
+					24FB38822EDF354C00BA1227 = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = 24FB38712EDF354B00BA1227;
+					};
+					24FB388C2EDF354C00BA1227 = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = 24FB38712EDF354B00BA1227;
+					};
+				};
+			};
+			buildConfigurationList = 24FB386D2EDF354B00BA1227 /* Build configuration list for PBXProject "Khandoba Secure Docs" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 24FB38692EDF354B00BA1227;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				24D2EBBA2EE304A9004257B4 /* XCRemoteSwiftPackageReference "Reductio" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 24FB38732EDF354B00BA1227 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				24FB38712EDF354B00BA1227 /* Khandoba Secure Docs */,
+				24FB38822EDF354C00BA1227 /* Khandoba Secure DocsTests */,
+				24FB388C2EDF354C00BA1227 /* Khandoba Secure DocsUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		24FB38702EDF354B00BA1227 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		24FB38812EDF354C00BA1227 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		24FB388B2EDF354C00BA1227 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		24FB386E2EDF354B00BA1227 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		24FB387F2EDF354C00BA1227 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		24FB38892EDF354C00BA1227 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
 		24FB38852EDF354C00BA1227 /* PBXTargetDependency */ = {
@@ -409,6 +622,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		24D2EBBA2EE304A9004257B4 /* XCRemoteSwiftPackageReference "Reductio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/fdzsergio/Reductio.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.7.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		24D2EBBB2EE304A9004257B4 /* Reductio */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 24D2EBBA2EE304A9004257B4 /* XCRemoteSwiftPackageReference "Reductio" */;
+			productName = Reductio;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 24FB386A2EDF354B00BA1227 /* Project object */;
 }
