@@ -428,65 +428,6 @@ class MessagesViewController: MSMessagesAppViewController {
         }
     }
     
-    // Legacy method - redirects to new flow
-    private func presentSimpleVaultSelection(for conversation: MSConversation) {
-                    self.requestPresentationStyle(.expanded)
-                    // Show vault selection for transfer
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        self.presentTransferVaultSelection(for: conversation)
-                    }
-                },
-                onEmergency: { [weak self] in
-                    guard let self = self else { return }
-                    logWarning("Emergency Protocol selected")
-                    // Ensure extension stays expanded
-                    self.requestPresentationStyle(.expanded)
-                    // Show vault selection for emergency
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        self.presentEmergencyVaultSelection(for: conversation)
-                    }
-                },
-                onCancel: {
-                    logInfo("Menu cancelled")
-                    self.requestPresentationStyle(.compact)
-                }
-            )
-            
-            let hostingController = UIHostingController(
-                rootView: menuView.environment(\.unifiedTheme, UnifiedTheme())
-            )
-            
-            hostingController.view.backgroundColor = .systemBackground
-            hostingController.view.translatesAutoresizingMaskIntoConstraints = false
-            
-            self.addChild(hostingController)
-            self.view.addSubview(hostingController.view)
-            
-            NSLayoutConstraint.activate([
-                hostingController.view.topAnchor.constraint(equalTo: self.view.topAnchor),
-                hostingController.view.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
-                hostingController.view.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
-                hostingController.view.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
-            ])
-            
-            hostingController.didMove(toParent: self)
-            
-            logSuccess("Main menu presented successfully")
-            } catch {
-                logError("Failed to present main menu", error: error)
-                self.presentErrorView(
-                    message: "Failed to load menu. Please try again.",
-                    onRetry: {
-                        self.presentSimpleMenu(conversation: conversation)
-                    },
-                    onCancel: {
-                        self.requestPresentationStyle(.compact)
-                    }
-                )
-            }
-        }
-    }
-    
     private func presentNomineeInvitationFlow(conversation: MSConversation) {
         logInfo("Presenting Apple Cash-style nominee invitation flow")
         
