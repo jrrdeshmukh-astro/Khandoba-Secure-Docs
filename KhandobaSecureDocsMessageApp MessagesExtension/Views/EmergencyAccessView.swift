@@ -1,18 +1,18 @@
 //
-//  NomineeInvitationFlowView.swift
+//  EmergencyAccessView.swift
 //  Khandoba Secure Docs
 //
-//  Apple Cash-style nominee invitation flow
+//  Apple Cash-style emergency access flow
 //
 
 import SwiftUI
 import SwiftData
 @preconcurrency import Messages
 
-struct NomineeInvitationFlowView: View {
+struct EmergencyAccessView: View {
     let conversation: MSConversation
     let onCancel: () -> Void
-    let onSend: (Vault, String) -> Void
+    let onSend: (Vault, String, String) -> Void // vault, reason, urgency
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
@@ -21,16 +21,30 @@ struct NomineeInvitationFlowView: View {
     @State private var selectedVault: Vault?
     @State private var isLoading = true
     @State private var showVaultSelector = false
-    @State private var recipientName: String = ""
-    @State private var showKeypad = false
+    @State private var reason: String = ""
+    @State private var urgency: UrgencyLevel = .medium
     @State private var showFaceID = false
     @State private var isAuthenticating = false
+    
+    enum UrgencyLevel: String, CaseIterable {
+        case low = "Low"
+        case medium = "Medium"
+        case high = "High"
+        
+        var color: Color {
+            switch self {
+            case .low: return .green
+            case .medium: return .orange
+            case .high: return .red
+            }
+        }
+    }
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         
         VStack(spacing: 0) {
-            // Header (Apple Cash style)
+            // Header
             HStack {
                 Button(action: onCancel) {
                     Image(systemName: "xmark")
@@ -47,7 +61,6 @@ struct NomineeInvitationFlowView: View {
                 
                 Spacer()
                 
-                // Placeholder for balance
                 Button(action: {
                     showVaultSelector.toggle()
                 }) {
@@ -80,37 +93,26 @@ struct NomineeInvitationFlowView: View {
                     Text("No vaults available")
                         .font(theme.typography.headline)
                         .foregroundColor(colors.textPrimary)
-                    Text("Create a vault in the main app first")
-                        .font(theme.typography.body)
-                        .foregroundColor(colors.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     VStack(spacing: 24) {
-                        // Recipient Info (Apple Cash style)
+                        // Recipient Info
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Send to")
+                            Text("Request from")
                                 .font(.system(size: 15, weight: .medium))
                                 .foregroundColor(colors.textSecondary)
                             
-                            if !conversation.remoteParticipantIdentifiers.isEmpty {
-                                Text("Recipient")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(colors.textPrimary)
-                            } else {
-                                TextField("Recipient name", text: $recipientName)
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(colors.textPrimary)
-                            }
+                            Text("Recipient")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(colors.textPrimary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
                         
-                        // Large Vault Display (like "$1" in Apple Cash - exact match)
+                        // Large Vault Display (Apple Cash style - exact match)
                         if let vault = selectedVault {
                             VStack(spacing: 16) {
                                 Text(vault.name)
@@ -118,27 +120,16 @@ struct NomineeInvitationFlowView: View {
                                     .foregroundColor(colors.textPrimary)
                                     .tracking(-1)
                                 
-                                Text(vault.keyType == "dual" ? "Dual-Key Vault" : "Single-Key Vault")
+                                Text("Emergency Access")
                                     .font(.system(size: 17, weight: .medium, design: .rounded))
-                                    .foregroundColor(colors.textSecondary)
-                                
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        showVaultSelector.toggle()
-                                    }
-                                }) {
-                                    Text("Change Vault")
-                                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                                        .foregroundColor(colors.primary)
-                                }
-                                .padding(.top, 4)
+                                    .foregroundColor(urgency.color)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 48)
                             .transition(.opacity.combined(with: .scale(scale: 0.95)))
                         }
                         
-                        // Vault Rolodex (if selector is shown)
+                        // Vault Rolodex
                         if showVaultSelector {
                             VaultRolodexView(
                                 vaults: vaults,
@@ -152,7 +143,7 @@ struct NomineeInvitationFlowView: View {
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                         
-                        // Vault Details Card (like payment method card)
+                        // Vault Card
                         if let vault = selectedVault {
                             VaultCardView(
                                 vault: vault,
@@ -164,35 +155,82 @@ struct NomineeInvitationFlowView: View {
                             }
                             .padding(.horizontal, 20)
                             .padding(.top, 20)
-                        } else {
-                            // Loading placeholder
-                            VStack(spacing: 16) {
-                                ProgressView()
-                                Text("Selecting vault...")
-                                    .font(theme.typography.body)
-                                    .foregroundColor(colors.textSecondary)
-                            }
-                            .frame(height: 180)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 20)
                         }
+                        
+                        // Reason Input (Apple Cash style)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Reason for Emergency Access")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundColor(colors.textPrimary)
+                            
+                            TextField("Enter reason...", text: $reason, axis: .vertical)
+                                .font(.system(size: 16, design: .rounded))
+                                .textFieldStyle(.roundedBorder)
+                                .lineLimit(3...6)
+                                .padding(12)
+                                .background(colors.surface)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(colors.primary.opacity(0.2), lineWidth: 1)
+                                )
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 24)
+                        
+                        // Urgency Selector (Apple Cash style)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Urgency Level")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundColor(colors.textPrimary)
+                            
+                            HStack(spacing: 12) {
+                                ForEach(UrgencyLevel.allCases, id: \.self) { level in
+                                    Button(action: {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            urgency = level
+                                        }
+                                    }) {
+                                        Text(level.rawValue)
+                                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                            .foregroundColor(urgency == level ? .white : level.color)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 44)
+                                            .background(
+                                                urgency == level ?
+                                                    LinearGradient(
+                                                        gradient: Gradient(colors: [level.color, level.color.opacity(0.9)]),
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    ) : nil
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .stroke(level.color, lineWidth: urgency == level ? 0 : 2)
+                                            )
+                                            .cornerRadius(10)
+                                            .scaleEffect(urgency == level ? 1.0 : 0.98)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
                     }
                 }
                 
                 // Action Button (Apple Cash style - exact match)
                 VStack(spacing: 0) {
                     Button(action: {
-                        guard let vault = selectedVault else { return }
-                        // Show Face ID overlay before sending (Apple Cash style)
+                        guard let vault = selectedVault, !reason.isEmpty else { return }
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             showFaceID = true
                         }
                     }) {
                         HStack(spacing: 10) {
-                            Image(systemName: "arrow.up.circle.fill")
+                            Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.system(size: 22, weight: .semibold))
-                            Text("Send Invitation")
+                            Text("Request Emergency Access")
                                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                         }
                         .foregroundColor(.white)
@@ -201,20 +239,21 @@ struct NomineeInvitationFlowView: View {
                         .background(
                             LinearGradient(
                                 gradient: Gradient(colors: [
-                                    colors.primary,
-                                    colors.primary.opacity(0.9)
+                                    urgency.color,
+                                    urgency.color.opacity(0.9)
                                 ]),
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                         .cornerRadius(14)
-                        .shadow(color: colors.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                        .shadow(color: urgency.color.opacity(0.3), radius: 8, x: 0, y: 4)
                     }
-                    .disabled(selectedVault == nil || isAuthenticating)
-                    .opacity(selectedVault == nil || isAuthenticating ? 0.6 : 1.0)
-                    .scaleEffect(selectedVault == nil || isAuthenticating ? 0.98 : 1.0)
+                    .disabled(selectedVault == nil || reason.isEmpty || isAuthenticating)
+                    .opacity(selectedVault == nil || reason.isEmpty || isAuthenticating ? 0.6 : 1.0)
+                    .scaleEffect(selectedVault == nil || reason.isEmpty || isAuthenticating ? 0.98 : 1.0)
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedVault)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: reason.isEmpty)
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
@@ -224,7 +263,6 @@ struct NomineeInvitationFlowView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(colors.background)
         .overlay {
-            // Face ID Overlay (Apple Cash style - appears before sending)
             if showFaceID {
                 FaceIDOverlayView(
                     biometricType: BiometricAuthService.shared.biometricType()
@@ -237,15 +275,13 @@ struct NomineeInvitationFlowView: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(colors.background)
         .task {
             await loadVaults()
         }
     }
     
     private func authenticateAndSend() {
-        guard let vault = selectedVault else {
+        guard let vault = selectedVault, !reason.isEmpty else {
             showFaceID = false
             return
         }
@@ -256,13 +292,12 @@ struct NomineeInvitationFlowView: View {
             
             do {
                 let success = try await BiometricAuthService.shared.authenticate(
-                    reason: "Authenticate to send vault invitation"
+                    reason: "Authenticate to request emergency access"
                 )
                 
                 if success {
                     await MainActor.run {
-                        let name = recipientName.isEmpty ? "Recipient" : recipientName
-                        onSend(vault, name)
+                        onSend(vault, reason, urgency.rawValue)
                         showFaceID = false
                     }
                 } else {
@@ -296,7 +331,6 @@ struct NomineeInvitationFlowView: View {
             await MainActor.run {
                 self.vaults = userVaults
                 self.selectedVault = userVaults.first
-                print("✅ Loaded \(userVaults.count) vault(s), selected: \(self.selectedVault?.name ?? "none")")
             }
         } catch {
             print("❌ Failed to load vaults: \(error.localizedDescription)")

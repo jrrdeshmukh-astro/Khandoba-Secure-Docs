@@ -23,8 +23,6 @@ struct NomineeInvitationFlowView: View {
     @State private var showVaultSelector = false
     @State private var recipientName: String = ""
     @State private var showKeypad = false
-    @State private var showFaceID = false
-    @State private var isAuthenticating = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -110,32 +108,28 @@ struct NomineeInvitationFlowView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
                         
-                        // Large Vault Display (like "$1" in Apple Cash - exact match)
+                        // Large Vault Display (like "$1" in Apple Cash)
                         if let vault = selectedVault {
-                            VStack(spacing: 16) {
+                            VStack(spacing: 12) {
                                 Text(vault.name)
-                                    .font(.system(size: 56, weight: .bold, design: .rounded))
+                                    .font(.system(size: 48, weight: .bold))
                                     .foregroundColor(colors.textPrimary)
-                                    .tracking(-1)
                                 
                                 Text(vault.keyType == "dual" ? "Dual-Key Vault" : "Single-Key Vault")
-                                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                                    .font(.system(size: 16, weight: .medium))
                                     .foregroundColor(colors.textSecondary)
                                 
                                 Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        showVaultSelector.toggle()
-                                    }
+                                    showVaultSelector.toggle()
                                 }) {
                                     Text("Change Vault")
-                                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                                        .font(.system(size: 15, weight: .medium))
                                         .foregroundColor(colors.primary)
                                 }
-                                .padding(.top, 4)
+                                .padding(.top, 8)
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 48)
-                            .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                            .padding(.vertical, 40)
                         }
                         
                         // Vault Rolodex (if selector is shown)
@@ -180,101 +174,38 @@ struct NomineeInvitationFlowView: View {
                     }
                 }
                 
-                // Action Button (Apple Cash style - exact match)
-                VStack(spacing: 0) {
+                // Action Buttons (Apple Cash style - Request/Send)
+                VStack(spacing: 12) {
                     Button(action: {
-                        guard let vault = selectedVault else { return }
-                        // Show Face ID overlay before sending (Apple Cash style)
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            showFaceID = true
+                        if let vault = selectedVault {
+                            let name = recipientName.isEmpty ? "Recipient" : recipientName
+                            onSend(vault, name)
                         }
                     }) {
-                        HStack(spacing: 10) {
+                        HStack {
                             Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 22, weight: .semibold))
+                                .font(.system(size: 24))
                             Text("Send Invitation")
-                                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                .font(.system(size: 17, weight: .semibold))
                         }
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    colors.primary,
-                                    colors.primary.opacity(0.9)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .background(colors.primary)
                         .cornerRadius(14)
-                        .shadow(color: colors.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                     }
-                    .disabled(selectedVault == nil || isAuthenticating)
-                    .opacity(selectedVault == nil || isAuthenticating ? 0.6 : 1.0)
-                    .scaleEffect(selectedVault == nil || isAuthenticating ? 0.98 : 1.0)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedVault)
+                    .disabled(selectedVault == nil)
+                    .opacity(selectedVault == nil ? 0.6 : 1.0)
                 }
                 .padding(.horizontal, 20)
-                .padding(.vertical, 20)
+                .padding(.vertical, 16)
                 .background(colors.surface)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(colors.background)
-        .overlay {
-            // Face ID Overlay (Apple Cash style - appears before sending)
-            if showFaceID {
-                FaceIDOverlayView(
-                    biometricType: BiometricAuthService.shared.biometricType()
-                ) {
-                    showFaceID = false
-                }
-                .transition(.opacity)
-                .onAppear {
-                    authenticateAndSend()
-                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(colors.background)
         .task {
             await loadVaults()
-        }
-    }
-    
-    private func authenticateAndSend() {
-        guard let vault = selectedVault else {
-            showFaceID = false
-            return
-        }
-        
-        Task {
-            isAuthenticating = true
-            defer { isAuthenticating = false }
-            
-            do {
-                let success = try await BiometricAuthService.shared.authenticate(
-                    reason: "Authenticate to send vault invitation"
-                )
-                
-                if success {
-                    await MainActor.run {
-                        let name = recipientName.isEmpty ? "Recipient" : recipientName
-                        onSend(vault, name)
-                        showFaceID = false
-                    }
-                } else {
-                    await MainActor.run {
-                        showFaceID = false
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    showFaceID = false
-                }
-            }
         }
     }
     

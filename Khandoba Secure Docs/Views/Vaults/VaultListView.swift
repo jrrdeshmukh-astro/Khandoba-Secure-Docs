@@ -98,17 +98,17 @@ struct VaultListView: View {
                         selectedVaultID: $pendingVaultID, // Use pendingVaultID to intercept taps
                         cardsAppeared: cardsAppeared
                     )
-                    .background(
+                                    .background(
                         // Hidden NavigationLink for programmatic navigation
                         ForEach(userVaults) { vault in
-                            NavigationLink(
-                                destination: VaultDetailView(vault: vault),
-                                tag: vault.id,
-                                selection: $selectedVaultID
+                                        NavigationLink(
+                                            destination: VaultDetailView(vault: vault),
+                                            tag: vault.id,
+                                            selection: $selectedVaultID
                             ) {
                                 EmptyView()
                             }
-                            .opacity(0)
+                                        .opacity(0)
                         }
                     )
                     .onChange(of: pendingVaultID) { oldValue, newValue in
@@ -116,7 +116,7 @@ struct VaultListView: View {
                         if let vaultID = newValue {
                             Task {
                                 await authenticateAndOpenVault(vaultID: vaultID)
-                            }
+                                }
                         }
                     }
                 }

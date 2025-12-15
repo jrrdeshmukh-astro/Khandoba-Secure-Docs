@@ -63,7 +63,7 @@ struct WalletCard: View {
                 )
             
             // Card content
-            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
                 // Header with icon and badges
                 HStack {
                     // Vault icon
@@ -77,7 +77,7 @@ struct WalletCard: View {
                             .foregroundColor(.white)
                     }
                     
-                    Spacer()
+                Spacer()
                     
                     // Badges
                     HStack(spacing: UnifiedTheme.Spacing.xs) {
@@ -89,7 +89,7 @@ struct WalletCard: View {
                             )
                         }
                         
-                        if vault.keyType == "dual" {
+                if vault.keyType == "dual" {
                             BadgeView(
                                 icon: "key.fill",
                                 text: "DUAL-KEY",

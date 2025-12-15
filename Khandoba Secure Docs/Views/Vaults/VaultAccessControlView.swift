@@ -66,6 +66,20 @@ struct VaultAccessControlView: View {
                                 onRevoke: {}
                             )
                         }
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [
+                                            colors.warning.opacity(0.3),
+                                            colors.warning.opacity(0.1)
+                                        ]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1.5
+                                )
+                        )
                     }
                     .padding(.horizontal)
                     
@@ -251,19 +265,36 @@ struct AccessUserRow: View {
             
             Spacer()
             
-            // Revoke button
+            // Revoke button (Apple Cash style)
             if canRevoke && status != "Inactive" {
                 Button {
-                    onRevoke()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        onRevoke()
+                    }
                 } label: {
-                    Text("Revoke")
-                        .font(theme.typography.caption)
-                        .foregroundColor(colors.error)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(colors.error.opacity(0.1))
-                        .cornerRadius(UnifiedTheme.CornerRadius.sm)
+                    HStack(spacing: 6) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Revoke")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                colors.error,
+                                colors.error.opacity(0.85)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .cornerRadius(10)
+                    .shadow(color: colors.error.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
+                .buttonStyle(PlainButtonStyle())
             }
         }
         .padding()
@@ -285,6 +316,17 @@ struct AccessUserRow: View {
         case "Emergency": return colors.error
         default: return colors.textSecondary
         }
+    }
+    
+    private var roleGradient: LinearGradient {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                roleColor,
+                roleColor.opacity(0.8)
+            ]),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
     
     private var statusColor: Color {

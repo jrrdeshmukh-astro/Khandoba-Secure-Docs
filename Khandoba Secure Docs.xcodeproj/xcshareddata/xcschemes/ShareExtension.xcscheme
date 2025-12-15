@@ -17,7 +17,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "245C55822EE4B66400270A37"
-               BuildableName = "ShareExtension.appex"
+               BuildableName = "ShareExtension"
                BlueprintName = "ShareExtension"
                ReferencedContainer = "container:Khandoba Secure Docs.xcodeproj">
             </BuildableReference>

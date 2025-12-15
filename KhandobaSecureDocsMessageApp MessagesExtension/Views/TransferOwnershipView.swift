@@ -1,15 +1,15 @@
 //
-//  NomineeInvitationFlowView.swift
+//  TransferOwnershipView.swift
 //  Khandoba Secure Docs
 //
-//  Apple Cash-style nominee invitation flow
+//  Apple Cash-style transfer ownership flow
 //
 
 import SwiftUI
 import SwiftData
 @preconcurrency import Messages
 
-struct NomineeInvitationFlowView: View {
+struct TransferOwnershipView: View {
     let conversation: MSConversation
     let onCancel: () -> Void
     let onSend: (Vault, String) -> Void
@@ -22,7 +22,6 @@ struct NomineeInvitationFlowView: View {
     @State private var isLoading = true
     @State private var showVaultSelector = false
     @State private var recipientName: String = ""
-    @State private var showKeypad = false
     @State private var showFaceID = false
     @State private var isAuthenticating = false
     
@@ -47,7 +46,6 @@ struct NomineeInvitationFlowView: View {
                 
                 Spacer()
                 
-                // Placeholder for balance
                 Button(action: {
                     showVaultSelector.toggle()
                 }) {
@@ -80,37 +78,26 @@ struct NomineeInvitationFlowView: View {
                     Text("No vaults available")
                         .font(theme.typography.headline)
                         .foregroundColor(colors.textPrimary)
-                    Text("Create a vault in the main app first")
-                        .font(theme.typography.body)
-                        .foregroundColor(colors.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     VStack(spacing: 24) {
-                        // Recipient Info (Apple Cash style)
+                        // Recipient Info
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Send to")
+                            Text("Transfer to")
                                 .font(.system(size: 15, weight: .medium))
                                 .foregroundColor(colors.textSecondary)
                             
-                            if !conversation.remoteParticipantIdentifiers.isEmpty {
-                                Text("Recipient")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(colors.textPrimary)
-                            } else {
-                                TextField("Recipient name", text: $recipientName)
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(colors.textPrimary)
-                            }
+                            Text("Recipient")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(colors.textPrimary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
                         
-                        // Large Vault Display (like "$1" in Apple Cash - exact match)
+                        // Large Vault Display (Apple Cash style - exact match)
                         if let vault = selectedVault {
                             VStack(spacing: 16) {
                                 Text(vault.name)
@@ -121,24 +108,13 @@ struct NomineeInvitationFlowView: View {
                                 Text(vault.keyType == "dual" ? "Dual-Key Vault" : "Single-Key Vault")
                                     .font(.system(size: 17, weight: .medium, design: .rounded))
                                     .foregroundColor(colors.textSecondary)
-                                
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        showVaultSelector.toggle()
-                                    }
-                                }) {
-                                    Text("Change Vault")
-                                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                                        .foregroundColor(colors.primary)
-                                }
-                                .padding(.top, 4)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 48)
                             .transition(.opacity.combined(with: .scale(scale: 0.95)))
                         }
                         
-                        // Vault Rolodex (if selector is shown)
+                        // Vault Rolodex
                         if showVaultSelector {
                             VaultRolodexView(
                                 vaults: vaults,
@@ -152,7 +128,7 @@ struct NomineeInvitationFlowView: View {
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                         
-                        // Vault Details Card (like payment method card)
+                        // Vault Card
                         if let vault = selectedVault {
                             VaultCardView(
                                 vault: vault,
@@ -164,18 +140,6 @@ struct NomineeInvitationFlowView: View {
                             }
                             .padding(.horizontal, 20)
                             .padding(.top, 20)
-                        } else {
-                            // Loading placeholder
-                            VStack(spacing: 16) {
-                                ProgressView()
-                                Text("Selecting vault...")
-                                    .font(theme.typography.body)
-                                    .foregroundColor(colors.textSecondary)
-                            }
-                            .frame(height: 180)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 20)
                         }
                     }
                 }
@@ -184,15 +148,14 @@ struct NomineeInvitationFlowView: View {
                 VStack(spacing: 0) {
                     Button(action: {
                         guard let vault = selectedVault else { return }
-                        // Show Face ID overlay before sending (Apple Cash style)
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             showFaceID = true
                         }
                     }) {
                         HStack(spacing: 10) {
-                            Image(systemName: "arrow.up.circle.fill")
+                            Image(systemName: "arrow.triangle.2.circlepath")
                                 .font(.system(size: 22, weight: .semibold))
-                            Text("Send Invitation")
+                            Text("Transfer Ownership")
                                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                         }
                         .foregroundColor(.white)
@@ -224,7 +187,6 @@ struct NomineeInvitationFlowView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(colors.background)
         .overlay {
-            // Face ID Overlay (Apple Cash style - appears before sending)
             if showFaceID {
                 FaceIDOverlayView(
                     biometricType: BiometricAuthService.shared.biometricType()
@@ -237,8 +199,6 @@ struct NomineeInvitationFlowView: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(colors.background)
         .task {
             await loadVaults()
         }
@@ -256,7 +216,7 @@ struct NomineeInvitationFlowView: View {
             
             do {
                 let success = try await BiometricAuthService.shared.authenticate(
-                    reason: "Authenticate to send vault invitation"
+                    reason: "Authenticate to transfer vault ownership"
                 )
                 
                 if success {
@@ -296,7 +256,6 @@ struct NomineeInvitationFlowView: View {
             await MainActor.run {
                 self.vaults = userVaults
                 self.selectedVault = userVaults.first
-                print("✅ Loaded \(userVaults.count) vault(s), selected: \(self.selectedVault?.name ?? "none")")
             }
         } catch {
             print("❌ Failed to load vaults: \(error.localizedDescription)")

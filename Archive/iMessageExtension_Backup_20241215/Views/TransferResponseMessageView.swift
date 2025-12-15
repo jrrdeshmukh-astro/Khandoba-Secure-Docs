@@ -1,14 +1,14 @@
 //
-//  InvitationResponseMessageView.swift
+//  TransferResponseMessageView.swift
 //  Khandoba Secure Docs
 //
-//  Interactive invitation response view (Apple Cash style)
+//  Interactive transfer ownership response view
 //
 
 import SwiftUI
 import Messages
 
-struct InvitationResponseMessageView: View {
+struct TransferResponseMessageView: View {
     let message: MSMessage
     let conversation: MSConversation
     let token: String?
@@ -33,26 +33,26 @@ struct InvitationResponseMessageView: View {
                     VStack(spacing: UnifiedTheme.Spacing.xl) {
                         // Header
                         VStack(spacing: UnifiedTheme.Spacing.md) {
-                            Image(systemName: "lock.shield.fill")
+                            Image(systemName: "arrow.triangle.2.circlepath")
                                 .font(.system(size: 60))
-                                .foregroundColor(colors.primary)
+                                .foregroundColor(colors.warning)
                             
-                            Text("Vault Invitation")
+                            Text("Transfer Ownership")
                                 .font(theme.typography.title)
                                 .foregroundColor(colors.textPrimary)
                             
                             if status == "pending" {
-                                Text("You've been invited to access a vault")
+                                Text("You've been asked to accept vault ownership")
                                     .font(theme.typography.body)
                                     .foregroundColor(colors.textSecondary)
                                     .multilineTextAlignment(.center)
                             } else if status == "accepted" {
-                                Text("✅ You've accepted this invitation")
+                                Text("✅ You've accepted this ownership transfer")
                                     .font(theme.typography.body)
                                     .foregroundColor(colors.success)
                                     .multilineTextAlignment(.center)
                             } else if status == "declined" {
-                                Text("❌ You've declined this invitation")
+                                Text("❌ You've declined this ownership transfer")
                                     .font(theme.typography.body)
                                     .foregroundColor(colors.error)
                                     .multilineTextAlignment(.center)
@@ -60,7 +60,28 @@ struct InvitationResponseMessageView: View {
                         }
                         .padding(.top, UnifiedTheme.Spacing.xl)
                         
-                        // Invitation Details Card
+                        // Warning Card
+                        if status == "pending" {
+                            StandardCard {
+                                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                                    HStack {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundColor(colors.warning)
+                                        Text("Important")
+                                            .font(theme.typography.subheadline)
+                                            .foregroundColor(colors.textPrimary)
+                                            .fontWeight(.semibold)
+                                    }
+                                    
+                                    Text("Accepting this transfer will give you complete ownership of the vault. The current owner will lose all access.")
+                                        .font(theme.typography.caption)
+                                        .foregroundColor(colors.textSecondary)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                        
+                        // Transfer Details Card
                         StandardCard {
                             VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
                                 VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
@@ -76,7 +97,7 @@ struct InvitationResponseMessageView: View {
                                 Divider()
                                 
                                 VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                                    Text("Invited By")
+                                    Text("Transferring From")
                                         .font(theme.typography.caption)
                                         .foregroundColor(colors.textSecondary)
                                     
@@ -97,13 +118,13 @@ struct InvitationResponseMessageView: View {
                                 } label: {
                                     HStack {
                                         Image(systemName: "checkmark.circle.fill")
-                                        Text("Accept Invitation")
+                                        Text("Accept Ownership")
                                     }
                                     .font(theme.typography.headline)
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
                                     .padding()
-                                    .background(colors.success)
+                                    .background(colors.warning)
                                     .cornerRadius(UnifiedTheme.CornerRadius.lg)
                                 }
                                 
@@ -132,8 +153,8 @@ struct InvitationResponseMessageView: View {
                                         .foregroundColor(status == "accepted" ? colors.success : colors.error)
                                     
                                     Text(status == "accepted" 
-                                         ? "Invitation accepted. Open the app to access the vault."
-                                         : "Invitation declined.")
+                                         ? "Ownership transfer accepted. Open the app to access the vault."
+                                         : "Ownership transfer declined.")
                                         .font(theme.typography.body)
                                         .foregroundColor(colors.textPrimary)
                                 }
@@ -144,8 +165,9 @@ struct InvitationResponseMessageView: View {
                     .padding(.vertical)
                 }
             }
-            .navigationTitle("Vault Invitation")
+            .navigationTitle("Transfer Ownership")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
+

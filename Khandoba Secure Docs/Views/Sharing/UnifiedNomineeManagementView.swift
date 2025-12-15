@@ -81,101 +81,129 @@ struct UnifiedNomineeManagementView: View {
                         .padding(.horizontal)
                     }
                     
-                    // Nominees Section
-                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                        HStack {
-                            Text("NOMINEES (\(nomineeService.nominees.count))")
-                                .font(theme.typography.caption)
-                                .foregroundColor(colors.textSecondary)
-                            
-                            Spacer()
-                            
-                            Button {
-                                showAddNominee = true
-                            } label: {
-                                Image(systemName: "plus.circle.fill")
-                                    .foregroundColor(colors.primary)
-                            }
-                        }
-                        .padding(.horizontal)
+                    // Nominees Section (Apple Cash style - card-based)
+                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                        Text("NOMINEES")
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textSecondary)
+                            .padding(.horizontal)
                         
-                        if nomineeService.nominees.isEmpty {
-                            StandardCard {
-                                VStack(spacing: UnifiedTheme.Spacing.md) {
-                                    Image(systemName: "person.badge.plus")
-                                        .font(.largeTitle)
-                                        .foregroundColor(colors.textTertiary)
-                                    
-                                    Text("No Nominees")
-                                        .font(theme.typography.headline)
-                                        .foregroundColor(colors.textPrimary)
-                                    
-                                    Text("Invite people to access this vault")
-                                        .font(theme.typography.subheadline)
-                                        .foregroundColor(colors.textSecondary)
-                                    
-                                    // Invite via iMessage button (Apple Cash style)
-                                    #if !APP_EXTENSION
-                                    Button {
-                                        Task {
-                                            await openMessagesForNomination()
-                                        }
-                                    } label: {
-                                        HStack(spacing: UnifiedTheme.Spacing.sm) {
-                                            Image(systemName: "message.fill")
-                                                .font(.title3)
-                                            Text("Invite via iMessage")
-                                                .font(theme.typography.headline)
-                                        }
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, UnifiedTheme.Spacing.md)
-                                        .background(
+                        // Add Nominee Card (Apple Cash style - like "Add Card")
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showAddNominee = true
+                            }
+                        } label: {
+                            HStack(spacing: UnifiedTheme.Spacing.md) {
+                                ZStack {
+                                    Circle()
+                                        .fill(
                                             LinearGradient(
-                                                gradient: Gradient(colors: [colors.primary, colors.secondary]),
-                                                startPoint: .leading,
-                                                endPoint: .trailing
+                                                gradient: Gradient(colors: [
+                                                    colors.primary.opacity(0.25),
+                                                    colors.primary.opacity(0.15)
+                                                ]),
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
                                             )
                                         )
-                                        .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                                    }
-                                    .padding(.top, UnifiedTheme.Spacing.md)
-                                    #endif
+                                        .frame(width: 52, height: 52)
+                                    
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 26, weight: .semibold))
+                                        .foregroundColor(colors.primary)
                                 }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, UnifiedTheme.Spacing.xl)
+                                
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Add Nominee")
+                                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                        .foregroundColor(colors.textPrimary)
+                                    
+                                    Text("Invite via iMessage")
+                                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                                        .foregroundColor(colors.textSecondary)
+                                }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(colors.textTertiary)
                             }
-                        } else {
-                            StandardCard {
-                                VStack(spacing: 0) {
-                                    ForEach(Array(nomineeService.nominees.enumerated()), id: \.element.id) { index, nominee in
-                                        NomineeManagementRow(
-                                            nominee: nominee,
-                                            vault: vault,
-                                            colors: colors,
-                                            theme: theme,
-                                            onRemove: {
-                                                Task {
-                                                    await removeNominee(nominee)
-                                                }
-                                            },
-                                            onShare: {
-                                                selectedNominee = nominee
-                                                Task {
-                                                    await presentCloudKitSharing()
-                                                }
-                                            }
+                            .padding(22)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18)
+                                    .fill(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                colors.surface,
+                                                colors.surface.opacity(0.95)
+                                            ]),
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
                                         )
-                                        
-                                        if index < nomineeService.nominees.count - 1 {
-                                            Divider()
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 18)
+                                            .stroke(
+                                                LinearGradient(
+                                                    gradient: Gradient(colors: [
+                                                        colors.primary.opacity(0.4),
+                                                        colors.primary.opacity(0.2)
+                                                    ]),
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                ),
+                                                lineWidth: 2
+                                            )
+                                    )
+                                    .shadow(color: colors.primary.opacity(0.15), radius: 8, x: 0, y: 3)
+                            )
+                        }
+                        .padding(.horizontal)
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        // Nominee Cards (Apple Cash style - like payment method cards)
+                        if nomineeService.nominees.isEmpty {
+                            VStack(spacing: UnifiedTheme.Spacing.md) {
+                                Image(systemName: "person.badge.plus")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(colors.textTertiary)
+                                
+                                Text("No Nominees")
+                                    .font(theme.typography.headline)
+                                    .foregroundColor(colors.textPrimary)
+                                
+                                Text("Add nominees to grant vault access")
+                                    .font(theme.typography.subheadline)
+                                    .foregroundColor(colors.textSecondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, UnifiedTheme.Spacing.xl)
+                        } else {
+                            ForEach(nomineeService.nominees, id: \.id) { nominee in
+                                NomineeCardView(
+                                    nominee: nominee,
+                                    vault: vault,
+                                    colors: colors,
+                                    theme: theme,
+                                    onRemove: {
+                                        Task {
+                                            await removeNominee(nominee)
+                                        }
+                                    },
+                                    onShare: {
+                                        selectedNominee = nominee
+                                        Task {
+                                            await presentCloudKitSharing()
                                         }
                                     }
-                                }
+                                )
+                                .padding(.horizontal)
                             }
                         }
                     }
-                    .padding(.horizontal)
                     
                     // Access History Button (Owner only)
                     if isOwner {
@@ -415,7 +443,151 @@ struct UnifiedNomineeManagementView: View {
     }
 }
 
-// MARK: - Nominee Management Row
+// MARK: - Nominee Card View (Apple Cash Style)
+
+struct NomineeCardView: View {
+    let nominee: Nominee
+    let vault: Vault
+    let colors: UnifiedTheme.Colors
+    let theme: UnifiedTheme
+    let onRemove: () async -> Void
+    let onShare: () async -> Void
+    
+    @EnvironmentObject var chatService: ChatService
+    @State private var showRevokeConfirm = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Card Content
+            HStack(spacing: UnifiedTheme.Spacing.md) {
+                // Avatar (Apple Cash style)
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    statusColor,
+                                    statusColor.opacity(0.7)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 50, height: 50)
+                    
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.white)
+                }
+                
+                // Info
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(nominee.name)
+                        .font(theme.typography.headline)
+                        .foregroundColor(colors.textPrimary)
+                    
+                    HStack(spacing: 8) {
+                        // Status badge
+                        Text(nominee.status.displayName)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(statusColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(statusColor.opacity(0.15))
+                            .cornerRadius(6)
+                        
+                        if nominee.status == .pending {
+                            Text("Invited \(nominee.invitedAt, style: .relative)")
+                                .font(theme.typography.caption2)
+                                .foregroundColor(colors.textTertiary)
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                // Actions
+                HStack(spacing: UnifiedTheme.Spacing.sm) {
+                    // Chat button
+                    if nominee.status == .accepted || nominee.status == .active {
+                        NavigationLink {
+                            SecureNomineeChatView(vault: vault, nominee: nominee)
+                        } label: {
+                            Image(systemName: "message.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(colors.primary)
+                                .frame(width: 36, height: 36)
+                                .background(colors.primary.opacity(0.1))
+                                .clipShape(Circle())
+                        }
+                    }
+                    
+                    // Revoke button (swipe to reveal in future)
+                    Button {
+                        showRevokeConfirm = true
+                    } label: {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(colors.error)
+                            .frame(width: 36, height: 36)
+                            .background(colors.error.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                }
+            }
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                colors.surface,
+                                colors.surface.opacity(0.95)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.white.opacity(0.1),
+                                        Color.clear
+                                    ]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                    .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
+            )
+        }
+        .alert("Revoke Access", isPresented: $showRevokeConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Revoke", role: .destructive) {
+                Task {
+                    await onRemove()
+                }
+            }
+        } message: {
+            Text("Revoke access for \(nominee.name)? They will no longer be able to access this vault.")
+        }
+    }
+    
+    private var statusColor: Color {
+        switch nominee.status {
+        case .pending: return colors.warning
+        case .accepted, .active: return colors.success
+        case .inactive, .revoked: return colors.textTertiary
+        }
+    }
+}
+
+// MARK: - Nominee Management Row (Legacy - kept for compatibility)
 
 struct NomineeManagementRow: View {
     let nominee: Nominee
