@@ -48,10 +48,21 @@ struct VaultDetailView: View {
         return requests.contains { $0.status == "pending" }
     }
     
+    // Computed properties to simplify type checking
+    private var viewColors: UnifiedTheme.Colors {
+        theme.colors(for: colorScheme)
+    }
+    
+    private var hasActiveSession: Bool {
+        vaultService.hasActiveSession(for: vault.id)
+    }
+    
+    private var hasPendingRequest: Bool {
+        hasPendingDualKeyRequest
+    }
+    
     var body: some View {
-        let colors = theme.colors(for: colorScheme)
-        let hasActiveSession = vaultService.hasActiveSession(for: vault.id)
-        let hasPendingRequest = hasPendingDualKeyRequest
+        let colors = viewColors
         
         ZStack {
             colors.background
@@ -215,6 +226,19 @@ struct VaultDetailView: View {
                         StandardCard {
                             VStack(spacing: 0) {
                                 if isOwner {
+                                    NavigationLink {
+                                        UnifiedNomineeManagementView(vault: vault)
+                                    } label: {
+                                        SecurityActionRow(
+                                            icon: "person.badge.plus",
+                                            title: "Manage Nominees",
+                                            subtitle: "Invite and manage vault access",
+                                            color: colors.primary
+                                        )
+                                    }
+                                    
+                                    Divider()
+                                    
                                     NavigationLink {
                                         VaultAccessControlView(vault: vault)
                                     } label: {
@@ -404,22 +428,18 @@ struct VaultDetailView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             if isOwner {
-                #if !APP_EXTENSION
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task {
-                            await openMessagesForNomination()
-                        }
+                    NavigationLink {
+                        UnifiedNomineeManagementView(vault: vault)
                     } label: {
                         HStack(spacing: 4) {
-                            Image(systemName: "message.fill")
-                            Text("Invite")
+                            Image(systemName: "person.badge.plus")
+                            Text("Nominees")
                         }
                         .font(theme.typography.subheadline)
                         .foregroundColor(colors.primary)
                     }
                 }
-                #endif
             }
         }
         .sheet(isPresented: $showUploadSheet) {
