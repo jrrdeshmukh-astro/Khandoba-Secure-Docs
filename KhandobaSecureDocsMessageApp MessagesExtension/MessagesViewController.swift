@@ -191,7 +191,25 @@ class MessagesViewController: MSMessagesAppViewController {
     // MARK: - Conversation Handling
     
     override func willBecomeActive(with conversation: MSConversation) {
+        // #region agent log
+        let bundleID = Bundle.main.bundleIdentifier ?? "unknown"
+        let extensionInfo: [String: Any] = [
+            "bundleIdentifier": bundleID,
+            "extensionPoint": "com.apple.message-payload-provider",
+            "appGroup": MessageAppConfig.appGroupIdentifier,
+            "localParticipant": conversation.localParticipantIdentifier.uuidString,
+            "remoteParticipants": conversation.remoteParticipantIdentifiers.count
+        ]
+        DebugLogger.shared.log(
+            location: "MessagesViewController.swift:193",
+            message: "Extension willBecomeActive - Extension installation check",
+            data: extensionInfo,
+            hypothesisId: "A"
+        )
+        // #endregion
+        
         print("📱 willBecomeActive called")
+        print("   Bundle ID: \(bundleID)")
         print("   Conversation local participant: \(conversation.localParticipantIdentifier)")
         print("   Conversation remote participants: \(conversation.remoteParticipantIdentifiers.count)")
         
@@ -322,45 +340,52 @@ class MessagesViewController: MSMessagesAppViewController {
     }
     
     private func presentSimpleVaultSelection(for conversation: MSConversation) {
-        print("📱 presentSimpleVaultSelection called")
+        print("🚀 presentSimpleVaultSelection - Starting Apple Cash-style flow")
+        logInfo("Presenting Apple Cash-style nominee invitation flow")
         
         // Ensure extension stays expanded
         requestPresentationStyle(.expanded)
         
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { 
+            guard let self = self else {
                 print("❌ self is nil in presentSimpleVaultSelection")
-                return 
+                logError("self is nil in presentSimpleVaultSelection")
+                return
             }
             
-            print("📱 Removing old view controllers and subviews...")
+            print("🧹 Removing old views...")
             self.removeAllChildViewControllers()
             self.view.subviews.forEach { $0.removeFromSuperview() }
             
-            print("📱 Creating SimpleVaultSelectionView...")
-            let vaultSelectionView = SimpleVaultSelectionView(
-                onVaultSelected: { [weak self] vault in
-                    guard let self = self else { return }
-                    print("📱 Vault selected: \(vault.name)")
-                    // Ensure extension stays expanded
-                    self.requestPresentationStyle(.expanded)
-                    // Show recipient input screen
-                    self.presentRecipientInputView(for: vault, conversation: conversation)
-                },
+            print("🎨 Creating NomineeInvitationFlowView...")
+            let invitationFlowView = NomineeInvitationFlowView(
+                conversation: conversation,
                 onCancel: { [weak self] in
                     guard let self = self else { return }
-                    print("📱 Vault selection cancelled")
                     self.presentSimpleMenu(conversation: conversation)
+                },
+                onSend: { [weak self] vault, recipientName in
+                    guard let self = self else { return }
+                    // Create and send invitation immediately (Apple Cash style)
+                    Task {
+                        await self.createAndSendNominationImmediate(
+                            vault,
+                            recipientName: recipientName,
+                            conversation: conversation
+                        )
+                    }
                 }
             )
             
+            print("📦 Creating UIHostingController...")
             let hostingController = UIHostingController(
-                rootView: vaultSelectionView.environment(\.unifiedTheme, UnifiedTheme())
+                rootView: invitationFlowView.environment(\.unifiedTheme, UnifiedTheme())
             )
             
             hostingController.view.backgroundColor = .systemBackground
             hostingController.view.translatesAutoresizingMaskIntoConstraints = false
             
+            print("➕ Adding hosting controller to view hierarchy...")
             self.addChild(hostingController)
             self.view.addSubview(hostingController.view)
             
@@ -373,7 +398,59 @@ class MessagesViewController: MSMessagesAppViewController {
             
             hostingController.didMove(toParent: self)
             
-            print("✅ SimpleVaultSelectionView presented successfully")
+            print("✅ Apple Cash-style invitation flow presented successfully!")
+            logSuccess("Apple Cash-style invitation flow presented")
+        }
+    }
+    
+    // Apple Cash style: Send immediately without confirmation
+    private func createAndSendNominationImmediate(
+        _ vault: Vault,
+        recipientName: String,
+        conversation: MSConversation
+    ) async {
+        logInfo("Creating and sending nomination immediately (Apple Cash style)")
+        
+        do {
+            // Create nomination and send message immediately
+            try await sendNominationForVault(
+                vault,
+                recipientName: recipientName,
+                recipientPhone: nil,
+                recipientEmail: nil,
+                in: conversation
+            )
+            
+            // Apple Cash style: Collapse extension immediately after sending
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                // Brief haptic feedback
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+                
+                // Collapse extension (message is already sent)
+                self.requestPresentationStyle(.compact)
+            }
+        } catch {
+            logError("Failed to create nomination", error: error)
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.presentErrorView(
+                    message: "Failed to send invitation: \(error.localizedDescription)",
+                    onRetry: {
+                        Task {
+                            await self.createAndSendNominationImmediate(
+                                vault,
+                                recipientName: recipientName,
+                                conversation: conversation
+                            )
+                        }
+                    },
+                    onCancel: {
+                        self.requestPresentationStyle(.compact)
+                    }
+                )
+            }
         }
     }
     
@@ -761,36 +838,27 @@ class MessagesViewController: MSMessagesAppViewController {
             // CloudKit will sync in background
         }
         
-        // Show success confirmation before sending message
+        // Apple Cash style: Send message immediately (no success screen)
         await MainActor.run {
-            self.presentSuccessView(
-                message: "Nominee invitation created successfully!",
+            print("📤 Sending invitation message immediately (Apple Cash style)...")
+            print("   Conversation active: \(conversation.localParticipantIdentifier)")
+            
+            // Send interactive message immediately
+            self.sendNomineeInvitationMessage(
+                inviteToken: nominee.inviteToken,
                 vaultName: vault.name,
-                onDismiss: {
-                    // Send interactive message after user dismisses success view
-                    print("📤 About to send invitation message...")
-                    print("   Conversation active: \(conversation.localParticipantIdentifier)")
-                    
-                    // #region agent log
-                    self.debugLog("About to send invitation message", hypothesisId: "E", location: "MessagesViewController.swift:551", data: [
-                        "remoteParticipants": conversation.remoteParticipantIdentifiers.count,
-                        "inviteToken": nominee.inviteToken
-                    ])
-                    // #endregion
-                    
-                    self.sendNomineeInvitationMessage(
-                        inviteToken: nominee.inviteToken,
-                        vaultName: vault.name,
-                        senderName: senderName,
-                        in: conversation
-                    )
-                    
-                    // Collapse extension after sending
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.requestPresentationStyle(.compact)
-                    }
-                }
+                senderName: senderName,
+                in: conversation
             )
+            
+            // Brief haptic feedback
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+            
+            // Collapse extension after brief delay (message is sent)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.requestPresentationStyle(.compact)
+            }
         }
     }
     
@@ -992,12 +1060,18 @@ class MessagesViewController: MSMessagesAppViewController {
         
         logDebug("Invitation URL created | URL: \(url.absoluteString)")
         
-        // Create interactive message layout (Apple Cash style with rich preview)
+        // Create interactive message layout (Apple Cash style - card-like appearance)
         let layout = MSMessageTemplateLayout()
-        layout.caption = "🔐 Vault Invitation"
-        layout.subcaption = vaultName
-        layout.trailingCaption = "Tap to Accept"
-        layout.imageTitle = "Khandoba Secure Docs"
+        
+        // Apple Cash style: Large prominent display (like "$1" in Apple Cash)
+        // The caption is the main display - show vault name prominently
+        layout.caption = vaultName  // Main display (like "$1" amount in Apple Cash)
+        layout.subcaption = "Vault Invitation"  // Secondary text (like "Send to Aai")
+        layout.trailingCaption = "Tap to Accept"  // Action hint (like "Double Click to Pay")
+        layout.imageTitle = "Khandoba Secure Docs"  // App name/branding
+        
+        // Optional: Add media image if available (vault icon)
+        // layout.image = vaultIconImage
         
         // Create message with enhanced summary
         let message = MSMessage()
@@ -1250,26 +1324,34 @@ class MessagesViewController: MSMessagesAppViewController {
                                 self?.debugLog("Acceptance message updated successfully", hypothesisId: "E", location: "MessagesViewController.swift:1202", data: [:])
                                 // #endregion
                                 
-                                // Show success
-                                self?.presentSuccessView(
-                                    message: "Invitation accepted! You now have access to '\(vaultName)'.",
-                                    vaultName: vaultName,
-                                    onDismiss: {
-                                        // Open main app with deep link
-                                        if let url = URL(string: "khandoba://nominee/invite?token=\(token ?? "")&vault=\(vaultName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? vaultName)") {
-                                            self?.extensionContext?.open(url) { success in
-                                                if success {
-                                                    print("✅ Opened main app to process invitation")
-                                                } else {
-                                                    // Store token for later processing
-                                                    UserDefaults(suiteName: MessageAppConfig.appGroupIdentifier)?.set(token, forKey: "pending_invite_token")
-                                                    print("📝 Stored invitation token for later processing")
-                                                }
+                                // Apple Cash style: Open main app immediately after acceptance
+                                // Open main app with deep link to complete the flow
+                                if let url = URL(string: "khandoba://nominee/invite?token=\(token ?? "")&vault=\(vaultName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? vaultName)&status=accepted") {
+                                    self?.extensionContext?.open(url) { success in
+                                        if success {
+                                            print("✅ Opened main app to process invitation")
+                                            // Collapse extension after opening app
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                                self?.requestPresentationStyle(.compact)
                                             }
+                                        } else {
+                                            print("⚠️ Failed to open main app, storing token for later")
+                                            // Store token for later processing
+                                            UserDefaults(suiteName: MessageAppConfig.appGroupIdentifier)?.set(token, forKey: "pending_invite_token")
+                                            // Show success view as fallback
+                                            self?.presentSuccessView(
+                                                message: "Invitation accepted! Open the app to access '\(vaultName)'.",
+                                                vaultName: vaultName,
+                                                onDismiss: {
+                                                    self?.requestPresentationStyle(.compact)
+                                                }
+                                            )
                                         }
-                                        self?.requestPresentationStyle(.compact)
                                     }
-                                )
+                                } else {
+                                    // Fallback if URL creation fails
+                                    self?.requestPresentationStyle(.compact)
+                                }
                             }
                         }
                     }
@@ -2647,53 +2729,53 @@ class MessagesViewController: MSMessagesAppViewController {
         var emergencyID: UUID?
         var emergencyContext: ModelContext?
         
-        try await MainActor.run {
-            let context = container.mainContext
-            let allVaults = try context.fetch(FetchDescriptor<Vault>())
-            guard let fetchedVault = allVaults.first(where: { $0.id == vault.id }) else {
-                throw NSError(domain: "MessageApp", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault not found. It may still be syncing."])
+        do {
+            try await MainActor.run {
+                let context = container.mainContext
+                let allVaults = try context.fetch(FetchDescriptor<Vault>())
+                guard let fetchedVault = allVaults.first(where: { $0.id == vault.id }) else {
+                    throw NSError(domain: "MessageApp", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault not found. It may still be syncing."])
+                }
+                
+                // Get current user
+                let userDescriptor = FetchDescriptor<User>()
+                let users = try context.fetch(userDescriptor)
+                let currentUser = users.first
+                guard let currentUserID = currentUser?.id else {
+                    throw NSError(domain: "MessageApp", code: 1, userInfo: [NSLocalizedDescriptionKey: "User not found. Please sign in to the main app first."])
+                }
+                
+                // Create emergency access request
+                let emergencyRequest = EmergencyAccessRequest(
+                    reason: trimmedReason,
+                    urgency: urgency.lowercased(),
+                    status: "pending"
+                )
+                emergencyRequest.vault = fetchedVault
+                emergencyRequest.requesterID = currentUserID
+                
+                context.insert(emergencyRequest)
+                try context.save()
+                
+                logSuccess("Emergency request created | ID: \(emergencyRequest.id.uuidString) | Vault: \(fetchedVault.name) | Urgency: \(urgency)")
+                
+                // Mark for sync
+                iMessageSyncService.shared.markEmergencyCreated(emergencyRequest.id)
+                
+                // Store IDs for sync wait outside MainActor.run
+                emergencyID = emergencyRequest.id
+                let vaultID = fetchedVault.id
+                emergencyContext = context
+                
+                // Send notification to main app (via UserDefaults)
+                let appGroupIdentifier = MessageAppConfig.appGroupIdentifier
+                if let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier) {
+                    sharedDefaults.set(emergencyID!.uuidString, forKey: "pending_emergency_request_id")
+                    sharedDefaults.set(vaultID.uuidString, forKey: "pending_emergency_vault_id")
+                }
+                
+                logInfo("Emergency request saved and marked for sync | Main app will be notified")
             }
-            
-            // Get current user
-            let userDescriptor = FetchDescriptor<User>()
-            let users = try context.fetch(userDescriptor)
-            let currentUser = users.first
-            guard let currentUserID = currentUser?.id else {
-                throw NSError(domain: "MessageApp", code: 1, userInfo: [NSLocalizedDescriptionKey: "User not found. Please sign in to the main app first."])
-            }
-            
-            // Create emergency access request
-            let emergencyRequest = EmergencyAccessRequest(
-                reason: trimmedReason,
-                urgency: urgency.lowercased(),
-                status: "pending"
-            )
-            emergencyRequest.vault = fetchedVault
-            emergencyRequest.requesterID = currentUserID
-            
-            context.insert(emergencyRequest)
-            try context.save()
-            
-            print("✅ Emergency request created: \(emergencyRequest.id)")
-            print("   Vault: \(fetchedVault.name)")
-            print("   Urgency: \(urgency)")
-            
-            // Mark for sync
-            iMessageSyncService.shared.markEmergencyCreated(emergencyRequest.id)
-            
-            // Store IDs for sync wait outside MainActor.run
-            emergencyID = emergencyRequest.id
-            let vaultID = fetchedVault.id
-            emergencyContext = context
-            
-            // Send notification to main app (via UserDefaults)
-            let appGroupIdentifier = MessageAppConfig.appGroupIdentifier
-            if let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier) {
-                sharedDefaults.set(emergencyID!.uuidString, forKey: "pending_emergency_request_id")
-                sharedDefaults.set(vaultID.uuidString, forKey: "pending_emergency_vault_id")
-            }
-            
-            logInfo("Emergency request saved and marked for sync | Main app will be notified")
         } catch {
             logError("Failed to create emergency request", error: error)
             throw error

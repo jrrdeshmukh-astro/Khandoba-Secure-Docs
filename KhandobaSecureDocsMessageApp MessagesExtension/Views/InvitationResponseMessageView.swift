@@ -25,127 +25,113 @@ struct InvitationResponseMessageView: View {
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         
-        NavigationStack {
-            ZStack {
-                colors.background.ignoresSafeArea()
+        // Apple Cash style layout
+        VStack(spacing: 0) {
+            // Header (Apple Cash style)
+            HStack {
+                Button(action: {}) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(colors.textPrimary)
+                        .frame(width: 32, height: 32)
+                }
                 
-                ScrollView {
-                    VStack(spacing: UnifiedTheme.Spacing.xl) {
-                        // Header
-                        VStack(spacing: UnifiedTheme.Spacing.md) {
-                            Image(systemName: "lock.shield.fill")
-                                .font(.system(size: 60))
-                                .foregroundColor(colors.primary)
+                Spacer()
+                
+                Text("Khandoba Secure Docs")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(colors.textPrimary)
+                
+                Spacer()
+                
+                // Placeholder for symmetry
+                Color.clear
+                    .frame(width: 32, height: 32)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(colors.surface)
+            
+            Divider()
+            
+            // Main content - Apple Cash style
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Large vault name display (like "$1" in Apple Cash)
+                    VStack(spacing: 12) {
+                        Text(vaultName)
+                            .font(.system(size: 64, weight: .bold))
+                            .foregroundColor(colors.textPrimary)
+                        
+                        Text("Vault Invitation")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundColor(colors.textSecondary)
+                    }
+                    .padding(.top, 40)
+                    
+                    // Sender info (like "Send to Aai" in Apple Cash)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("From")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(colors.textSecondary)
+                        
+                        Text(sender)
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(colors.textPrimary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    
+                    // Status display (if not pending)
+                    if status != "pending" {
+                        VStack(spacing: 8) {
+                            Image(systemName: status == "accepted" ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(status == "accepted" ? colors.success : colors.error)
                             
-                            Text("Vault Invitation")
-                                .font(theme.typography.title)
+                            Text(status == "accepted" 
+                                 ? "Invitation Accepted"
+                                 : "Invitation Declined")
+                                .font(.system(size: 17, weight: .semibold))
                                 .foregroundColor(colors.textPrimary)
+                        }
+                        .padding(.vertical, 20)
+                    }
+                    
+                    // Action buttons (Apple Cash style - Accept/Decline)
+                    if status == "pending" {
+                        VStack(spacing: 12) {
+                            Button(action: onAccept) {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 24))
+                                    Text("Accept")
+                                        .font(.system(size: 17, weight: .semibold))
+                                }
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(colors.primary)
+                                .cornerRadius(14)
+                            }
                             
-                            if status == "pending" {
-                                Text("You've been invited to access a vault")
-                                    .font(theme.typography.body)
-                                    .foregroundColor(colors.textSecondary)
-                                    .multilineTextAlignment(.center)
-                            } else if status == "accepted" {
-                                Text("✅ You've accepted this invitation")
-                                    .font(theme.typography.body)
-                                    .foregroundColor(colors.success)
-                                    .multilineTextAlignment(.center)
-                            } else if status == "declined" {
-                                Text("❌ You've declined this invitation")
-                                    .font(theme.typography.body)
-                                    .foregroundColor(colors.error)
-                                    .multilineTextAlignment(.center)
-                            }
-                        }
-                        .padding(.top, UnifiedTheme.Spacing.xl)
-                        
-                        // Invitation Details Card
-                        StandardCard {
-                            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
-                                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                                    Text("Vault Name")
-                                        .font(theme.typography.caption)
-                                        .foregroundColor(colors.textSecondary)
-                                    
-                                    Text(vaultName)
-                                        .font(theme.typography.headline)
-                                        .foregroundColor(colors.textPrimary)
-                                }
-                                
-                                Divider()
-                                
-                                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                                    Text("Invited By")
-                                        .font(theme.typography.caption)
-                                        .foregroundColor(colors.textSecondary)
-                                    
-                                    Text(sender)
-                                        .font(theme.typography.body)
-                                        .foregroundColor(colors.textPrimary)
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        // Action Buttons (only show if pending)
-                        if status == "pending" {
-                            VStack(spacing: UnifiedTheme.Spacing.md) {
-                                // Accept Button
-                                Button {
-                                    onAccept()
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "checkmark.circle.fill")
-                                        Text("Accept Invitation")
-                                    }
-                                    .font(theme.typography.headline)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(colors.success)
-                                    .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                                }
-                                
-                                // Decline Button
-                                Button {
-                                    onDecline()
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "xmark.circle.fill")
-                                        Text("Decline")
-                                    }
-                                    .font(theme.typography.subheadline)
+                            Button(action: onDecline) {
+                                Text("Decline")
+                                    .font(.system(size: 17, weight: .medium))
                                     .foregroundColor(colors.textPrimary)
                                     .frame(maxWidth: .infinity)
-                                    .padding()
+                                    .frame(height: 44)
                                     .background(colors.surface)
-                                    .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                                }
+                                    .cornerRadius(14)
                             }
-                            .padding(.horizontal)
-                        } else {
-                            // Status Message
-                            StandardCard {
-                                HStack {
-                                    Image(systemName: status == "accepted" ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                        .foregroundColor(status == "accepted" ? colors.success : colors.error)
-                                    
-                                    Text(status == "accepted" 
-                                         ? "Invitation accepted. Open the app to access the vault."
-                                         : "Invitation declined.")
-                                        .font(theme.typography.body)
-                                        .foregroundColor(colors.textPrimary)
-                                }
-                            }
-                            .padding(.horizontal)
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
                     }
-                    .padding(.vertical)
                 }
             }
-            .navigationTitle("Vault Invitation")
-            .navigationBarTitleDisplayMode(.inline)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(colors.background)
     }
 }
