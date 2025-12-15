@@ -510,23 +510,6 @@ struct VaultDetailView: View {
     
     // MARK: - Existing Actions
     
-    private func openMessagesForNomination() async {
-        #if !APP_EXTENSION
-        let success = await MessagesRedirectService.shared.openMessagesAppForNomination(vaultID: vault.id)
-        if !success {
-            await MainActor.run {
-                errorMessage = "Unable to open Messages app. Please make sure Messages is installed and try again."
-                showError = true
-            }
-        }
-        #else
-        await MainActor.run {
-            errorMessage = "Inviting via Messages isn’t available in this extension."
-            showError = true
-        }
-        #endif
-    }
-    
     private func openVault() {
         guard isBiometricallyUnlocked else {
             // Soft guidance: require Face ID first

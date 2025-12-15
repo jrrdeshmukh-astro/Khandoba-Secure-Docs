@@ -169,3 +169,4 @@ struct VaultCardView: View {
         }
     }
 }
+

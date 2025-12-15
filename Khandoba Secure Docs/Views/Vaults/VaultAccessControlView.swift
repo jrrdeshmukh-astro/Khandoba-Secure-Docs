@@ -269,13 +269,13 @@ struct AccessUserRow: View {
             if canRevoke && status != "Inactive" {
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        onRevoke()
+                    onRevoke()
                     }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 14, weight: .semibold))
-                        Text("Revoke")
+                    Text("Revoke")
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                     }
                     .foregroundColor(.white)

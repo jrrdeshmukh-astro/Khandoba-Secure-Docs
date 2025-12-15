@@ -119,7 +119,7 @@ struct UnifiedNomineeManagementView: View {
                                         .font(.system(size: 18, weight: .semibold, design: .rounded))
                                         .foregroundColor(colors.textPrimary)
                                     
-                                    Text("Invite via iMessage")
+                                    Text("Invite to vault")
                                         .font(.system(size: 14, weight: .medium, design: .rounded))
                                         .foregroundColor(colors.textSecondary)
                                 }
@@ -175,7 +175,7 @@ struct UnifiedNomineeManagementView: View {
                                     .font(theme.typography.headline)
                                     .foregroundColor(colors.textPrimary)
                                 
-                                Text("Add nominees to grant vault access")
+                                Text("Tap 'Add Nominee' to invite someone")
                                     .font(theme.typography.subheadline)
                                     .foregroundColor(colors.textSecondary)
                             }
@@ -251,101 +251,13 @@ struct UnifiedNomineeManagementView: View {
             }
         }
         .sheet(isPresented: $showAddNominee) {
-            // Show info about using iMessage app instead of old flow
-            NavigationStack {
-                ZStack {
-                    colors.background.ignoresSafeArea()
-                    
-                    ScrollView {
-                        VStack(spacing: UnifiedTheme.Spacing.xl) {
-                            // Header
-                            VStack(spacing: UnifiedTheme.Spacing.md) {
-                                Image(systemName: "message.fill")
-                                    .font(.system(size: 60))
-                                    .foregroundColor(colors.primary)
-                                
-                                Text("Invite via iMessage")
-                                    .font(theme.typography.title)
-                                    .foregroundColor(colors.textPrimary)
-                            }
-                            .padding(.top, UnifiedTheme.Spacing.xl)
-                            
-                            // Instructions
-                            StandardCard {
-                                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
-                                    Text("How to Invite Nominees")
-                                        .font(theme.typography.headline)
-                                        .foregroundColor(colors.textPrimary)
-                                    
-                                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                                        InstructionStep(
-                                            number: "1",
-                                            text: "Open the Messages app",
-                                            colors: colors,
-                                            theme: theme
-                                        )
-                                        
-                                        InstructionStep(
-                                            number: "2",
-                                            text: "Start or open a conversation",
-                                            colors: colors,
-                                            theme: theme
-                                        )
-                                        
-                                        InstructionStep(
-                                            number: "3",
-                                            text: "Tap the App Store icon (📱) at the bottom",
-                                            colors: colors,
-                                            theme: theme
-                                        )
-                                        
-                                        InstructionStep(
-                                            number: "4",
-                                            text: "Select 'Khandoba' → 'Invite to Vault'",
-                                            colors: colors,
-                                            theme: theme
-                                        )
-                                        
-                                        InstructionStep(
-                                            number: "5",
-                                            text: "Select vault and enter recipient name",
-                                            colors: colors,
-                                            theme: theme
-                                        )
-                                    }
-                                }
-                                .padding()
-                            }
-                            .padding(.horizontal)
-                            
-                            // Note
-                            StandardCard {
-                                HStack(alignment: .top, spacing: UnifiedTheme.Spacing.sm) {
-                                    Image(systemName: "info.circle.fill")
-                                        .foregroundColor(colors.info)
-                                    
-                                    Text("All nominee invitations are now handled through the iMessage app for a seamless, secure experience.")
-                                        .font(theme.typography.caption)
-                                        .foregroundColor(colors.textSecondary)
-                                }
-                                .padding()
-                            }
-                            .padding(.horizontal)
-                        }
-                        .padding(.vertical)
+            NomineeInvitationView(vault: vault)
+                .onDisappear {
+                    // Reload nominees when sheet dismisses
+                    Task {
+                        try? await nomineeService.loadNominees(for: vault)
                     }
                 }
-                .navigationTitle("Invite Nominee")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") {
-                            showAddNominee = false
-                        }
-                        .foregroundColor(colors.primary)
-                    }
-                }
-            }
         }
         .sheet(isPresented: $showCloudKitSharing) {
             if let share = cloudKitShare {
@@ -356,11 +268,6 @@ struct UnifiedNomineeManagementView: View {
                     isPresented: $showCloudKitSharing
                 )
             }
-        }
-        .alert("Messages App Error", isPresented: $showMessagesError) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(messagesErrorMessage)
         }
         .task {
             // Configure services
@@ -390,30 +297,6 @@ struct UnifiedNomineeManagementView: View {
     
     private func removeNominee(_ nominee: Nominee) async {
         try? await nomineeService.removeNominee(nominee)
-    }
-    
-    @State private var showMessagesError = false
-    @State private var messagesErrorMessage = ""
-    
-    private func openMessagesForNomination() async {
-        #if !APP_EXTENSION
-        // Open Messages app with vault context
-        let success = await MessagesRedirectService.shared.openMessagesAppForNomination(vaultID: vault.id)
-        
-        if !success {
-            // Show error alert if Messages app couldn't be opened
-            await MainActor.run {
-                messagesErrorMessage = "Unable to open Messages app. Please make sure Messages is installed and try again."
-                showMessagesError = true
-            }
-        }
-        #else
-        // Not available in extensions
-        await MainActor.run {
-            messagesErrorMessage = "This feature is not available in extensions."
-            showMessagesError = true
-        }
-        #endif
     }
     
     private func presentCloudKitSharing() async {

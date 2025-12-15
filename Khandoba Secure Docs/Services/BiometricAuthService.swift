@@ -2,7 +2,7 @@
 //  BiometricAuthService.swift
 //  Khandoba Secure Docs
 //
-//  Face ID/Touch ID authentication service for iMessage extension
+//  Face ID/Touch ID authentication service
 //
 
 import Foundation
@@ -113,3 +113,4 @@ enum BiometricAuthError: LocalizedError {
         }
     }
 }
+

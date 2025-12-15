@@ -7,25 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		24807B7E2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 24807B7D2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		24807B812EEB52F1008E3E1E /* Messages.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 245C33862EE4B1D500270A37 /* Messages.framework */; };
-		24ADEBF42EEDB82000C1A9B5 /* KhandobaSecureDocsMessageApp MessagesExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 24807B7D2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		24807B7F2EEB52F1008E3E1E /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 24FB386A2EDF354B00BA1227 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 24807B7C2EEB52F1008E3E1E;
-			remoteInfo = "KhandobaSecureDocsMessageApp MessagesExtension";
+
 		};
-		24ADEBF52EEDB88700C1A9B5 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 24FB386A2EDF354B00BA1227 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 24807B7C2EEB52F1008E3E1E;
-			remoteInfo = "KhandobaSecureDocsMessageApp MessagesExtension";
+
 		};
 		24FB38842EDF354C00BA1227 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -44,54 +32,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		24807B8F2EEB52F2008E3E1E /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				24807B7E2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		24A78EB02EE4988400B2F32E /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 12;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				24ADEBF42EEDB82000C1A9B5 /* KhandobaSecureDocsMessageApp MessagesExtension.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		245C33862EE4B1D500270A37 /* Messages.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Messages.framework; path = System/Library/Frameworks/Messages.framework; sourceTree = SDKROOT; };
-		24807B752EEB52EF008E3E1E /* KhandobaSecureDocsMessageApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KhandobaSecureDocsMessageApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		24807B7D2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "KhandobaSecureDocsMessageApp MessagesExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+
 		24FB38722EDF354B00BA1227 /* Khandoba Secure Docs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Khandoba Secure Docs.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		24FB38832EDF354C00BA1227 /* Khandoba Secure DocsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Khandoba Secure DocsTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		24FB388D2EDF354C00BA1227 /* Khandoba Secure DocsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Khandoba Secure DocsUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		24807B8B2EEB52F2008E3E1E /* Exceptions for "KhandobaSecureDocsMessageApp MessagesExtension" folder in "KhandobaSecureDocsMessageApp MessagesExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */;
-		};
-		24807B8C2EEB52F2008E3E1F /* Exceptions for "KhandobaSecureDocsMessageApp" folder in "KhandobaSecureDocsMessageApp" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 24807B742EEB52EF008E3E1E /* KhandobaSecureDocsMessageApp */;
-		};
 		24FB38952EDF354C00BA1227 /* Exceptions for "Khandoba Secure Docs" folder in "Khandoba Secure Docs" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -99,451 +50,21 @@
 			);
 			target = 24FB38712EDF354B00BA1227 /* Khandoba Secure Docs */;
 		};
-		OWRZA7VISHT0FFJ857KLAZAO /* Exceptions for "Khandoba Secure Docs" folder in "KhandobaSecureDocsMessageApp MessagesExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Config/AppConfig.swift,
-				ContentView.swift,
-				Info.plist,
-				Khandoba_Secure_DocsApp.swift,
-				Services/AuthenticationService.swift,
-				Services/AutomaticTriageService.swift,
-				Services/CloudKitAPIService.swift,
-				Services/ContactDiscoveryService.swift,
-				Services/DualKeyApprovalService.swift,
-				Services/MessageInvitationService.swift,
-				Services/PushNotificationService.swift,
-				Services/SecurityReviewScheduler.swift,
-				Services/SharedVaultSessionService.swift,
-				Services/ThreatMonitoringService.swift,
-				Services/ThreatRemediationAIService.swift,
-				Services/VaultService.swift,
-				Theme/AnimationStyles.swift,
-				Utils/ContactPickerView.swift,
-				Views/Authentication/AccountSetupView.swift,
-				Views/Authentication/PermissionsSetupView.swift,
-				Views/Authentication/WelcomeView.swift,
-				Views/Chat/ChatView.swift,
-				Views/Client/ClientDashboardView.swift,
-				Views/Client/ClientMainView.swift,
-				Views/Client/DualKeyRequestStatusView.swift,
-				Views/Components/SecurityActionRow.swift,
-				Views/Documents/BulkOperationsView.swift,
-				Views/Documents/DocumentFilterView.swift,
-				Views/Documents/DocumentPreviewView.swift,
-				Views/Documents/DocumentSearchView.swift,
-				Views/Documents/DocumentUploadView.swift,
-				Views/Documents/DocumentVersionHistoryView.swift,
-				Views/Documents/RedactionView.swift,
-				Views/Documents/URLDownloadView.swift,
-				Views/Emergency/EmergencyAccessView.swift,
-				Views/Intelligence/AudioIntelReportView.swift,
-				Views/Intelligence/IntelChatView.swift,
-				Views/Intelligence/MarkdownTextView.swift,
-				Views/Intelligence/ReasoningGraphView.swift,
-				Views/Intelligence/TextIntelReportView.swift,
-				Views/Intelligence/VoiceMemoPlayerView.swift,
-				Views/Legal/AboutView.swift,
-				Views/Legal/HelpSupportView.swift,
-				Views/Legal/PrivacyPolicyView.swift,
-				Views/Legal/TermsOfServiceView.swift,
-				Views/Media/VideoRecordingView.swift,
-				Views/Media/VoiceRecordingView.swift,
-				Views/Onboarding/ClientOnboardingView.swift,
-				Views/Profile/AccountDeletionView.swift,
-				Views/Profile/ProfileView.swift,
-				Views/Security/AccessMapView.swift,
-				Views/Security/EnhancedThreatMonitorView.swift,
-				Views/Security/GuidedRemediationWizard.swift,
-				Views/Security/ThreatDashboardView.swift,
-				Views/Security/TriageView.swift,
-				Views/Settings/NotificationSettingsView.swift,
-				Views/Sharing/AcceptNomineeInvitationView.swift,
-				Views/Sharing/AcceptTransferView.swift,
-				Views/Sharing/AddNomineeView.swift,
-				Views/Sharing/CloudKitShareSuccessView.swift,
-				Views/Sharing/CloudKitSharingController.swift,
-				Views/Sharing/ManualInviteTokenView.swift,
-				Views/Sharing/NomineeManagementView.swift,
-				Views/Sharing/SecureNomineeChatView.swift,
-				Views/Sharing/TransferOwnershipView.swift,
-				Views/Sharing/UnifiedAddNomineeView.swift,
-				Views/Sharing/UnifiedNomineeManagementView.swift,
-				Views/Sharing/UnifiedShareView.swift,
-				Views/Sharing/VaultRequestsListView.swift,
-				Views/Sharing/VaultRequestView.swift,
-				Views/Sharing/VaultTransferView.swift,
-				Views/Store/StoreView.swift,
-				Views/Subscription/SubscriptionRequiredView.swift,
-				Views/Support/SupportChatView.swift,
-				Views/Vaults/CreateVaultView.swift,
-				Views/Vaults/LocalAuthService.swift,
-				Views/Vaults/SessionTimerView.swift,
-				Views/Vaults/VaultAccessControlView.swift,
-				Views/Vaults/VaultDetailView.swift,
-				Views/Vaults/VaultListView.swift,
-				Views/Vaults/WalletCard.swift,
-			);
-			target = 24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */;
-		};
+
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		24807B762EEB52EF008E3E1E /* KhandobaSecureDocsMessageApp */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				24807B8C2EEB52F2008E3E1F /* Exceptions for "KhandobaSecureDocsMessageApp" folder in "KhandobaSecureDocsMessageApp" target */,
-			);
-			path = KhandobaSecureDocsMessageApp;
-			sourceTree = "<group>";
-		};
-		24807B822EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				24807B8B2EEB52F2008E3E1E /* Exceptions for "KhandobaSecureDocsMessageApp MessagesExtension" folder in "KhandobaSecureDocsMessageApp MessagesExtension" target */,
-			);
-			path = "KhandobaSecureDocsMessageApp MessagesExtension";
-			sourceTree = "<group>";
-		};
 		24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				24FB38952EDF354C00BA1227 /* Exceptions for "Khandoba Secure Docs" folder in "Khandoba Secure Docs" target */,
-				OWRZA7VISHT0FFJ857KLAZAO /* Exceptions for "Khandoba Secure Docs" folder in "KhandobaSecureDocsMessageApp MessagesExtension" target */,
 			);
 			path = "Khandoba Secure Docs";
 			sourceTree = "<group>";
 		};
-		24FB38862EDF354C00BA1227 /* Khandoba Secure DocsTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Khandoba Secure DocsTests";
-			sourceTree = "<group>";
-		};
-		24FB38902EDF354C00BA1227 /* Khandoba Secure DocsUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Khandoba Secure DocsUITests";
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
-/* Begin PBXFrameworksBuildPhase section */
-		24807B7A2EEB52F1008E3E1E /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				24807B812EEB52F1008E3E1E /* Messages.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		24FB386F2EDF354B00BA1227 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		24FB38802EDF354C00BA1227 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		24FB388A2EDF354C00BA1227 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
-
-/* Begin PBXGroup section */
-		245C33852EE4B1D500270A37 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				245C33862EE4B1D500270A37 /* Messages.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		24FB38692EDF354B00BA1227 = {
-			isa = PBXGroup;
-			children = (
-				24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */,
-				24FB38862EDF354C00BA1227 /* Khandoba Secure DocsTests */,
-				24FB38902EDF354C00BA1227 /* Khandoba Secure DocsUITests */,
-				24807B762EEB52EF008E3E1E /* KhandobaSecureDocsMessageApp */,
-				24807B822EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */,
-				245C33852EE4B1D500270A37 /* Frameworks */,
-				24FB38732EDF354B00BA1227 /* Products */,
-			);
-			sourceTree = "<group>";
-		};
-		24FB38732EDF354B00BA1227 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				24FB38722EDF354B00BA1227 /* Khandoba Secure Docs.app */,
-				24FB38832EDF354C00BA1227 /* Khandoba Secure DocsTests.xctest */,
-				24FB388D2EDF354C00BA1227 /* Khandoba Secure DocsUITests.xctest */,
-				24807B752EEB52EF008E3E1E /* KhandobaSecureDocsMessageApp.app */,
-				24807B7D2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension.appex */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-/* End PBXGroup section */
-
-/* Begin PBXNativeTarget section */
-		24807B742EEB52EF008E3E1E /* KhandobaSecureDocsMessageApp */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 24807B902EEB52F2008E3E1E /* Build configuration list for PBXNativeTarget "KhandobaSecureDocsMessageApp" */;
-			buildPhases = (
-				24807B732EEB52EF008E3E1E /* Resources */,
-				24807B8F2EEB52F2008E3E1E /* Embed Foundation Extensions */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				24807B802EEB52F1008E3E1E /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				24807B762EEB52EF008E3E1E /* KhandobaSecureDocsMessageApp */,
-			);
-			name = KhandobaSecureDocsMessageApp;
-			packageProductDependencies = (
-			);
-			productName = KhandobaSecureDocsMessageApp;
-			productReference = 24807B752EEB52EF008E3E1E /* KhandobaSecureDocsMessageApp.app */;
-			productType = "com.apple.product-type.application.messages";
-		};
-		24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 24807B8C2EEB52F2008E3E1E /* Build configuration list for PBXNativeTarget "KhandobaSecureDocsMessageApp MessagesExtension" */;
-			buildPhases = (
-				24807B792EEB52F1008E3E1E /* Sources */,
-				24807B7A2EEB52F1008E3E1E /* Frameworks */,
-				24807B7B2EEB52F1008E3E1E /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				24807B822EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */,
-				24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */,
-			);
-			name = "KhandobaSecureDocsMessageApp MessagesExtension";
-			packageProductDependencies = (
-			);
-			productName = "KhandobaSecureDocsMessageApp MessagesExtension";
-			productReference = 24807B7D2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension.appex */;
-			productType = "com.apple.product-type.app-extension.messages";
-		};
-		24FB38712EDF354B00BA1227 /* Khandoba Secure Docs */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 24FB38962EDF354C00BA1227 /* Build configuration list for PBXNativeTarget "Khandoba Secure Docs" */;
-			buildPhases = (
-				24FB386E2EDF354B00BA1227 /* Sources */,
-				24FB386F2EDF354B00BA1227 /* Frameworks */,
-				24FB38702EDF354B00BA1227 /* Resources */,
-				24A78EB02EE4988400B2F32E /* Embed Foundation Extensions */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				24ADEBF62EEDB88700C1A9B5 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */,
-			);
-			name = "Khandoba Secure Docs";
-			packageProductDependencies = (
-			);
-			productName = "Khandoba Secure Docs";
-			productReference = 24FB38722EDF354B00BA1227 /* Khandoba Secure Docs.app */;
-			productType = "com.apple.product-type.application";
-		};
-		24FB38822EDF354C00BA1227 /* Khandoba Secure DocsTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 24FB389B2EDF354C00BA1227 /* Build configuration list for PBXNativeTarget "Khandoba Secure DocsTests" */;
-			buildPhases = (
-				24FB387F2EDF354C00BA1227 /* Sources */,
-				24FB38802EDF354C00BA1227 /* Frameworks */,
-				24FB38812EDF354C00BA1227 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				24FB38852EDF354C00BA1227 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				24FB38862EDF354C00BA1227 /* Khandoba Secure DocsTests */,
-			);
-			name = "Khandoba Secure DocsTests";
-			packageProductDependencies = (
-			);
-			productName = "Khandoba Secure DocsTests";
-			productReference = 24FB38832EDF354C00BA1227 /* Khandoba Secure DocsTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		24FB388C2EDF354C00BA1227 /* Khandoba Secure DocsUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 24FB389E2EDF354C00BA1227 /* Build configuration list for PBXNativeTarget "Khandoba Secure DocsUITests" */;
-			buildPhases = (
-				24FB38892EDF354C00BA1227 /* Sources */,
-				24FB388A2EDF354C00BA1227 /* Frameworks */,
-				24FB388B2EDF354C00BA1227 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				24FB388F2EDF354C00BA1227 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				24FB38902EDF354C00BA1227 /* Khandoba Secure DocsUITests */,
-			);
-			name = "Khandoba Secure DocsUITests";
-			packageProductDependencies = (
-			);
-			productName = "Khandoba Secure DocsUITests";
-			productReference = 24FB388D2EDF354C00BA1227 /* Khandoba Secure DocsUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
-/* End PBXNativeTarget section */
-
-/* Begin PBXProject section */
-		24FB386A2EDF354B00BA1227 /* Project object */ = {
-			isa = PBXProject;
-			attributes = {
-				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2610;
-				LastUpgradeCheck = 2610;
-				TargetAttributes = {
-					24807B742EEB52EF008E3E1E = {
-						CreatedOnToolsVersion = 26.1.1;
-					};
-					24807B7C2EEB52F1008E3E1E = {
-						CreatedOnToolsVersion = 26.1.1;
-					};
-					24FB38712EDF354B00BA1227 = {
-						CreatedOnToolsVersion = 26.1.1;
-					};
-					24FB38822EDF354C00BA1227 = {
-						CreatedOnToolsVersion = 26.1.1;
-						TestTargetID = 24FB38712EDF354B00BA1227;
-					};
-					24FB388C2EDF354C00BA1227 = {
-						CreatedOnToolsVersion = 26.1.1;
-						TestTargetID = 24FB38712EDF354B00BA1227;
-					};
-				};
-			};
-			buildConfigurationList = 24FB386D2EDF354B00BA1227 /* Build configuration list for PBXProject "Khandoba Secure Docs" */;
-			developmentRegion = en;
-			hasScannedForEncodings = 0;
-			knownRegions = (
-				en,
-				Base,
-			);
-			mainGroup = 24FB38692EDF354B00BA1227;
-			minimizedProjectReferenceProxies = 1;
-			packageReferences = (
-			);
-			preferredProjectObjectVersion = 77;
-			productRefGroup = 24FB38732EDF354B00BA1227 /* Products */;
-			projectDirPath = "";
-			projectRoot = "";
-			targets = (
-				24FB38712EDF354B00BA1227 /* Khandoba Secure Docs */,
-				24FB38822EDF354C00BA1227 /* Khandoba Secure DocsTests */,
-				24FB388C2EDF354C00BA1227 /* Khandoba Secure DocsUITests */,
-				24807B742EEB52EF008E3E1E /* KhandobaSecureDocsMessageApp */,
-				24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */,
-			);
-		};
-/* End PBXProject section */
-
-/* Begin PBXResourcesBuildPhase section */
-		24807B732EEB52EF008E3E1E /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		24807B7B2EEB52F1008E3E1E /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		24FB38702EDF354B00BA1227 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		24FB38812EDF354C00BA1227 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		24FB388B2EDF354C00BA1227 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXResourcesBuildPhase section */
-
-/* Begin PBXSourcesBuildPhase section */
-		24807B792EEB52F1008E3E1E /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		24FB386E2EDF354B00BA1227 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		24FB387F2EDF354C00BA1227 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		24FB38892EDF354C00BA1227 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXSourcesBuildPhase section */
-
 /* Begin PBXTargetDependency section */
-		24807B802EEB52F1008E3E1E /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */;
-			targetProxy = 24807B7F2EEB52F1008E3E1E /* PBXContainerItemProxy */;
-		};
-		24ADEBF62EEDB88700C1A9B5 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 24807B7C2EEB52F1008E3E1E /* KhandobaSecureDocsMessageApp MessagesExtension */;
-			targetProxy = 24ADEBF52EEDB88700C1A9B5 /* PBXContainerItemProxy */;
-		};
 		24FB38852EDF354C00BA1227 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 24FB38712EDF354B00BA1227 /* Khandoba Secure Docs */;
@@ -557,114 +78,6 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		24807B8D2EEB52F2008E3E1E /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
-				CODE_SIGN_ENTITLEMENTS = "KhandobaSecureDocsMessageApp MessagesExtension/KhandobaSecureDocsMessageApp MessagesExtension.entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Q5Y8754WU4;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "KhandobaSecureDocsMessageApp MessagesExtension/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = Khandoba;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.khandoba.securedocs.KhandobaSecureDocsMessageApp.MessagesExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		24807B8E2EEB52F2008E3E1E /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
-				CODE_SIGN_ENTITLEMENTS = "KhandobaSecureDocsMessageApp MessagesExtension/KhandobaSecureDocsMessageApp MessagesExtension.entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Q5Y8754WU4;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "KhandobaSecureDocsMessageApp MessagesExtension/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = Khandoba;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.khandoba.securedocs.KhandobaSecureDocsMessageApp.MessagesExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		24807B912EEB52F2008E3E1E /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Q5Y8754WU4;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = KhandobaSecureDocsMessageApp/Info.plist;
-				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.khandoba.securedocs.KhandobaSecureDocsMessageApp;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		24807B922EEB52F2008E3E1E /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Q5Y8754WU4;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = KhandobaSecureDocsMessageApp/Info.plist;
-				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.khandoba.securedocs.KhandobaSecureDocsMessageApp;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 		24FB38972EDF354C00BA1227 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -963,24 +376,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		24807B8C2EEB52F2008E3E1E /* Build configuration list for PBXNativeTarget "KhandobaSecureDocsMessageApp MessagesExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				24807B8D2EEB52F2008E3E1E /* Debug */,
-				24807B8E2EEB52F2008E3E1E /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		24807B902EEB52F2008E3E1E /* Build configuration list for PBXNativeTarget "KhandobaSecureDocsMessageApp" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				24807B912EEB52F2008E3E1E /* Debug */,
-				24807B922EEB52F2008E3E1E /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		24FB386D2EDF354B00BA1227 /* Build configuration list for PBXProject "Khandoba Secure Docs" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
