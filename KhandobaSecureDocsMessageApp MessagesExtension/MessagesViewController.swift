@@ -356,7 +356,7 @@ class MessagesViewController: MSMessagesAppViewController {
                 let context = container.mainContext
                 
                 // Use existing transfer creation logic
-                await createAndSendTransferRequest(
+                try await createAndSendTransferRequest(
                     for: vault,
                     context: context,
                     recipientName: recipientName,
