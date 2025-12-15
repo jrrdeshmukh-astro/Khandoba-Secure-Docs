@@ -16,7 +16,6 @@ struct ClientMainView: View {
     @StateObject private var vaultService = VaultService()
     @StateObject private var documentService = DocumentService()
     @StateObject private var chatService = ChatService()
-    @StateObject private var shareExtensionService = ShareExtensionService()
     
     @State private var selectedTab = 0
     @AppStorage("hasCompletedClientOnboarding") private var hasCompletedOnboarding = false
@@ -101,24 +100,6 @@ struct ClientMainView: View {
         vaultService.configure(modelContext: modelContext, userID: userID)
         documentService.configure(modelContext: modelContext, userID: userID)
         chatService.configure(modelContext: modelContext, userID: userID)
-        shareExtensionService.configure(modelContext: modelContext, userID: userID)
-        
-        // Sync vaults to share extension and process pending uploads
-        Task {
-            await syncVaultsToExtension()
-            await shareExtensionService.processPendingUploads()
-        }
-    }
-    
-    private func syncVaultsToExtension() async {
-        do {
-            try await vaultService.loadVaults()
-            // Filter out system vaults
-            let userVaults = vaultService.vaults.filter { !$0.isSystemVault }
-            shareExtensionService.syncVaultsToExtension(vaults: userVaults)
-        } catch {
-            print(" Failed to sync vaults to extension: \(error.localizedDescription)")
-        }
     }
 }
 
