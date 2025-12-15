@@ -23,7 +23,7 @@ struct NomineeInvitationView: View {
     
     @StateObject private var nomineeService = NomineeService()
     @StateObject private var cloudKitSharing = CloudKitSharingService()
-    @StateObject private var biometricAuth = BiometricAuthService.shared
+    private let biometricAuth = BiometricAuthService.shared
     
     @State private var selectedContact: CNContact?
     @State private var selectedVault: Vault?
