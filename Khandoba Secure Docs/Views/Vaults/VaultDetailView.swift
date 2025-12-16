@@ -237,7 +237,7 @@ struct VaultDetailView: View {
                                         SecurityActionRow(
                                             icon: "video.fill",
                                             title: "Record Video",
-                                            subtitle: "Premium",
+                                            subtitle: "",
                                             color: colors.error
                                         )
                                     }
@@ -250,7 +250,7 @@ struct VaultDetailView: View {
                                         SecurityActionRow(
                                             icon: "waveform",
                                             title: "Voice Memo",
-                                            subtitle: "Premium",
+                                            subtitle: "",
                                             color: colors.secondary
                                         )
                                     }

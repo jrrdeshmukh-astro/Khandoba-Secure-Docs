@@ -34,9 +34,11 @@ struct SecurityActionRow: View {
                     .font(theme.typography.subheadline)
                     .foregroundColor(colors.textPrimary)
                 
-                Text(subtitle)
-                    .font(theme.typography.caption)
-                    .foregroundColor(colors.textSecondary)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textSecondary)
+                }
             }
             
             Spacer()

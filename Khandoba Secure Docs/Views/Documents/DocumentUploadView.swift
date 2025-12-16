@@ -144,13 +144,13 @@ struct DocumentUploadView: View {
                     // Cost Info
                     StandardCard {
                         HStack {
-                            Text("Premium: Unlimited uploads")
+                            Text("Unlimited uploads")
                                 .font(theme.typography.caption)
                                 .foregroundColor(colors.success)
                             
                             Spacer()
                             
-                            Text("Premium: Unlimited uploads")
+                            Text("Unlimited uploads")
                                 .font(theme.typography.caption)
                                 .foregroundColor(colors.primary)
                         }
@@ -266,7 +266,7 @@ struct DocumentUploadView: View {
         isUploading = true
         
         do {
-            // Premium subscription - unlimited uploads
+            // All features included - unlimited uploads
             
             // Upload document
             _ = try await documentService.uploadDocument(

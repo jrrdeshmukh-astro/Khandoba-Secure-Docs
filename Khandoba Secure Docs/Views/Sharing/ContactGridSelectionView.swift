@@ -28,10 +28,16 @@ struct ContactGridSelectionView: View {
     @State private var selectedContacts: Set<String> = [] // Contact identifiers
     
     private var filteredContacts: [CNContact] {
+        // Only show contacts who are already app users
+        let allContacts = contactStore.contacts.filter { contact in
+            // Must be registered user
+            discoveryService.isContactRegistered(contact)
+        }
+        
         if searchText.isEmpty {
-            return contactStore.contacts
+            return allContacts
         } else {
-            return contactStore.contacts.filter { contact in
+            return allContacts.filter { contact in
                 let fullName = "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces).lowercased()
                 let searchLower = searchText.lowercased()
                 
@@ -70,7 +76,12 @@ struct ContactGridSelectionView: View {
                 } else if isLoading || isDiscovering {
                     LoadingView("Loading contacts...")
                 } else if filteredContacts.isEmpty {
-                    EmptyContactsView(searchText: searchText, colors: colors, theme: theme)
+                    EmptyContactsView(
+                        searchText: searchText,
+                        colors: colors,
+                        theme: theme,
+                        isDiscovering: isDiscovering
+                    )
                 } else {
                     ScrollView {
                         LazyVGrid(
@@ -326,6 +337,7 @@ struct EmptyContactsView: View {
     let searchText: String
     let colors: UnifiedTheme.Colors
     let theme: UnifiedTheme
+    let isDiscovering: Bool
     
     var body: some View {
         VStack(spacing: UnifiedTheme.Spacing.md) {
@@ -333,14 +345,17 @@ struct EmptyContactsView: View {
                 .font(.system(size: 48))
                 .foregroundColor(colors.textTertiary)
             
-            Text(searchText.isEmpty ? "No Contacts" : "No Results")
+            Text(searchText.isEmpty ? "No App Users Found" : "No Results")
                 .font(theme.typography.headline)
                 .foregroundColor(colors.textPrimary)
             
-            Text(searchText.isEmpty ? "You don't have any contacts yet" : "Try a different search term")
+            Text(searchText.isEmpty 
+                 ? "None of your contacts are using the app yet. Invite them to join!" 
+                 : "Try a different search term")
                 .font(theme.typography.subheadline)
                 .foregroundColor(colors.textSecondary)
                 .multilineTextAlignment(.center)
+                .padding(.horizontal)
         }
         .padding()
     }

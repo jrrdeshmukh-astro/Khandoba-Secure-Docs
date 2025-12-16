@@ -21,36 +21,13 @@ struct TermsOfServiceView: View {
                         .padding(.bottom)
                     
                     TermsSection(
-                        title: "Subscription",
-                        content: "Khandoba Secure Docs is a subscription service. Subscription Title: Khandoba Premium. Subscription Length: Monthly (auto-renewable). Subscription Price: $5.99 per month. Payment is processed through the App Store. Subscription auto-renews unless cancelled 24 hours before the end of the period. Manage or cancel in iOS Settings → Subscriptions or visit https://apps.apple.com/account/subscriptions"
+                        title: "Purchase & Payment",
+                        content: "Khandoba Secure Docs is a paid app available for purchase through the App Store. Payment is processed through the App Store as a one-time purchase. All features are included with your purchase - no subscriptions or additional in-app purchases required."
                     )
-                    
-                    // Required subscription metadata display
-                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                        Text("Subscription Information")
-                            .font(theme.typography.headline)
-                            .foregroundColor(colors.textPrimary)
-                        
-                        Text("Title: Khandoba Premium")
-                            .font(theme.typography.body)
-                            .foregroundColor(colors.textSecondary)
-                        
-                        Text("Length: Monthly (auto-renewable)")
-                            .font(theme.typography.body)
-                            .foregroundColor(colors.textSecondary)
-                        
-                        Text("Price: $5.99 per month")
-                            .font(theme.typography.body)
-                            .foregroundColor(colors.textSecondary)
-                    }
-                    .padding(UnifiedTheme.Spacing.md)
-                    .background(colors.surface)
-                    .cornerRadius(UnifiedTheme.CornerRadius.md)
-                    .padding(.bottom, UnifiedTheme.Spacing.md)
                     
                     TermsSection(
                         title: "Service Description",
-                        content: "Premium subscription provides unlimited vaults, unlimited document storage, AI-powered features, threat monitoring, and secure collaboration tools."
+                        content: "Khandoba Secure Docs provides unlimited vaults, unlimited document storage, AI-powered features, threat monitoring, and secure collaboration tools. All features are included with your purchase."
                     )
                     
                     TermsSection(
@@ -64,8 +41,8 @@ struct TermsOfServiceView: View {
                     )
                     
                     TermsSection(
-                        title: "Cancellation & Refunds",
-                        content: "Cancel anytime in App Store subscriptions. Refund requests are handled by Apple according to their refund policy. No prorated refunds for partial months."
+                        title: "Refunds",
+                        content: "Refund requests are handled by Apple according to their refund policy. Contact Apple Support for refund requests related to your app purchase."
                     )
                     
                     TermsSection(
@@ -75,7 +52,7 @@ struct TermsOfServiceView: View {
                     
                     TermsSection(
                         title: "Limitation of Liability",
-                        content: "Service provided 'as is'. We are not liable for data loss (backup your critical documents). Maximum liability limited to subscription fees paid."
+                        content: "Service provided 'as is'. We are not liable for data loss (backup your critical documents). Maximum liability limited to the purchase price paid for the app."
                     )
                     
                     TermsSection(

@@ -50,7 +50,7 @@ struct ClientOnboardingView: View {
                     OnboardingPage(
                         icon: "infinity",
                         title: "Unlimited Everything",
-                        description: "Premium subscription ($5.99/month) provides unlimited vaults, unlimited storage, and all premium features. Family Sharing included."
+                        description: "All features included with your purchase: unlimited vaults, unlimited storage, and all advanced features."
                     )
                     .tag(2)
                     

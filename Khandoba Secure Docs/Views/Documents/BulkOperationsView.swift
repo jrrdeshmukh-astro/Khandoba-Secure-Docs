@@ -150,7 +150,7 @@ struct BulkUploadView: View {
                                         
                                         Spacer()
                                         
-                                        Text("Premium: Unlimited")
+                                        Text("Unlimited")
                                             .font(theme.typography.caption)
                                             .foregroundColor(colors.success)
                                     }

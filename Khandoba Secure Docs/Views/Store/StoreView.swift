@@ -2,7 +2,8 @@
 //  StoreView.swift
 //  Khandoba Secure Docs
 //
-//  Premium Subscription Store
+//  NOTE: This view is not currently used in navigation (app is paid, not subscription-based)
+//  Kept for potential future use or reference
 //
 
 import SwiftUI
