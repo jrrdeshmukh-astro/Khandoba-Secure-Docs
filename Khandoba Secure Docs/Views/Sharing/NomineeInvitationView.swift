@@ -195,12 +195,10 @@ struct NomineeInvitationView: View {
             }
         }
         .sheet(isPresented: $showContactPicker) {
-            ContactPickerView(
-                vault: selectedVault ?? Vault(name: "Temp", vaultDescription: nil, keyType: "single"),
-                onContactsSelected: { contacts in
-                    if let firstContact = contacts.first {
-                        selectedContact = firstContact
-                    }
+            ContactListView(
+                onContactSelected: { contact in
+                    selectedContact = contact
+                    showContactPicker = false
                 },
                 onDismiss: {
                     showContactPicker = false

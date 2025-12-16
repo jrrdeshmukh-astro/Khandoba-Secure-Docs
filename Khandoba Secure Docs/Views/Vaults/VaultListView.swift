@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct VaultListView: View {
     @Environment(\.unifiedTheme) var theme
@@ -33,10 +34,11 @@ struct VaultListView: View {
     private let cardSpacing: CGFloat = -160 // overlap
     private let snapThreshold: CGFloat = 0.33
     
-    // Nominee list state (Apple Pay-style)
+    // Nominee list state (Wallet-style)
     @StateObject private var nomineeService = NomineeService()
     @State private var selectedVault: Vault?
     @State private var showNomineeList = false
+    @State private var frontVaultIndex: Int = 0
     
     // Filter out system vaults (Intel Reports, etc.)
     private var userVaults: [Vault] {
@@ -103,7 +105,8 @@ struct VaultListView: View {
                             cardSpacing: cardSpacing,
                             cardNamespace: cardNamespace,
                             selectedVaultID: $pendingVaultID, // Use pendingVaultID to intercept taps
-                            cardsAppeared: cardsAppeared
+                            cardsAppeared: cardsAppeared,
+                            frontVaultIndex: $frontVaultIndex
                         )
                         .background(
                             // Hidden NavigationLink for programmatic navigation
@@ -127,20 +130,25 @@ struct VaultListView: View {
                             }
                         }
                         
-                        // Nominee List Section (Apple Pay-style "Latest Transactions")
-                        if showNomineeList, let vault = selectedVault {
+                        // Nominee List Section (Wallet-style "Latest Transactions")
+                        // Show nominees for the front vault (currentIndex)
+                        if !userVaults.isEmpty {
+                            let frontVault = userVaults[frontVaultIndex % userVaults.count]
                             NomineeListSection(
-                                vault: vault,
+                                vault: frontVault,
                                 nomineeService: nomineeService,
                                 colors: theme.colors(for: colorScheme),
                                 theme: theme
                             )
-                            .transition(
-                                .asymmetric(
-                                    insertion: .move(edge: .bottom).combined(with: .opacity),
-                                    removal: .move(edge: .bottom).combined(with: .opacity)
-                                )
-                            )
+                            .transition(TransitionStyles.slideFromBottom)
+                            .id("nominees-\(frontVault.id)") // Force refresh when vault changes
+                            .onAppear {
+                                loadNomineesForVault(frontVault)
+                            }
+                            .onChange(of: frontVaultIndex) { oldValue, newValue in
+                                let newVault = userVaults[newValue % userVaults.count]
+                                loadNomineesForVault(newVault)
+                            }
                         }
                     }
                 }
@@ -184,7 +192,7 @@ struct VaultListView: View {
         .task {
             await loadVaults()
             try? await Task.sleep(nanoseconds: 100_000_000)
-            withAnimation {
+            withAnimation(AnimationStyles.spring) {
                 cardsAppeared = true
             }
         }
@@ -193,7 +201,7 @@ struct VaultListView: View {
                 cardsAppeared = false
                 Task {
                     try? await Task.sleep(nanoseconds: 100_000_000)
-                    withAnimation {
+                    withAnimation(AnimationStyles.spring) {
                         cardsAppeared = true
                     }
                 }
@@ -214,12 +222,11 @@ struct VaultListView: View {
             }
         }
         .onChange(of: selectedVaultID) { oldValue, newValue in
-            // Hide nominee list when navigating away
-            if newValue == nil {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    showNomineeList = false
-                    selectedVault = nil
-                }
+            // Update selected vault when navigating
+            if let vaultID = newValue, let vault = userVaults.first(where: { $0.id == vaultID }) {
+                selectedVault = vault
+            } else if newValue == nil {
+                selectedVault = nil
             }
         }
     }
@@ -301,32 +308,14 @@ struct VaultListView: View {
                         if let vault = vaults.first(where: { $0.id == vaultID }) {
                             try await vaultService.openVault(vault)
                             await MainActor.run {
-                                // Show nominee list with smooth animation
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    selectedVault = vault
-                                    showNomineeList = true
-                                    loadNomineesForVault(vault)
-                                }
+                                // Update selected vault
+                                selectedVault = vault
                                 
-                                // Navigate to vault detail after a brief delay for smooth transition
-                                Task {
-                                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds - allow nominee list to appear
-                                    await MainActor.run {
-                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.85)) {
-                                            selectedVaultID = vaultID
-                                        }
-                                        // Hide nominee list after navigation starts
-                                        Task {
-                                            try? await Task.sleep(nanoseconds: 200_000_000)
-                                            await MainActor.run {
-                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                                    showNomineeList = false
-                                                }
-                                            }
-                                        }
-                                        pendingVaultID = nil
-                                    }
+                                // Navigate to vault detail with smooth transition
+                                withAnimation(AnimationStyles.spring) {
+                                    selectedVaultID = vaultID
                                 }
+                                pendingVaultID = nil
                             }
                         } else {
                             print("⚠️ Vault not found: \(vaultID)")
@@ -352,10 +341,13 @@ struct VaultListView: View {
     
     private func loadNomineesForVault(_ vault: Vault) {
         Task {
-            if let userID = authService.currentUser?.id {
-                nomineeService.configure(modelContext: modelContext, currentUserID: userID)
-            } else {
-                nomineeService.configure(modelContext: modelContext)
+            // Configure nominee service if not already configured
+            if nomineeService.nominees.isEmpty || nomineeService.nominees.first?.vault?.id != vault.id {
+                if let userID = authService.currentUser?.id {
+                    nomineeService.configure(modelContext: modelContext, currentUserID: userID)
+                } else {
+                    nomineeService.configure(modelContext: modelContext)
+                }
             }
             
             do {
@@ -379,6 +371,7 @@ struct CircularRolodexView: View {
     
     @State private var currentIndex: Int = 0
     @State private var dragOffset: CGFloat = 0
+    @Binding var frontVaultIndex: Int // Expose front vault index to parent
     
     private let visibleCards = 5 // Show 5 cards in the stack
     
@@ -437,12 +430,18 @@ struct CircularRolodexView: View {
                     .scaleEffect(cardsAppeared ? scale : 0.8)
                     .zIndex(z)
                     .animation(
-                        .spring(response: 0.5, dampingFraction: 0.85),
+                        AnimationStyles.spring,
                         value: currentIndex
                     )
                     .animation(
-                        .spring(response: 0.3, dampingFraction: 0.9),
+                        AnimationStyles.snap,
                         value: dragOffset
+                    )
+                    .transition(
+                        .asymmetric(
+                            insertion: .scale(scale: 0.9).combined(with: .opacity),
+                            removal: .scale(scale: 1.1).combined(with: .opacity)
+                        )
                     )
                 }
             }
@@ -463,23 +462,31 @@ struct CircularRolodexView: View {
                         if shouldMove {
                             if translation > 0 {
                                 // Swipe down: move to next card (current goes behind)
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                withAnimation(AnimationStyles.spring) {
                                     currentIndex = (currentIndex + 1) % vaults.count
+                                    frontVaultIndex = currentIndex
                                 }
                             } else {
                                 // Swipe up: move to previous card (bring previous forward)
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                withAnimation(AnimationStyles.spring) {
                                     currentIndex = (currentIndex - 1 + vaults.count) % vaults.count
+                                    frontVaultIndex = currentIndex
                                 }
                             }
                         }
                         
                         // Reset drag offset
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                        withAnimation(AnimationStyles.snap) {
                             dragOffset = 0
                         }
                     }
             )
+            .onChange(of: currentIndex) { oldValue, newValue in
+                frontVaultIndex = newValue
+            }
+            .onAppear {
+                frontVaultIndex = currentIndex
+            }
         }
     }
 }
@@ -565,7 +572,7 @@ private struct ScrollOffsetKey: PreferenceKey {
     }
 }
 
-// MARK: - Nominee List Section (Apple Pay-style)
+// MARK: - Nominee List Section (Wallet-style "Latest Transactions")
 struct NomineeListSection: View {
     let vault: Vault
     @ObservedObject var nomineeService: NomineeService
@@ -573,10 +580,15 @@ struct NomineeListSection: View {
     let theme: UnifiedTheme
     
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var authService: AuthenticationService
+    
+    @State private var revokingNomineeID: UUID?
+    @State private var showInviteSheet = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
-            // Section Header (Apple Pay-style)
+        VStack(alignment: .leading, spacing: 0) {
+            // Section Header (Wallet-style)
             HStack {
                 Text("Nominees")
                     .font(theme.typography.headline)
@@ -584,19 +596,39 @@ struct NomineeListSection: View {
                 
                 Spacer()
                 
-                if !nomineeService.nominees.isEmpty {
-                    Text("\(nomineeService.nominees.count)")
-                        .font(theme.typography.subheadline)
-                        .foregroundColor(colors.textSecondary)
+                HStack(spacing: UnifiedTheme.Spacing.md) {
+                    if !nomineeService.nominees.isEmpty {
+                        Text("\(nomineeService.nominees.count)")
+                            .font(theme.typography.subheadline)
+                            .foregroundColor(colors.textSecondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(colors.surface)
+                            .cornerRadius(8)
+                    }
+                    
+                    // Invite Button
+                    Button {
+                        showInviteSheet = true
+                    } label: {
+                        Image(systemName: "person.badge.plus")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(colors.primary)
+                            .padding(8)
+                            .background(colors.primary.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding(.horizontal, UnifiedTheme.Spacing.lg)
             .padding(.top, UnifiedTheme.Spacing.md)
+            .padding(.bottom, UnifiedTheme.Spacing.sm)
             
-            // Nominee List
+            // Nominee List (Vertical, Wallet-style)
             if nomineeService.nominees.isEmpty {
-                // Empty state
-                VStack(spacing: UnifiedTheme.Spacing.sm) {
+                // Empty state with invite button
+                VStack(spacing: UnifiedTheme.Spacing.md) {
                     Image(systemName: "person.badge.plus")
                         .font(.system(size: 32))
                         .foregroundColor(colors.textTertiary)
@@ -608,39 +640,121 @@ struct NomineeListSection: View {
                     Text("Invite people to access this vault")
                         .font(theme.typography.caption)
                         .foregroundColor(colors.textTertiary)
+                    
+                    Button {
+                        showInviteSheet = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                            Text("Invite Nominee")
+                        }
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, UnifiedTheme.Spacing.lg)
+                        .padding(.vertical, UnifiedTheme.Spacing.sm)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [colors.primary, colors.primary.opacity(0.8)]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(UnifiedTheme.CornerRadius.md)
+                    }
+                    .padding(.top, UnifiedTheme.Spacing.sm)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, UnifiedTheme.Spacing.xl)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: UnifiedTheme.Spacing.md) {
-                        ForEach(nomineeService.nominees.prefix(5)) { nominee in
-                            NomineeListItem(nominee: nominee, colors: colors, theme: theme)
+                VStack(spacing: 0) {
+                    ForEach(Array(nomineeService.nominees.enumerated()), id: \.element.id) { index, nominee in
+                        NomineeListItem(
+                            nominee: nominee,
+                            colors: colors,
+                            theme: theme,
+                            onRevoke: {
+                                revokeNominee(nominee)
+                            },
+                            isRevoking: revokingNomineeID == nominee.id
+                        )
+                        .staggeredAppearance(index: index, total: nomineeService.nominees.count)
+                        
+                        if index < nomineeService.nominees.count - 1 {
+                            Divider()
+                                .padding(.leading, UnifiedTheme.Spacing.lg + 56 + UnifiedTheme.Spacing.md)
                         }
                     }
-                    .padding(.horizontal, UnifiedTheme.Spacing.lg)
+                }
+                .background(colors.surface)
+                .cornerRadius(UnifiedTheme.CornerRadius.lg)
+            }
+        }
+        .padding(.horizontal, UnifiedTheme.Spacing.lg)
+        .padding(.top, UnifiedTheme.Spacing.md)
+        .sheet(isPresented: $showInviteSheet, onDismiss: {
+            // Reload nominees when invitation sheet dismisses
+            Task {
+                if let userID = authService.currentUser?.id {
+                    nomineeService.configure(modelContext: modelContext, currentUserID: userID)
+                } else {
+                    nomineeService.configure(modelContext: modelContext)
+                }
+                
+                do {
+                    try await nomineeService.loadNominees(for: vault)
+                } catch {
+                    print("⚠️ Failed to reload nominees: \(error.localizedDescription)")
+                }
+            }
+        }) {
+            NomineeInvitationView(vault: vault)
+        }
+    }
+    
+    private func revokeNominee(_ nominee: Nominee) {
+        guard revokingNomineeID == nil else { return }
+        
+        revokingNomineeID = nominee.id
+        
+        Task {
+            do {
+                if let userID = authService.currentUser?.id {
+                    nomineeService.configure(modelContext: modelContext, currentUserID: userID)
+                } else {
+                    nomineeService.configure(modelContext: modelContext)
+                }
+                
+                try await nomineeService.removeNominee(nominee, permanently: false)
+                
+                // Reload nominees after revoking
+                try await nomineeService.loadNominees(for: vault)
+                
+                await MainActor.run {
+                    revokingNomineeID = nil
+                }
+            } catch {
+                print("⚠️ Failed to revoke nominee: \(error.localizedDescription)")
+                await MainActor.run {
+                    revokingNomineeID = nil
                 }
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(colors.surface)
-                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: -5)
-        )
-        .padding(.horizontal, UnifiedTheme.Spacing.lg)
-        .padding(.top, UnifiedTheme.Spacing.md)
     }
 }
 
-// MARK: - Nominee List Item
+// MARK: - Nominee List Item (Wallet-style Transaction Row)
 struct NomineeListItem: View {
     let nominee: Nominee
     let colors: UnifiedTheme.Colors
     let theme: UnifiedTheme
+    let onRevoke: () -> Void
+    let isRevoking: Bool
+    
+    @State private var isPressed = false
     
     var body: some View {
-        VStack(spacing: UnifiedTheme.Spacing.sm) {
-            // Avatar
+        HStack(spacing: UnifiedTheme.Spacing.md) {
+            // Avatar (Wallet-style circular icon)
             ZStack {
                 Circle()
                     .fill(
@@ -653,31 +767,73 @@ struct NomineeListItem: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 56, height: 56)
+                    .frame(width: 44, height: 44)
                 
                 Image(systemName: "person.fill")
-                    .font(.system(size: 24))
+                    .font(.system(size: 18))
                     .foregroundColor(.white)
             }
             
-            // Name
-            Text(nominee.name)
-                .font(theme.typography.subheadline)
-                .foregroundColor(colors.textPrimary)
-                .lineLimit(1)
-                .frame(width: 80)
+            // Name and Status
+            VStack(alignment: .leading, spacing: 4) {
+                Text(nominee.name)
+                    .font(theme.typography.subheadline)
+                    .foregroundColor(colors.textPrimary)
+                    .lineLimit(1)
+                
+                HStack(spacing: 6) {
+                    // Status badge
+                    Text(nominee.status.displayName)
+                        .font(theme.typography.caption2)
+                        .foregroundColor(statusColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(statusColor.opacity(0.15))
+                        .cornerRadius(4)
+                    
+                    // Active indicator
+                    if nominee.isCurrentlyActive {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(colors.success)
+                                .frame(width: 6, height: 6)
+                            Text("Active")
+                                .font(theme.typography.caption2)
+                                .foregroundColor(colors.textSecondary)
+                        }
+                    }
+                }
+            }
             
-            // Status
-            Text(nominee.status.displayName)
-                .font(theme.typography.caption2)
-                .foregroundColor(statusColor)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(statusColor.opacity(0.15))
-                .cornerRadius(8)
+            Spacer()
+            
+            // Revoke Button
+            Button {
+                onRevoke()
+            } label: {
+                if isRevoking {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .tint(colors.error)
+                } else {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(colors.error.opacity(0.7))
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
+            .disabled(isRevoking)
+            .scaleEffect(isPressed ? 0.9 : 1.0)
+            .animation(AnimationStyles.spring, value: isPressed)
+            .onLongPressGesture(minimumDuration: 0) {
+                // Handle press state
+            } onPressingChanged: { pressing in
+                isPressed = pressing
+            }
         }
-        .frame(width: 100)
-        .padding(.vertical, UnifiedTheme.Spacing.sm)
+        .padding(.horizontal, UnifiedTheme.Spacing.lg)
+        .padding(.vertical, UnifiedTheme.Spacing.md)
+        .contentShape(Rectangle())
     }
     
     private var statusColor: Color {
