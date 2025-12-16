@@ -215,12 +215,11 @@ class ContactStore: ObservableObject {
         var fetchedContacts: [CNContact] = []
         
         do {
-            try store.enumerateContacts(with: request) { contact, _ in
+            try store.enumerateContacts(with: request) { (contact, _) in
                 // Only include contacts with phone or email
                 if !contact.phoneNumbers.isEmpty || !contact.emailAddresses.isEmpty {
                     fetchedContacts.append(contact)
                 }
-                return true
             }
             
             // Sort by full name

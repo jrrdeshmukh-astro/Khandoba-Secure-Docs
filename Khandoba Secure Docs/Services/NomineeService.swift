@@ -465,11 +465,18 @@ final class NomineeService: ObservableObject {
         print("   Vault: \(nominee.vault?.name ?? "Unknown")")
         print("   📤 CloudKit sync: Status update will sync to owner's device")
         
-        // Send push notification to vault owner
-        // Note: In production, this would be sent via your backend server
+        // Send local notification to vault owner when nominee accepts
+        // CloudKit will also sync the status change, but local notification provides immediate awareness
         if let vault = nominee.vault, let owner = vault.owner {
-            // TODO: Send push notification to owner via backend API
-            print("   📱 Push notification will be sent to vault owner: \(owner.fullName)")
+            // Send local notification to owner (if they're the current user on this device)
+            // For cross-device notifications, CloudKit sync will handle it
+            let pushService = PushNotificationService.shared
+            pushService.sendNomineeAcceptedNotification(
+                nomineeName: nominee.name,
+                vaultName: vault.name
+            )
+            print("   📱 Notification sent to vault owner: \(owner.fullName)")
+            print("   📬 CloudKit sync will notify owner on other devices automatically")
         }
         
         return nominee

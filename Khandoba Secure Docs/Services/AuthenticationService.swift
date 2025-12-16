@@ -39,15 +39,6 @@ final class AuthenticationService: ObservableObject {
                 self.currentUser = user
                 self.isAuthenticated = true
                 // No role selection - everyone has full access
-                
-                // CRITICAL: Check subscription status when user is authenticated
-                // This ensures subscription is detected even if purchased through App Store
-                Task { @MainActor in
-                    let subscriptionService = SubscriptionService()
-                    subscriptionService.configure(modelContext: modelContext)
-                    await subscriptionService.updatePurchasedProducts()
-                    print("📱 Subscription status checked after authentication")
-                }
             }
         } catch {
             print("Error checking auth state: \(error)")

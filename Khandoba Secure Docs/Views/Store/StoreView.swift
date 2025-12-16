@@ -186,10 +186,45 @@ struct StoreView: View {
                                 }
                             )
                             
-                            Text("$5.99/month • Cancel anytime")
-                                .font(theme.typography.caption)
-                                .foregroundColor(colors.textSecondary)
-                                .multilineTextAlignment(.center)
+                            // Required subscription metadata (Guideline 3.1.2)
+                            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
+                                Text("Subscription Information:")
+                                    .font(theme.typography.caption)
+                                    .foregroundColor(colors.textSecondary)
+                                    .fontWeight(.semibold)
+                                
+                                Text("• Title: Khandoba Premium")
+                                    .font(theme.typography.caption2)
+                                    .foregroundColor(colors.textSecondary)
+                                
+                                Text("• Length: Monthly (auto-renewable)")
+                                    .font(theme.typography.caption2)
+                                    .foregroundColor(colors.textSecondary)
+                                
+                                Text("• Price: $5.99 per month")
+                                    .font(theme.typography.caption2)
+                                    .foregroundColor(colors.textSecondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(UnifiedTheme.Spacing.sm)
+                            .background(colors.surface.opacity(0.5))
+                            .cornerRadius(UnifiedTheme.CornerRadius.md)
+                            
+                            // Required Terms and Privacy links (Guideline 3.1.2)
+                            VStack(spacing: UnifiedTheme.Spacing.xs) {
+                                HStack(spacing: 4) {
+                                    Link("Terms of Service", destination: URL(string: "https://khandoba.org/terms")!)
+                                    Text("•")
+                                    Link("Privacy Policy", destination: URL(string: "https://khandoba.org/privacy")!)
+                                }
+                                .font(theme.typography.caption2)
+                                .foregroundColor(colors.primary)
+                                
+                                Text("Cancel anytime in App Store Settings")
+                                    .font(theme.typography.caption2)
+                                    .foregroundColor(colors.textSecondary)
+                            }
+                            .padding(.top, UnifiedTheme.Spacing.xs)
                             
                             Button {
                                 Task {

@@ -32,9 +32,6 @@ struct ContentView: View {
     // Push notification handling
     @EnvironmentObject var pushNotificationService: PushNotificationService
     
-    // Subscription service - check status on launch
-    @StateObject private var subscriptionService = SubscriptionService()
-    
     var body: some View {
         Group {
             if authService.isLoading {
@@ -47,9 +44,6 @@ struct ContentView: View {
             } else if needsPermissionsSetup {
                 // PERMISSIONS FIRST - right after signin
                 PermissionsSetupView()
-            } else if needsSubscription {
-                // Then subscription
-                SubscriptionRequiredView()
             } else if needsAccountSetup {
                 // Then profile setup
                 AccountSetupView()
@@ -110,22 +104,11 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            // CRITICAL: Check subscription status on app launch
-            // This ensures subscription is detected even if purchased through App Store
-            if authService.isAuthenticated {
-                subscriptionService.configure(modelContext: modelContext)
-                Task {
-                    // Check for active subscriptions from App Store
-                    await subscriptionService.updatePurchasedProducts()
-                    print("📱 Subscription status checked on app launch")
-                }
-            }
-            
             // Check for pending invitation token from previous launch
             if let token = UserDefaults.standard.string(forKey: "pending_invite_token") {
                 pendingInviteToken = token
                 UserDefaults.standard.removeObject(forKey: "pending_invite_token")
-                if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+                if authService.isAuthenticated && !needsPermissionsSetup && !needsAccountSetup {
                     showInvitationView = true
                 }
             }
@@ -134,7 +117,7 @@ struct ContentView: View {
             if let token = UserDefaults.standard.string(forKey: "pending_transfer_token") {
                 pendingTransferToken = token
                 UserDefaults.standard.removeObject(forKey: "pending_transfer_token")
-                if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+                if authService.isAuthenticated && !needsPermissionsSetup && !needsAccountSetup {
                     showTransferView = true
                 }
             }
@@ -145,7 +128,7 @@ struct ContentView: View {
                let url = URL(string: urlString) {
                 pendingShareURL = url
                 UserDefaults.standard.removeObject(forKey: "pending_share_url")
-                if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+                if authService.isAuthenticated && !needsPermissionsSetup && !needsAccountSetup {
                     acceptCloudKitShare(url: url)
                 }
             }
@@ -162,11 +145,6 @@ struct ContentView: View {
             if let metadata = notification.userInfo?["metadata"] as? CKShare.Metadata {
                 handleCloudKitShareInvitation(metadata)
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .subscriptionStatusChanged)) { _ in
-            // Refresh subscription status when it changes
-            // This ensures view updates when subscription is detected
-            print("🔄 Subscription status changed - view will refresh")
         }
     }
     
@@ -248,7 +226,7 @@ struct ContentView: View {
         pendingShareURL = url
         
         // If user is authenticated and setup is complete, accept share immediately
-        if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+        if authService.isAuthenticated && !needsPermissionsSetup && !needsAccountSetup {
             print("   ✅ User ready, accepting share")
             acceptCloudKitShare(url: url)
         } else {
@@ -390,14 +368,13 @@ struct ContentView: View {
         pendingInviteToken = token
         
         // If user is authenticated and setup is complete, show invitation view
-        if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+        if authService.isAuthenticated && !needsPermissionsSetup && !needsAccountSetup {
             print("   ✅ User ready, showing invitation view")
             showInvitationView = true
         } else {
             print("   ⏳ User not ready, storing token for later")
             print("      Authenticated: \(authService.isAuthenticated)")
             print("      Needs permissions: \(needsPermissionsSetup)")
-            print("      Needs subscription: \(needsSubscription)")
             print("      Needs account setup: \(needsAccountSetup)")
             // Store token for later (after authentication/setup)
             UserDefaults.standard.set(token, forKey: "pending_invite_token")
@@ -409,14 +386,13 @@ struct ContentView: View {
         pendingTransferToken = token
         
         // If user is authenticated and setup is complete, show transfer view
-        if authService.isAuthenticated && !needsPermissionsSetup && !needsSubscription && !needsAccountSetup {
+        if authService.isAuthenticated && !needsPermissionsSetup && !needsAccountSetup {
             print("   ✅ User ready, showing transfer view")
             showTransferView = true
         } else {
             print("   ⏳ User not ready, storing token for later")
             print("      Authenticated: \(authService.isAuthenticated)")
             print("      Needs permissions: \(needsPermissionsSetup)")
-            print("      Needs subscription: \(needsSubscription)")
             print("      Needs account setup: \(needsAccountSetup)")
             // Store token for later (after authentication/setup)
             UserDefaults.standard.set(token, forKey: "pending_transfer_token")
@@ -462,25 +438,6 @@ struct ContentView: View {
         return name.isEmpty || name == "User"
     }
     
-    /// Check if user needs to purchase subscription
-    /// Premium subscription is REQUIRED to use the app
-    private var needsSubscription: Bool {
-        guard let user = authService.currentUser else { return false }
-        
-        // Check if user has active premium subscription
-        if !user.isPremiumSubscriber {
-            return true  // Not a premium subscriber → needs subscription 
-        }
-        
-        // Check if subscription has expired
-        if let expiryDate = user.subscriptionExpiryDate {
-            return expiryDate < Date()  // Expired → needs subscription 
-        }
-        
-        // Has premium status but no expiry date = valid subscription
-        // (perpetual, lifetime, or subscription without expiry tracking)
-        return false  // Has active premium → doesn't need subscription 
-    }
 }
 
 #Preview {
