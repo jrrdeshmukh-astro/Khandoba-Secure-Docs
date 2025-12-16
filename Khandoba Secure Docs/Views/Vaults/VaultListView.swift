@@ -584,6 +584,7 @@ struct NomineeListSection: View {
     @EnvironmentObject var authService: AuthenticationService
     
     @State private var revokingNomineeID: UUID?
+    @State private var showInviteSheet = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -595,14 +596,29 @@ struct NomineeListSection: View {
                 
                 Spacer()
                 
-                if !nomineeService.nominees.isEmpty {
-                    Text("\(nomineeService.nominees.count)")
-                        .font(theme.typography.subheadline)
-                        .foregroundColor(colors.textSecondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(colors.surface)
-                        .cornerRadius(8)
+                HStack(spacing: UnifiedTheme.Spacing.md) {
+                    if !nomineeService.nominees.isEmpty {
+                        Text("\(nomineeService.nominees.count)")
+                            .font(theme.typography.subheadline)
+                            .foregroundColor(colors.textSecondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(colors.surface)
+                            .cornerRadius(8)
+                    }
+                    
+                    // Invite Button
+                    Button {
+                        showInviteSheet = true
+                    } label: {
+                        Image(systemName: "person.badge.plus")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(colors.primary)
+                            .padding(8)
+                            .background(colors.primary.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding(.horizontal, UnifiedTheme.Spacing.lg)
@@ -611,8 +627,8 @@ struct NomineeListSection: View {
             
             // Nominee List (Vertical, Wallet-style)
             if nomineeService.nominees.isEmpty {
-                // Empty state
-                VStack(spacing: UnifiedTheme.Spacing.sm) {
+                // Empty state with invite button
+                VStack(spacing: UnifiedTheme.Spacing.md) {
                     Image(systemName: "person.badge.plus")
                         .font(.system(size: 32))
                         .foregroundColor(colors.textTertiary)
@@ -624,6 +640,28 @@ struct NomineeListSection: View {
                     Text("Invite people to access this vault")
                         .font(theme.typography.caption)
                         .foregroundColor(colors.textTertiary)
+                    
+                    Button {
+                        showInviteSheet = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                            Text("Invite Nominee")
+                        }
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, UnifiedTheme.Spacing.lg)
+                        .padding(.vertical, UnifiedTheme.Spacing.sm)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [colors.primary, colors.primary.opacity(0.8)]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(UnifiedTheme.CornerRadius.md)
+                    }
+                    .padding(.top, UnifiedTheme.Spacing.sm)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, UnifiedTheme.Spacing.xl)
@@ -653,6 +691,24 @@ struct NomineeListSection: View {
         }
         .padding(.horizontal, UnifiedTheme.Spacing.lg)
         .padding(.top, UnifiedTheme.Spacing.md)
+        .sheet(isPresented: $showInviteSheet) {
+            NomineeInvitationView(vault: vault)
+        } onDismiss: {
+            // Reload nominees when invitation sheet dismisses
+            Task {
+                if let userID = authService.currentUser?.id {
+                    nomineeService.configure(modelContext: modelContext, currentUserID: userID)
+                } else {
+                    nomineeService.configure(modelContext: modelContext)
+                }
+                
+                do {
+                    try await nomineeService.loadNominees(for: vault)
+                } catch {
+                    print("⚠️ Failed to reload nominees: \(error.localizedDescription)")
+                }
+            }
+        }
     }
     
     private func revokeNominee(_ nominee: Nominee) {
