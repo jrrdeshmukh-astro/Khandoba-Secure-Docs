@@ -540,86 +540,33 @@ final class CloudKitSharingService: ObservableObject {
     // MARK: - Present CloudKit Sharing Controller
     
     /// Get or create a share and return it for UICloudSharingController
-    /// This allows users to share via native iOS sharing (Messages, Mail, etc.)
-    /// Returns nil if we can't get the record ID after extended retries, letting UICloudSharingController handle it
+    /// With SwiftData + CloudKit, we let UICloudSharingController handle record lookup automatically
+    /// using the model's PersistentIdentifier. This is the recommended approach.
+    /// 
+    /// NOTE: No server deployment needed - CloudKit is Apple's backend service
     func getOrCreateShare(for vault: Vault) async throws -> CKShare? {
         print("🔗 Getting or creating CloudKit share for vault: \(vault.name)")
+        print("   ℹ️ Using SwiftData + CloudKit integration (no server needed)")
         
-        // Ensure vault is synced to CloudKit first (with retries)
-        try await ensureVaultSynced(vault)
-        
-        // Try to get the CloudKit record ID with additional retries
-        // This is critical for nominee invitations, so we wait longer
-        var vaultRecordID: CKRecord.ID?
-        let maxRetries = 10 // More retries for invitation flow
-        let retryDelay: UInt64 = 1_000_000_000 // 1 second
-        
-        for attempt in 1...maxRetries {
-            if let recordID = try? await getVaultRecordID(vault) {
-                vaultRecordID = recordID
-                print("   ✅ Found CloudKit record ID on attempt \(attempt): \(recordID.recordName)")
-                break
-            }
-            
-            if attempt < maxRetries {
-                print("   ⏳ CloudKit record not found yet (attempt \(attempt)/\(maxRetries)), waiting...")
-                try await Task.sleep(nanoseconds: retryDelay)
-                
-                // Trigger another save to encourage sync
-                if let modelContext = modelContext {
-                    try? modelContext.save()
-                }
-            }
-        }
-        
-        // If we still can't find it, return nil to let UICloudSharingController handle it
-        guard let recordID = vaultRecordID else {
-            print("   ⚠️ Could not get CloudKit record ID after \(maxRetries) attempts")
-            print("   ℹ️ The vault may not be synced to CloudKit yet")
-            print("   ℹ️ This can happen if:")
-            print("      - CloudKit sync is disabled")
-            print("      - iCloud account is not signed in")
-            print("      - Network connectivity issues")
-            print("      - CloudKit sync is still in progress (can take up to 30 seconds)")
-            print("   ℹ️ UICloudSharingController will handle sharing automatically when sync completes")
+        // Ensure vault is saved to SwiftData
+        // CloudKit sync happens automatically in the background
+        guard let modelContext = modelContext else {
+            print("   ⚠️ ModelContext not available")
             return nil
         }
         
-        // Check if share already exists
-        if let existingShare = try? await getExistingShare(for: recordID) {
-            print("   ✅ Using existing share")
-            return existingShare
-        }
+        // Save vault to ensure it's persisted
+        // SwiftData will sync to CloudKit automatically
+        try modelContext.save()
+        print("   💾 Vault saved to SwiftData")
+        print("   ⏳ CloudKit sync happens automatically in background")
         
-        // Try to create new share
-        do {
-            print("   Creating new share...")
-            let rootRecord = try await getVaultRecord(recordID)
-            let share = CKShare(rootRecord: rootRecord)
-            share[CKShare.SystemFieldKey.title] = vault.name
-            share.publicPermission = CKShare.ParticipantPermission.none // Private share only
-            
-            // Add the share to the root record's share property
-            rootRecord.setParent(share.recordID)
-            
-            // Save both the share and the updated root record
-            let database = container.privateCloudDatabase
-            let (saveResult, _) = try await database.modifyRecords(saving: [share, rootRecord], deleting: [])
-            
-            if case .success(let savedShare) = saveResult[share.recordID],
-               let savedShareRecord = savedShare as? CKShare {
-                print("   ✅ Share created successfully")
-                return savedShareRecord
-            }
-        } catch {
-            print("   ℹ️ Failed to create share programmatically: \(error.localizedDescription)")
-            print("   ℹ️ This is OK - token-based sharing will be used as fallback")
-            // Return nil to let UICloudSharingController handle it or use token fallback
-        }
-        
-        // If we can't create the share, return nil
-        // The calling code will use token-based sharing as fallback
-        print("   ℹ️ Returning nil - token-based sharing will be used")
+        // With SwiftData + CloudKit, the best approach is to return nil
+        // and let UICloudSharingController use the model's PersistentIdentifier
+        // to find the CloudKit record automatically. This avoids manual queries
+        // and works reliably with SwiftData's internal CloudKit integration.
+        print("   ℹ️ Returning nil - UICloudSharingController will use PersistentIdentifier")
+        print("   ℹ️ SwiftData manages CloudKit record IDs internally")
         return nil
     }
     

@@ -70,8 +70,8 @@ struct NomineeManagementView: View {
                 .onDisappear {
                     Task {
                         try? await nomineeService.loadNominees(for: vault)
-                    }
                 }
+            }
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) { }

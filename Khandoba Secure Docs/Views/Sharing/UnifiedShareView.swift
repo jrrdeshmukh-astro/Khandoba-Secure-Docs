@@ -306,7 +306,7 @@ struct UnifiedShareView: View {
                 
                 // Transfer ownership completed
                 await MainActor.run {
-                    dismiss()
+                                dismiss()
                 }
                 
             } catch {

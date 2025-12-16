@@ -1,0 +1,37 @@
+# Cursor IDE ignore file
+# Helps Cursor's indexer skip large/problematic directories
+
+# Archive folder (contains large backup files)
+Archive/
+
+# Build artifacts
+build/
+DerivedData/
+*.xcarchive
+*.ipa
+*.dSYM
+
+# Xcode user data
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Large test files
+Khandoba Secure DocsTests/
+Khandoba Secure DocsUITests/
+
+# Documentation (optional - uncomment if indexing is slow)
+# docs/
+
+# Assets (large binary files)
+# AppStoreAssets/
+# assets/
+
+# Scripts (usually don't need indexing)
+# scripts/
+
+# Git
+.git/
+
+# System files
+.DS_Store
+._*
