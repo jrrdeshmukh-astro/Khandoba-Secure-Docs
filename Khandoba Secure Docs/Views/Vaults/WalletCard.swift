@@ -163,6 +163,22 @@ struct WalletCard: View {
             y: shadow.y + 2
         )
         .contentShape(RoundedRectangle(cornerRadius: 20))
+        .animation(
+            AnimationStyles.spring,
+            value: scale
+        )
+        .animation(
+            AnimationStyles.spring,
+            value: rotation
+        )
+        .animation(
+            AnimationStyles.spring,
+            value: yOffset
+        )
+        .animation(
+            AnimationStyles.easeInOut,
+            value: opacity
+        )
         .gesture(
             TapGesture(count: 2)
                 .onEnded {
@@ -178,7 +194,7 @@ struct WalletCard: View {
             impactFeedback.impactOccurred()
             onLongPress?()
         } onPressingChanged: { pressing in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(AnimationStyles.snap) {
                 isPressed = pressing
             }
         }
