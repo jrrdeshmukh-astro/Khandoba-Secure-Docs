@@ -27,12 +27,7 @@
 		};
 /* End PBXContainerItemProxy section */
 
-/* Begin PBXCopyFilesBuildPhase section */
-
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFileReference section */
-
 		24FB38722EDF354B00BA1227 /* Khandoba Secure Docs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Khandoba Secure Docs.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		24FB38832EDF354C00BA1227 /* Khandoba Secure DocsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Khandoba Secure DocsTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		24FB388D2EDF354C00BA1227 /* Khandoba Secure DocsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Khandoba Secure DocsUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -46,7 +41,6 @@
 			);
 			target = 24FB38712EDF354B00BA1227 /* Khandoba Secure Docs */;
 		};
-
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -90,8 +84,6 @@
 			isa = PBXGroup;
 			children = (
 				24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */,
-				24FB38862EDF354C00BA1227 /* Khandoba Secure DocsTests */,
-				24FB38902EDF354C00BA1227 /* Khandoba Secure DocsUITests */,
 				24FB38732EDF354B00BA1227 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -145,9 +137,6 @@
 			dependencies = (
 				24FB38852EDF354C00BA1227 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				24FB38862EDF354C00BA1227 /* Khandoba Secure DocsTests */,
-			);
 			name = "Khandoba Secure DocsTests";
 			packageProductDependencies = (
 			);
@@ -167,9 +156,6 @@
 			);
 			dependencies = (
 				24FB388F2EDF354C00BA1227 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				24FB38902EDF354C00BA1227 /* Khandoba Secure DocsUITests */,
 			);
 			name = "Khandoba Secure DocsUITests";
 			packageProductDependencies = (
