@@ -59,6 +59,38 @@ final class VaultService: ObservableObject {
         
         let fetchedVaults = try modelContext.fetch(descriptor)
         
+        // CRITICAL: Ensure all vaults have owners assigned
+        // Fix for existing vaults that may not have owners set
+        if let currentUserID = currentUserID {
+            let userDescriptor = FetchDescriptor<User>(
+                predicate: #Predicate { $0.id == currentUserID }
+            )
+            if let currentUser = try? modelContext.fetch(userDescriptor).first {
+                var needsSave = false
+                for vault in fetchedVaults {
+                    // Only fix non-system vaults that don't have an owner
+                    if vault.owner == nil && !vault.isSystemVault {
+                        print("⚠️ VaultService: Found vault '\(vault.name)' without owner, assigning current user")
+                        vault.owner = currentUser
+                        
+                        // Initialize ownedVaults if needed
+                        if currentUser.ownedVaults == nil {
+                            currentUser.ownedVaults = []
+                        }
+                        if !(currentUser.ownedVaults?.contains(where: { $0.id == vault.id }) ?? false) {
+                            currentUser.ownedVaults?.append(vault)
+                        }
+                        needsSave = true
+                    }
+                }
+                
+                if needsSave {
+                    try modelContext.save()
+                    print("✅ VaultService: Fixed vaults without owners")
+                }
+            }
+        }
+        
         // Log vault information for debugging
         print("📦 VaultService: Loaded \(fetchedVaults.count) vault(s)")
         for vault in fetchedVaults {

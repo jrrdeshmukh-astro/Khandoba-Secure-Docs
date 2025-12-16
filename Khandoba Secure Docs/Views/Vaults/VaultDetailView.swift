@@ -26,6 +26,7 @@ struct VaultDetailView: View {
     @State private var errorMessage = ""
     @State private var showUploadSheet = false
     @State private var showDocumentPicker = false
+    @State private var showNomineeInvitation = false
     
     @EnvironmentObject var authService: AuthenticationService
     
@@ -39,7 +40,11 @@ struct VaultDetailView: View {
     }
     
     private var isOwner: Bool {
-        vault.owner?.id == authService.currentUser?.id
+        // If vault has no owner, treat current user as owner (fallback)
+        if vault.owner == nil {
+            return true
+        }
+        return vault.owner?.id == authService.currentUser?.id
     }
     
     private var hasPendingDualKeyRequest: Bool {
@@ -225,14 +230,28 @@ struct VaultDetailView: View {
                         
                         StandardCard {
                             VStack(spacing: 0) {
-                                if isOwner {
+                                // Always show Invite Nominee for owners or if owner is not set (fallback)
+                                if isOwner || vault.owner == nil {
+                                    Button {
+                                        showNomineeInvitation = true
+                                    } label: {
+                                        SecurityActionRow(
+                                            icon: "person.badge.plus",
+                                            title: "Invite Nominee",
+                                            subtitle: "Apple Pay-style invitation flow",
+                                            color: colors.primary
+                                        )
+                                    }
+                                    
+                                    Divider()
+                                    
                                     NavigationLink {
                                         UnifiedNomineeManagementView(vault: vault)
                                     } label: {
                                         SecurityActionRow(
-                                            icon: "person.badge.plus",
+                                            icon: "person.3.fill",
                                             title: "Manage Nominees",
-                                            subtitle: "Invite and manage vault access",
+                                            subtitle: "View and manage all nominees",
                                             color: colors.primary
                                         )
                                     }
@@ -243,14 +262,27 @@ struct VaultDetailView: View {
                                         VaultAccessControlView(vault: vault)
                                     } label: {
                                         SecurityActionRow(
-                                            icon: "person.3.fill",
+                                            icon: "lock.shield.fill",
                                             title: "Access Control",
                                             subtitle: "Manage user permissions & history",
                                             color: colors.primary
                                         )
                                     }
+                                } else {
+                                    // Non-owners can still view nominees
+                                    NavigationLink {
+                                        UnifiedNomineeManagementView(vault: vault)
+                                    } label: {
+                                        SecurityActionRow(
+                                            icon: "person.3.fill",
+                                            title: "View Nominees",
+                                            subtitle: "See who has access to this vault",
+                                            color: colors.primary
+                                        )
+                                    }
                                 }
                             }
+                            .frame(minHeight: 44) // Ensure minimum height so card is always visible
                         }
                         .padding(.horizontal)
                     }
@@ -444,6 +476,9 @@ struct VaultDetailView: View {
         }
         .sheet(isPresented: $showUploadSheet) {
             DocumentUploadView(vault: vault)
+        }
+        .sheet(isPresented: $showNomineeInvitation) {
+            NomineeInvitationView(vault: vault)
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) { }
