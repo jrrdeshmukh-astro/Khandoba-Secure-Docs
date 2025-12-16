@@ -13,6 +13,7 @@ struct WalletCard: View {
     let totalCount: Int
     let hasActiveSession: Bool
     let onTap: () -> Void
+    let onDoubleTap: (() -> Void)?
     let onLongPress: (() -> Void)?
     
     // Animation inputs for rolodex effect
@@ -31,6 +32,8 @@ struct WalletCard: View {
     @Environment(\.colorScheme) var colorScheme
     
     @State private var isPressed = false
+    @State private var lastTapTime: Date?
+    @State private var tapTask: DispatchWorkItem?
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -164,10 +167,33 @@ struct WalletCard: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 20))
         .onTapGesture {
-            // Haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-            impactFeedback.impactOccurred()
-            onTap()
+            let now = Date()
+            
+            // Cancel any pending single tap
+            tapTask?.cancel()
+            
+            // Check for double tap (within 0.4 seconds)
+            if let lastTap = lastTapTime, now.timeIntervalSince(lastTap) < 0.4 {
+                // Double tap detected
+                lastTapTime = nil
+                let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+                impactFeedback.impactOccurred()
+                onDoubleTap?()
+            } else {
+                // Single tap - delay to allow double tap detection
+                lastTapTime = now
+                let workItem = DispatchWorkItem {
+                    // Only execute if still a single tap (not cancelled by double tap)
+                    if let lastTap = lastTapTime, now.timeIntervalSince(lastTap) >= 0.4 {
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                        impactFeedback.impactOccurred()
+                        onTap()
+                    }
+                    lastTapTime = nil
+                }
+                tapTask = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: workItem)
+            }
         }
         .onLongPressGesture(minimumDuration: 0.3) {
             // Haptic feedback

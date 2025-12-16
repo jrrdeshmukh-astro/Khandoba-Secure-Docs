@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct VaultListView: View {
     @Environment(\.unifiedTheme) var theme
@@ -23,6 +24,16 @@ struct VaultListView: View {
     @State private var pendingVaultID: UUID?
     @State private var isAuthenticating = false
     @State private var showFaceIDPrompt = false
+    
+    // Nominee list state (Apple Pay style)
+    @State private var selectedVault: Vault?
+    @State private var nominees: [Nominee] = []
+    @State private var isLoadingNominees = false
+    @StateObject private var nomineeService = NomineeService()
+    
+    // Double tap detection
+    @State private var lastTapTime: Date?
+    @State private var lastTappedVaultID: UUID?
     
     // Rolodex state
     @Namespace private var cardNamespace
@@ -88,35 +99,62 @@ struct VaultListView: View {
                         .padding(.horizontal, UnifiedTheme.Spacing.xl)
                     }
                 } else {
-                    // Circular rolodex view (PassKit-inspired)
-                    CircularRolodexView(
-                        vaults: userVaults,
-                        vaultService: vaultService,
-                        cardHeight: cardHeight,
-                        cardSpacing: cardSpacing,
-                        cardNamespace: cardNamespace,
-                        selectedVaultID: $pendingVaultID, // Use pendingVaultID to intercept taps
-                        cardsAppeared: cardsAppeared
-                    )
-                                    .background(
-                        // Hidden NavigationLink for programmatic navigation
-                        ForEach(userVaults) { vault in
-                                        NavigationLink(
-                                            destination: VaultDetailView(vault: vault),
-                                            tag: vault.id,
-                                            selection: $selectedVaultID
-                            ) {
-                                EmptyView()
-                            }
-                                        .opacity(0)
-                        }
-                    )
-                    .onChange(of: pendingVaultID) { oldValue, newValue in
-                        // Intercept vault selection - require Face ID first
-                        if let vaultID = newValue {
-                            Task {
-                                await authenticateAndOpenVault(vaultID: vaultID)
+                    VStack(spacing: 0) {
+                        // Circular rolodex view (PassKit-inspired)
+                        CircularRolodexView(
+                            vaults: userVaults,
+                            vaultService: vaultService,
+                            cardHeight: cardHeight,
+                            cardSpacing: cardSpacing,
+                            cardNamespace: cardNamespace,
+                            selectedVaultID: $pendingVaultID, // Use pendingVaultID to intercept taps
+                            cardsAppeared: cardsAppeared,
+                            onDoubleTap: { vaultID in
+                                Task {
+                                    await handleDoubleTap(vaultID: vaultID)
                                 }
+                            }
+                        )
+                        .background(
+                            // Hidden NavigationLink for programmatic navigation
+                            ForEach(userVaults) { vault in
+                                NavigationLink(
+                                    destination: VaultDetailView(vault: vault),
+                                    tag: vault.id,
+                                    selection: $selectedVaultID
+                                ) {
+                                    EmptyView()
+                                }
+                                .opacity(0)
+                            }
+                        )
+                        .onChange(of: pendingVaultID) { oldValue, newValue in
+                            // Single tap - show nominee list
+                            if let vaultID = newValue {
+                                handleSingleTap(vaultID: vaultID)
+                            } else {
+                                // Clear selection
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                    selectedVault = nil
+                                    nominees = []
+                                }
+                            }
+                        }
+                        
+                        // Nominee list section (Apple Pay style - appears below cards)
+                        if let vault = selectedVault {
+                            NomineeListView(
+                                vault: vault,
+                                nominees: nominees,
+                                isLoading: isLoadingNominees
+                            )
+                            .transition(
+                                .asymmetric(
+                                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                                    removal: .move(edge: .bottom).combined(with: .opacity)
+                                )
+                            )
+                            .animation(.spring(response: 0.5, dampingFraction: 0.85), value: selectedVault?.id)
                         }
                     }
                 }
@@ -225,6 +263,49 @@ struct VaultListView: View {
         }
     }
     
+    // MARK: - Tap Handling
+    
+    private func handleSingleTap(vaultID: UUID) {
+        // Find the vault
+        guard let vault = userVaults.first(where: { $0.id == vaultID }) else { return }
+        
+        // Update selected vault and load nominees
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            selectedVault = vault
+        }
+        
+        Task {
+            await loadNominees(for: vault)
+        }
+    }
+    
+    private func handleDoubleTap(vaultID: UUID) async {
+        // Double tap triggers Face ID and navigation
+        await authenticateAndOpenVault(vaultID: vaultID)
+    }
+    
+    private func loadNominees(for vault: Vault) async {
+        await MainActor.run {
+            isLoadingNominees = true
+        }
+        
+        nomineeService.configure(modelContext: modelContext)
+        
+        do {
+            try await nomineeService.loadNominees(for: vault)
+            await MainActor.run {
+                nominees = nomineeService.nominees
+                isLoadingNominees = false
+            }
+        } catch {
+            print("❌ Failed to load nominees: \(error.localizedDescription)")
+            await MainActor.run {
+                nominees = []
+                isLoadingNominees = false
+            }
+        }
+    }
+    
     // MARK: - Face ID Authentication Flow
     
     private func authenticateAndOpenVault(vaultID: UUID) async {
@@ -234,6 +315,11 @@ struct VaultListView: View {
             await MainActor.run {
                 selectedVaultID = vaultID
                 pendingVaultID = nil
+                // Clear nominee list when navigating
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                    selectedVault = nil
+                    nominees = []
+                }
             }
             return
         }
@@ -263,6 +349,11 @@ struct VaultListView: View {
                                 // Navigate to vault detail after successful unlock
                                 selectedVaultID = vaultID
                                 pendingVaultID = nil
+                                // Clear nominee list when navigating
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                    selectedVault = nil
+                                    nominees = []
+                                }
                             }
                         } else {
                             print("⚠️ Vault not found: \(vaultID)")
@@ -294,6 +385,7 @@ struct CircularRolodexView: View {
     let cardNamespace: Namespace.ID
     @Binding var selectedVaultID: UUID? // This is actually pendingVaultID from parent
     let cardsAppeared: Bool
+    let onDoubleTap: ((UUID) -> Void)?
     
     @State private var currentIndex: Int = 0
     @State private var dragOffset: CGFloat = 0
@@ -338,6 +430,9 @@ struct CircularRolodexView: View {
                         hasActiveSession: vaultService.hasActiveSession(for: vault.id),
                         onTap: {
                             selectedVaultID = vault.id
+                        },
+                        onDoubleTap: {
+                            onDoubleTap?(vault.id)
                         },
                         onLongPress: nil,
                         rotation: rotation,
@@ -414,17 +509,23 @@ private struct FaceIDPromptOverlay: View {
         let colors = theme.colors(for: colorScheme)
         
         ZStack {
+            // Blurred background (Apple Pay style)
             colors.background
                 .ignoresSafeArea()
+                .opacity(0.95)
             
             VStack(spacing: UnifiedTheme.Spacing.lg) {
                 Image(systemName: LocalAuthService.shared.biometricType() == .faceID ? "faceid" : "touchid")
-                    .font(.system(size: 48, weight: .regular, design: .rounded))
+                    .font(.system(size: 64, weight: .regular, design: .rounded))
                     .foregroundColor(colors.primary)
+                    .symbolEffect(.pulse, options: .repeating)
+                    .scaleEffect(isAuthenticating ? 1.1 : 1.0)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.7).repeatForever(autoreverses: true), value: isAuthenticating)
                 
                 Text("Unlock Vault")
                     .font(theme.typography.title2)
                     .foregroundColor(colors.textPrimary)
+                    .fontWeight(.semibold)
                 
                 Text("Authenticate to view vault")
                     .font(theme.typography.subheadline)
@@ -433,13 +534,190 @@ private struct FaceIDPromptOverlay: View {
                 if isAuthenticating {
                     ProgressView()
                         .scaleEffect(1.2)
+                        .tint(colors.primary)
                         .padding()
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
-            .padding()
+            .padding(UnifiedTheme.Spacing.xl)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(colors.surface)
+                    .shadow(color: colors.textPrimary.opacity(0.1), radius: 20, x: 0, y: 10)
+            )
+            .padding(UnifiedTheme.Spacing.lg)
         }
-        .transition(.opacity.combined(with: .scale))
-        .animation(.spring(), value: isAuthenticating)
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isAuthenticating)
+    }
+}
+
+// MARK: - Nominee List View (Apple Pay Style)
+struct NomineeListView: View {
+    let vault: Vault
+    let nominees: [Nominee]
+    let isLoading: Bool
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+            // Section header
+            HStack {
+                Text("NOMINEES")
+                    .font(theme.typography.caption)
+                    .foregroundColor(colors.textSecondary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                
+                Spacer()
+                
+                if !nominees.isEmpty {
+                    Text("\(nominees.count)")
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textSecondary)
+                }
+            }
+            .padding(.horizontal, UnifiedTheme.Spacing.lg)
+            .padding(.top, UnifiedTheme.Spacing.md)
+            
+            if isLoading {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .tint(colors.primary)
+                        .padding()
+                    Spacer()
+                }
+                .transition(.opacity.combined(with: .scale))
+            } else if nominees.isEmpty {
+                StandardCard {
+                    HStack {
+                        Image(systemName: "person.2.slash")
+                            .font(.title3)
+                            .foregroundColor(colors.textTertiary)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("No Nominees")
+                                .font(theme.typography.subheadline)
+                                .foregroundColor(colors.textPrimary)
+                            
+                            Text("Tap the vault card twice to unlock")
+                                .font(theme.typography.caption)
+                                .foregroundColor(colors.textSecondary)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding()
+                }
+                .padding(.horizontal, UnifiedTheme.Spacing.lg)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: UnifiedTheme.Spacing.md) {
+                        ForEach(Array(nominees.prefix(5).enumerated()), id: \.element.id) { index, nominee in
+                            NomineeCard(nominee: nominee)
+                                .transition(
+                                    .asymmetric(
+                                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                                        removal: .move(edge: .trailing).combined(with: .opacity)
+                                    )
+                                )
+                                .animation(
+                                    .spring(response: 0.5, dampingFraction: 0.8)
+                                    .delay(Double(index) * 0.1),
+                                    value: nominees.count
+                                )
+                        }
+                    }
+                    .padding(.horizontal, UnifiedTheme.Spacing.lg)
+                }
+            }
+        }
+        .padding(.vertical, UnifiedTheme.Spacing.md)
+        .background(colors.surface)
+    }
+}
+
+// MARK: - Nominee Card
+struct NomineeCard: View {
+    let nominee: Nominee
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    @State private var isPressed = false
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        StandardCard {
+            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                HStack {
+                    // Avatar
+                    ZStack {
+                        Circle()
+                            .fill(statusColor.opacity(0.2))
+                            .frame(width: 40, height: 40)
+                        
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(statusColor)
+                    }
+                    
+                    Spacer()
+                    
+                    // Status indicator
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: statusColor.opacity(0.5), radius: 4)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(nominee.name)
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(colors.textPrimary)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                    
+                    Text(nominee.status.displayName)
+                        .font(theme.typography.caption2)
+                        .foregroundColor(colors.textSecondary)
+                }
+            }
+            .padding(UnifiedTheme.Spacing.md)
+        }
+        .frame(width: 140)
+        .scaleEffect(isPressed ? 0.95 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
+        .onTapGesture {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                isPressed = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    isPressed = false
+                }
+            }
+        }
+    }
+    
+    private var statusColor: Color {
+        let colors = theme.colors(for: colorScheme)
+        switch nominee.status {
+        case .pending:
+            return colors.warning
+        case .accepted, .active:
+            return colors.success
+        case .inactive:
+            return colors.textTertiary
+        case .revoked:
+            return colors.error
+        }
     }
 }
 
