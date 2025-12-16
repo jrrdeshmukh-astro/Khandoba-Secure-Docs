@@ -20,9 +20,9 @@ final class SubscriptionService: ObservableObject {
     private var modelContext: ModelContext?
     private var updateListenerTask: Task<Void, Error>?
     
-    private let productIDs = [
-        "com.khandoba.premium.monthly" // $5.99/month auto-renewable subscription
-    ]
+    // In-app purchases removed - app is now a paid app (one-time purchase)
+    // No product IDs needed
+    private let productIDs: [String] = []
     
     init() {
         updateListenerTask = listenForTransactions()
