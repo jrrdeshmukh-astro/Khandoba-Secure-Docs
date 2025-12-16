@@ -195,10 +195,12 @@ struct NomineeInvitationView: View {
             }
         }
         .sheet(isPresented: $showContactPicker) {
-            ContactListView(
-                onContactSelected: { contact in
+            ContactGridSelectionView(
+                onContactSelected: { contact, isExistingUser in
                     selectedContact = contact
                     showContactPicker = false
+                    // isExistingUser can be used for different invitation flows if needed
+                    print("📱 Selected contact: \(contact.givenName) \(contact.familyName), isExistingUser: \(isExistingUser)")
                 },
                 onDismiss: {
                     showContactPicker = false
