@@ -2,7 +2,7 @@
 //  UnifiedShareView.swift
 //  Khandoba Secure Docs
 //
-//  Unified sharing: iMessage + Nominee creation + Transfer ownership
+//  Unified sharing: Native nominee invitation + Transfer ownership
 
 import SwiftUI
 import SwiftData
@@ -29,6 +29,7 @@ struct UnifiedShareView: View {
     @StateObject private var nomineeService = NomineeService()
     @State private var selectedContacts: [CNContact] = []
     @State private var showContactPicker = false
+    @State private var showNomineeInvitation = false
     @State private var accessLevel: NomineeAccessLevel = .view
     @State private var isProcessing = false
     @State private var showError = false
@@ -41,7 +42,7 @@ struct UnifiedShareView: View {
         }
     }
     
-    // Removed invitationMessage - using iMessage extension instead
+    // Native invitation flow using NomineeInvitationView
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -192,17 +193,17 @@ struct UnifiedShareView: View {
                                 .padding(.horizontal)
                             }
                             
-                            // Send Button - Opens Messages app to use iMessage extension
+                            // Send Button - Opens native invitation flow
                             Button {
                                 if mode == .nominee {
-                                    openMessagesForNomineeInvitation()
+                                    showNomineeInvitation = true
                                 } else {
                                     transferOwnership()
                                 }
                             } label: {
                                 HStack {
-                                    Image(systemName: "message.fill")
-                                    Text(mode == .nominee ? "Open Messages to Send Invitation" : "Transfer Ownership")
+                                    Image(systemName: mode == .nominee ? "person.badge.plus" : "arrow.triangle.2.circlepath")
+                                    Text(mode == .nominee ? "Send Invitation" : "Transfer Ownership")
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
@@ -262,7 +263,9 @@ struct UnifiedShareView: View {
                 // Configure nominee service
                 nomineeService.configure(modelContext: modelContext)
             }
-            // Removed MessageComposeView sheet - using iMessage extension instead
+            .sheet(isPresented: $showNomineeInvitation) {
+                NomineeInvitationView(vault: vault)
+            }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -301,20 +304,10 @@ struct UnifiedShareView: View {
                 modelContext.insert(transferNominee)
                 try modelContext.save()
                 
-                // For transfer, also use iMessage extension
-                // Open Messages app
-                #if !APP_EXTENSION
-                if let messagesURL = URL(string: "sms:") {
-                    UIApplication.shared.open(messagesURL) { success in
-                        if success {
-                            print("✅ Opened Messages app for transfer")
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                dismiss()
-                            }
-                        }
-                    }
+                // Transfer ownership completed
+                await MainActor.run {
+                    dismiss()
                 }
-                #endif
                 
             } catch {
                 errorMessage = error.localizedDescription
@@ -324,27 +317,6 @@ struct UnifiedShareView: View {
         }
     }
     
-    private func openMessagesForNomineeInvitation() {
-        #if !APP_EXTENSION
-        // Open Messages app - user will use iMessage extension to send invitations
-        // The iMessage extension will handle creating nominees and sending invitations
-        if let messagesURL = URL(string: "sms:") {
-            UIApplication.shared.open(messagesURL) { success in
-                if success {
-                    print("✅ Opened Messages app - user can now use Khandoba extension")
-                    // Dismiss this view after opening Messages
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        dismiss()
-                    }
-                } else {
-                    print("❌ Failed to open Messages app")
-                    errorMessage = "Failed to open Messages app. Please open it manually and use the Khandoba extension."
-                showError = true
-                }
-            }
-        }
-        #endif
-    }
 }
 
 enum NomineeAccessLevel: String, CaseIterable {

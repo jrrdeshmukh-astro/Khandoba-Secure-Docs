@@ -62,7 +62,7 @@ struct ManualInviteTokenView: View {
                                         .fontWeight(.semibold)
                                 }
                                 
-                                Text("If you received an invitation via iMessage, copy the token from the message and paste it here. This is useful for TestFlight testing when deep links may not work.")
+                                Text("If you received an invitation via CloudKit sharing, copy the token from the invitation and paste it here. This is useful for TestFlight testing when deep links may not work.")
                                     .font(theme.typography.caption)
                                     .foregroundColor(colors.textSecondary)
                             }
