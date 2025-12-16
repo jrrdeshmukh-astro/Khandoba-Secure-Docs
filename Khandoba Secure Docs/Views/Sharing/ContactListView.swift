@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Contacts
+import Combine
 
 struct ContactListView: View {
     let onContactSelected: (CNContact) -> Void
@@ -123,7 +124,7 @@ struct ContactListView: View {
                     // Contact list
                     List {
                         ForEach(filteredContacts, id: \.identifier) { contact in
-                            ContactRow(contact: contact) {
+                            ContactListRow(contact: contact) {
                                 onContactSelected(contact)
                             }
                             .listRowBackground(colors.surface)
@@ -237,9 +238,9 @@ class ContactStore: ObservableObject {
     }
 }
 
-// MARK: - Contact Row
+// MARK: - Contact List Row
 
-struct ContactRow: View {
+struct ContactListRow: View {
     let contact: CNContact
     let onTap: () -> Void
     
