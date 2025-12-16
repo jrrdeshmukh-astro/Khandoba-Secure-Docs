@@ -35,6 +35,9 @@ struct VaultDetailView: View {
     @State private var attemptedAutoUnlock = false
     @State private var authInProgress = false
     
+    // Nominee service
+    @StateObject private var nomineeService = NomineeService()
+    
     private var isIntelVault: Bool {
         vault.name == "Intel Vault"
     }
@@ -184,6 +187,56 @@ struct VaultDetailView: View {
                             await extendSession()
                         }
                         .padding(.horizontal)
+                    }
+                    
+                    // Nominees Section (Apple Pay-style "Latest Transactions")
+                    if hasActiveSession {
+                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                            Text("Nominees")
+                                .font(theme.typography.headline)
+                                .foregroundColor(colors.textPrimary)
+                                .padding(.horizontal)
+                            
+                            StandardCard {
+                                if nomineeService.nominees.isEmpty {
+                                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                                        Image(systemName: "person.badge.plus")
+                                            .font(.title2)
+                                            .foregroundColor(colors.textTertiary)
+                                        
+                                        Text("No Nominees")
+                                            .font(theme.typography.subheadline)
+                                            .foregroundColor(colors.textPrimary)
+                                        
+                                        Text("Invite people to access this vault")
+                                            .font(theme.typography.caption)
+                                            .foregroundColor(colors.textSecondary)
+                                        
+                                        Button {
+                                            showNomineeInvitation = true
+                                        } label: {
+                                            Text("Invite Nominee")
+                                                .font(theme.typography.subheadline)
+                                                .foregroundColor(colors.primary)
+                                        }
+                                        .padding(.top, UnifiedTheme.Spacing.sm)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, UnifiedTheme.Spacing.lg)
+                                } else {
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: UnifiedTheme.Spacing.md) {
+                                            ForEach(nomineeService.nominees) { nominee in
+                                                NomineeDetailItem(nominee: nominee, colors: colors, theme: theme)
+                                            }
+                                        }
+                                        .padding(.horizontal, UnifiedTheme.Spacing.md)
+                                    }
+                                    .padding(.vertical, UnifiedTheme.Spacing.sm)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
                     }
                     
                     VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
@@ -412,6 +465,14 @@ struct VaultDetailView: View {
             if hasActiveSession {
                 isBiometricallyUnlocked = true
             }
+            // Load nominees when view appears
+            loadNominees()
+        }
+        .onChange(of: hasActiveSession) { oldValue, newValue in
+            // Reload nominees when vault is unlocked
+            if newValue {
+                loadNominees()
+            }
         }
     }
     
@@ -575,6 +636,102 @@ struct VaultDetailView: View {
             }
         }
         return false
+    }
+    
+    // MARK: - Nominee Loading
+    
+    private func loadNominees() {
+        Task {
+            if let userID = authService.currentUser?.id {
+                nomineeService.configure(modelContext: modelContext, currentUserID: userID)
+            } else {
+                nomineeService.configure(modelContext: modelContext)
+            }
+            
+            do {
+                try await nomineeService.loadNominees(for: vault)
+            } catch {
+                print("⚠️ Failed to load nominees: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+// MARK: - Nominee Detail Item
+
+struct NomineeDetailItem: View {
+    let nominee: Nominee
+    let colors: UnifiedTheme.Colors
+    let theme: UnifiedTheme
+    
+    var body: some View {
+        VStack(spacing: UnifiedTheme.Spacing.sm) {
+            // Avatar with status indicator
+            ZStack(alignment: .bottomTrailing) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    statusColor,
+                                    statusColor.opacity(0.7)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 60, height: 60)
+                    
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(.white)
+                }
+                
+                // Active indicator
+                if nominee.isCurrentlyActive {
+                    Circle()
+                        .fill(colors.success)
+                        .frame(width: 16, height: 16)
+                        .overlay(
+                            Circle()
+                                .stroke(colors.surface, lineWidth: 2)
+                        )
+                }
+            }
+            
+            // Name
+            Text(nominee.name)
+                .font(theme.typography.subheadline)
+                .foregroundColor(colors.textPrimary)
+                .lineLimit(1)
+                .frame(width: 90)
+            
+            // Status badge
+            Text(nominee.status.displayName)
+                .font(theme.typography.caption2)
+                .foregroundColor(statusColor)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(statusColor.opacity(0.15))
+                .cornerRadius(8)
+            
+            // Last active time (if available)
+            if let lastActive = nominee.lastActiveAt {
+                Text(lastActive, style: .relative)
+                    .font(theme.typography.caption2)
+                    .foregroundColor(colors.textTertiary)
+            }
+        }
+        .frame(width: 100)
+        .padding(.vertical, UnifiedTheme.Spacing.sm)
+    }
+    
+    private var statusColor: Color {
+        switch nominee.status {
+        case .pending: return colors.warning
+        case .accepted, .active: return colors.success
+        case .inactive, .revoked: return colors.textTertiary
+        }
     }
 }
 
