@@ -691,9 +691,7 @@ struct NomineeListSection: View {
         }
         .padding(.horizontal, UnifiedTheme.Spacing.lg)
         .padding(.top, UnifiedTheme.Spacing.md)
-        .sheet(isPresented: $showInviteSheet) {
-            NomineeInvitationView(vault: vault)
-        } onDismiss: {
+        .sheet(isPresented: $showInviteSheet, onDismiss: {
             // Reload nominees when invitation sheet dismisses
             Task {
                 if let userID = authService.currentUser?.id {
@@ -708,6 +706,8 @@ struct NomineeListSection: View {
                     print("⚠️ Failed to reload nominees: \(error.localizedDescription)")
                 }
             }
+        }) {
+            NomineeInvitationView(vault: vault)
         }
     }
     
