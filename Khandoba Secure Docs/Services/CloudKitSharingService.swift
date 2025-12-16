@@ -131,8 +131,9 @@ final class CloudKitSharingService: ObservableObject {
     // MARK: - Get Vault Record ID
     
     /// Get the CloudKit record ID for a SwiftData Vault model
-    /// Uses query-all-and-match approach to find the record reliably
+    /// Uses direct record ID lookups based on SwiftData's naming conventions
     /// Returns nil if record not found, allowing UICloudSharingController to handle it automatically
+    /// Note: We avoid querying CloudKit directly as system fields aren't queryable
     private func getVaultRecordID(_ vault: Vault) async throws -> CKRecord.ID? {
         guard modelContext != nil else {
             print("   ❌ ModelContext not configured")
@@ -142,9 +143,9 @@ final class CloudKitSharingService: ObservableObject {
         let database = container.privateCloudDatabase
         let zoneID = CKRecordZone.default().zoneID
         
-        // Method 1: Try common naming formats (most reliable for SwiftData + CloudKit)
-        // SwiftData with CloudKit uses predictable naming conventions
-        print("   🔍 Trying common naming formats...")
+        // SwiftData + CloudKit uses predictable naming conventions
+        // Try common naming formats (most reliable approach)
+        print("   🔍 Trying direct record ID lookups...")
         
         // Format 1: CD_<EntityName>_<UUID> (most common SwiftData + CloudKit format)
         let recordName1 = "CD_Vault_\(vault.id.uuidString)"
@@ -158,7 +159,7 @@ final class CloudKitSharingService: ObservableObject {
         let recordName3 = "CD_vault_\(vault.id.uuidString)"
         let recordID3 = CKRecord.ID(recordName: recordName3, zoneID: zoneID)
         
-        // Format 4: Try with underscores replaced by hyphens (some CloudKit configurations)
+        // Format 4: Try with hyphens (some CloudKit configurations)
         let recordName4 = "CD-Vault-\(vault.id.uuidString)"
         let recordID4 = CKRecord.ID(recordName: recordName4, zoneID: zoneID)
         
@@ -190,89 +191,16 @@ final class CloudKitSharingService: ObservableObject {
             }
         }
         
-        // Method 2: Query all Vault records and match by UUID stored in record
-        // This is more reliable as it searches all records and matches by the vault's UUID
-        print("   🔍 Trying query all Vault records and match by UUID...")
-        do {
-            // Query all CD_Vault records (SwiftData uses CD_ prefix)
-            let query = CKQuery(recordType: "CD_Vault", predicate: NSPredicate(value: true))
-            query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-            
-            let (matchResults, _) = try await database.records(matching: query, inZoneWith: zoneID, desiredKeys: ["id", "name", "ZNAME", "Name"])
-            
-            let vaultUUIDString = vault.id.uuidString
-            
-            // Match by UUID stored in the record
-            for (recordID, result) in matchResults {
-                if case .success(let record) = result {
-                    // Check if the record's ID field matches our vault UUID
-                    // SwiftData stores the UUID in various field names
-                    let recordIDValue = (record["id"] as? String) ?? 
-                                       (record["ZID"] as? String) ?? 
-                                       (record["ID"] as? String) ?? ""
-                    
-                    // Also check record name formats
-                    let recordName = recordID.recordName
-                    if recordName.contains(vaultUUIDString) || recordIDValue == vaultUUIDString {
-                        // Verify by name as well
-                        let recordNameValue = (record["name"] as? String) ?? 
-                                            (record["ZNAME"] as? String) ?? 
-                                            (record["Name"] as? String) ?? ""
-                        
-                        if recordNameValue == vault.name || recordNameValue.isEmpty {
-                            print("   ✅ Found CloudKit record by UUID query: \(recordID.recordName)")
-                            return recordID
-                        }
-                    }
-                }
-            }
-        } catch {
-            print("   ℹ️ Query all records failed: \(error.localizedDescription)")
-        }
-        
-        // Method 3: Try querying by creation date range (if creationDate is queryable)
-        // This is a fallback if direct record ID lookup fails
-        print("   🔍 Trying query by creation date range...")
-        do {
-            // Query for records created within 1 minute of vault creation
-            let startDate = vault.createdAt.addingTimeInterval(-30)
-            let endDate = vault.createdAt.addingTimeInterval(30)
-            
-            // Note: This requires 'creationDate' to be queryable in CloudKit schema
-            // If it's not, this will fail gracefully
-            let datePredicate = NSPredicate(format: "creationDate >= %@ AND creationDate <= %@", startDate as NSDate, endDate as NSDate)
-            let query = CKQuery(recordType: "CD_Vault", predicate: datePredicate)
-            
-            let (matchResults, _) = try await database.records(matching: query, inZoneWith: zoneID)
-            
-            // Match by name from the results
-            for (recordID, result) in matchResults {
-                if case .success(let record) = result {
-                    let recordName = (record["name"] as? String) ?? 
-                                    (record["ZNAME"] as? String) ?? 
-                                    (record["Name"] as? String) ?? ""
-                    
-                    if recordName == vault.name {
-                        print("   ✅ Found CloudKit record by date+name: \(recordID.recordName)")
-                        return recordID
-                    }
-                }
-            }
-        } catch {
-            // This is expected if creationDate is not queryable or query fails
-            print("   ℹ️ Query by date not available (field may not be queryable): \(error.localizedDescription)")
-        }
-        
-        // If all methods fail, the record might not be synced to CloudKit yet
-        print("   ℹ️ Could not find CloudKit record with any method")
+        // If all direct lookups fail, the record might not be synced to CloudKit yet
+        // This is OK - SwiftData will sync it automatically, and UICloudSharingController
+        // can use the PersistentIdentifier to find it
+        print("   ℹ️ Could not find CloudKit record with direct lookups")
         print("   ℹ️ Vault ID: \(vault.id.uuidString)")
         print("   ℹ️ Vault Name: \(vault.name)")
-        print("   ℹ️ Vault Created: \(vault.createdAt)")
         print("   ℹ️ This may mean:")
         print("      - Record hasn't synced to CloudKit yet (wait a few seconds and try again)")
         print("      - CloudKit sync is disabled or not configured")
-        print("      - The vault needs to be saved first")
-        print("   ℹ️ Falling back to token-based sharing or letting UICloudSharingController handle it")
+        print("   ℹ️ UICloudSharingController will use PersistentIdentifier to find the record automatically")
         return nil
     }
     
