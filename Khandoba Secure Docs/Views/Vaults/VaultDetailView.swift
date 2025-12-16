@@ -222,71 +222,6 @@ struct VaultDetailView: View {
                         .padding(.horizontal)
                     }
                     
-                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                        Text("Sharing & Collaboration")
-                            .font(theme.typography.headline)
-                            .foregroundColor(colors.textPrimary)
-                            .padding(.horizontal)
-                        
-                        StandardCard {
-                            VStack(spacing: 0) {
-                                // Always show Invite Nominee for owners or if owner is not set (fallback)
-                                if isOwner || vault.owner == nil {
-                                    Button {
-                                        showNomineeInvitation = true
-                                    } label: {
-                                        SecurityActionRow(
-                                            icon: "person.badge.plus",
-                                            title: "Invite Nominee",
-                                            subtitle: "Apple Pay-style invitation flow",
-                                            color: colors.primary
-                                        )
-                                    }
-                                    
-                                    Divider()
-                                    
-                                    NavigationLink {
-                                        UnifiedNomineeManagementView(vault: vault)
-                                    } label: {
-                                        SecurityActionRow(
-                                            icon: "person.3.fill",
-                                            title: "Manage Nominees",
-                                            subtitle: "View and manage all nominees",
-                                            color: colors.primary
-                                        )
-                                    }
-                                    
-                                    Divider()
-                                    
-                                    NavigationLink {
-                                        VaultAccessControlView(vault: vault)
-                                    } label: {
-                                        SecurityActionRow(
-                                            icon: "lock.shield.fill",
-                                            title: "Access Control",
-                                            subtitle: "Manage user permissions & history",
-                                            color: colors.primary
-                                        )
-                                    }
-                                } else {
-                                    // Non-owners can still view nominees
-                                    NavigationLink {
-                                        UnifiedNomineeManagementView(vault: vault)
-                                    } label: {
-                                        SecurityActionRow(
-                                            icon: "person.3.fill",
-                                            title: "View Nominees",
-                                            subtitle: "See who has access to this vault",
-                                            color: colors.primary
-                                        )
-                                    }
-                                }
-                            }
-                            .frame(minHeight: 44) // Ensure minimum height so card is always visible
-                        }
-                        .padding(.horizontal)
-                    }
-                    
                     if hasActiveSession && !vault.isSystemVault {
                         VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                             Text("Media Actions")
@@ -459,20 +394,7 @@ struct VaultDetailView: View {
         .navigationTitle(vault.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            if isOwner {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        UnifiedNomineeManagementView(vault: vault)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "person.badge.plus")
-                            Text("Nominees")
-                        }
-                        .font(theme.typography.subheadline)
-                        .foregroundColor(colors.primary)
-                    }
-                }
-            }
+            // Collaboration menu removed - now handled in VaultListView
         }
         .sheet(isPresented: $showUploadSheet) {
             DocumentUploadView(vault: vault)

@@ -163,12 +163,15 @@ struct WalletCard: View {
             y: shadow.y + 2
         )
         .contentShape(RoundedRectangle(cornerRadius: 20))
-        .onTapGesture {
-            // Haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-            impactFeedback.impactOccurred()
-            onTap()
-        }
+        .gesture(
+            TapGesture(count: 2)
+                .onEnded {
+                    // Double-tap for unlock (Apple Pay-style)
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
+                    onTap()
+                }
+        )
         .onLongPressGesture(minimumDuration: 0.3) {
             // Haptic feedback
             let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)

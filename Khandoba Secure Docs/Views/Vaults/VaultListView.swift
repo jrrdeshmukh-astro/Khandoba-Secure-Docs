@@ -12,6 +12,7 @@ struct VaultListView: View {
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var vaultService: VaultService
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var authService: AuthenticationService
     
     @State private var showCreateVault = false
     @State private var isLoading = false
@@ -31,6 +32,11 @@ struct VaultListView: View {
     private let cardHeight: CGFloat = 220
     private let cardSpacing: CGFloat = -160 // overlap
     private let snapThreshold: CGFloat = 0.33
+    
+    // Nominee list state (Apple Pay-style)
+    @StateObject private var nomineeService = NomineeService()
+    @State private var selectedVault: Vault?
+    @State private var showNomineeList = false
     
     // Filter out system vaults (Intel Reports, etc.)
     private var userVaults: [Vault] {
@@ -88,35 +94,53 @@ struct VaultListView: View {
                         .padding(.horizontal, UnifiedTheme.Spacing.xl)
                     }
                 } else {
-                    // Circular rolodex view (PassKit-inspired)
-                    CircularRolodexView(
-                        vaults: userVaults,
-                        vaultService: vaultService,
-                        cardHeight: cardHeight,
-                        cardSpacing: cardSpacing,
-                        cardNamespace: cardNamespace,
-                        selectedVaultID: $pendingVaultID, // Use pendingVaultID to intercept taps
-                        cardsAppeared: cardsAppeared
-                    )
-                                    .background(
-                        // Hidden NavigationLink for programmatic navigation
-                        ForEach(userVaults) { vault in
-                                        NavigationLink(
-                                            destination: VaultDetailView(vault: vault),
-                                            tag: vault.id,
-                                            selection: $selectedVaultID
-                            ) {
-                                EmptyView()
-                            }
-                                        .opacity(0)
-                        }
-                    )
-                    .onChange(of: pendingVaultID) { oldValue, newValue in
-                        // Intercept vault selection - require Face ID first
-                        if let vaultID = newValue {
-                            Task {
-                                await authenticateAndOpenVault(vaultID: vaultID)
+                    VStack(spacing: 0) {
+                        // Circular rolodex view (PassKit-inspired)
+                        CircularRolodexView(
+                            vaults: userVaults,
+                            vaultService: vaultService,
+                            cardHeight: cardHeight,
+                            cardSpacing: cardSpacing,
+                            cardNamespace: cardNamespace,
+                            selectedVaultID: $pendingVaultID, // Use pendingVaultID to intercept taps
+                            cardsAppeared: cardsAppeared
+                        )
+                        .background(
+                            // Hidden NavigationLink for programmatic navigation
+                            ForEach(userVaults) { vault in
+                                NavigationLink(
+                                    destination: VaultDetailView(vault: vault),
+                                    tag: vault.id,
+                                    selection: $selectedVaultID
+                                ) {
+                                    EmptyView()
                                 }
+                                .opacity(0)
+                            }
+                        )
+                        .onChange(of: pendingVaultID) { oldValue, newValue in
+                            // Intercept vault selection - require Face ID first
+                            if let vaultID = newValue {
+                                Task {
+                                    await authenticateAndOpenVault(vaultID: vaultID)
+                                }
+                            }
+                        }
+                        
+                        // Nominee List Section (Apple Pay-style "Latest Transactions")
+                        if showNomineeList, let vault = selectedVault {
+                            NomineeListSection(
+                                vault: vault,
+                                nomineeService: nomineeService,
+                                colors: theme.colors(for: colorScheme),
+                                theme: theme
+                            )
+                            .transition(
+                                .asymmetric(
+                                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                                    removal: .move(edge: .bottom).combined(with: .opacity)
+                                )
+                            )
                         }
                     }
                 }
@@ -141,15 +165,19 @@ struct VaultListView: View {
                 await loadVaults()
             }
             .overlay {
-                // Face ID prompt overlay
+                // Face ID prompt overlay with smooth animation
                 if showFaceIDPrompt {
                     FaceIDPromptOverlay(
                         isAuthenticating: isAuthenticating,
                         onCancel: {
-                            pendingVaultID = nil
-                            showFaceIDPrompt = false
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                pendingVaultID = nil
+                                showFaceIDPrompt = false
+                            }
                         }
                     )
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    .zIndex(1000)
                 }
             }
         }
@@ -183,6 +211,15 @@ struct VaultListView: View {
             if let vaultID = newValue {
                 selectedVaultID = vaultID
                 navigateToVaultID = nil
+            }
+        }
+        .onChange(of: selectedVaultID) { oldValue, newValue in
+            // Hide nominee list when navigating away
+            if newValue == nil {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showNomineeList = false
+                    selectedVault = nil
+                }
             }
         }
     }
@@ -230,8 +267,12 @@ struct VaultListView: View {
     private func authenticateAndOpenVault(vaultID: UUID) async {
         // Check if vault already has active session
         if vaultService.hasActiveSession(for: vaultID) {
-            // Already unlocked, navigate directly
+            // Already unlocked, show nominee list and navigate directly
             await MainActor.run {
+                if let vault = userVaults.first(where: { $0.id == vaultID }) {
+                    selectedVault = vault
+                    loadNomineesForVault(vault)
+                }
                 selectedVaultID = vaultID
                 pendingVaultID = nil
             }
@@ -260,9 +301,32 @@ struct VaultListView: View {
                         if let vault = vaults.first(where: { $0.id == vaultID }) {
                             try await vaultService.openVault(vault)
                             await MainActor.run {
-                                // Navigate to vault detail after successful unlock
-                                selectedVaultID = vaultID
-                                pendingVaultID = nil
+                                // Show nominee list with smooth animation
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    selectedVault = vault
+                                    showNomineeList = true
+                                    loadNomineesForVault(vault)
+                                }
+                                
+                                // Navigate to vault detail after a brief delay for smooth transition
+                                Task {
+                                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds - allow nominee list to appear
+                                    await MainActor.run {
+                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.85)) {
+                                            selectedVaultID = vaultID
+                                        }
+                                        // Hide nominee list after navigation starts
+                                        Task {
+                                            try? await Task.sleep(nanoseconds: 200_000_000)
+                                            await MainActor.run {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                    showNomineeList = false
+                                                }
+                                            }
+                                        }
+                                        pendingVaultID = nil
+                                    }
+                                }
                             }
                         } else {
                             print("⚠️ Vault not found: \(vaultID)")
@@ -280,6 +344,24 @@ struct VaultListView: View {
             } else {
                 // Authentication failed, don't navigate
                 pendingVaultID = nil
+            }
+        }
+    }
+    
+    // MARK: - Nominee Loading
+    
+    private func loadNomineesForVault(_ vault: Vault) {
+        Task {
+            if let userID = authService.currentUser?.id {
+                nomineeService.configure(modelContext: modelContext, currentUserID: userID)
+            } else {
+                nomineeService.configure(modelContext: modelContext)
+            }
+            
+            do {
+                try await nomineeService.loadNominees(for: vault)
+            } catch {
+                print("⚠️ Failed to load nominees: \(error.localizedDescription)")
             }
         }
     }
@@ -409,24 +491,41 @@ private struct FaceIDPromptOverlay: View {
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @State private var pulseScale: CGFloat = 1.0
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         
         ZStack {
+            // Blurred background
             colors.background
                 .ignoresSafeArea()
+                .opacity(0.95)
             
+            // Content
             VStack(spacing: UnifiedTheme.Spacing.lg) {
-                Image(systemName: LocalAuthService.shared.biometricType() == .faceID ? "faceid" : "touchid")
-                    .font(.system(size: 48, weight: .regular, design: .rounded))
-                    .foregroundColor(colors.primary)
+                // Animated Face ID icon
+                ZStack {
+                    Circle()
+                        .fill(colors.primary.opacity(0.1))
+                        .frame(width: 100, height: 100)
+                        .scaleEffect(pulseScale)
+                    
+                    Image(systemName: LocalAuthService.shared.biometricType() == .faceID ? "faceid" : "touchid")
+                        .font(.system(size: 48, weight: .regular, design: .rounded))
+                        .foregroundColor(colors.primary)
+                }
+                .animation(
+                    .easeInOut(duration: 1.5)
+                    .repeatForever(autoreverses: true),
+                    value: pulseScale
+                )
                 
                 Text("Unlock Vault")
                     .font(theme.typography.title2)
                     .foregroundColor(colors.textPrimary)
                 
-                Text("Authenticate to view vault")
+                Text("Double-tap to authenticate")
                     .font(theme.typography.subheadline)
                     .foregroundColor(colors.textSecondary)
                 
@@ -434,12 +533,27 @@ private struct FaceIDPromptOverlay: View {
                     ProgressView()
                         .scaleEffect(1.2)
                         .padding()
+                        .transition(.scale.combined(with: .opacity))
                 }
+                
+                Button("Cancel") {
+                    onCancel()
+                }
+                .font(theme.typography.subheadline)
+                .foregroundColor(colors.textSecondary)
+                .padding(.top, UnifiedTheme.Spacing.md)
             }
-            .padding()
+            .padding(UnifiedTheme.Spacing.xl)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(colors.surface)
+                    .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
+            )
+            .padding(UnifiedTheme.Spacing.lg)
         }
-        .transition(.opacity.combined(with: .scale))
-        .animation(.spring(), value: isAuthenticating)
+        .onAppear {
+            pulseScale = 1.1
+        }
     }
 }
 
@@ -448,5 +562,129 @@ private struct ScrollOffsetKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
+    }
+}
+
+// MARK: - Nominee List Section (Apple Pay-style)
+struct NomineeListSection: View {
+    let vault: Vault
+    @ObservedObject var nomineeService: NomineeService
+    let colors: UnifiedTheme.Colors
+    let theme: UnifiedTheme
+    
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+            // Section Header (Apple Pay-style)
+            HStack {
+                Text("Nominees")
+                    .font(theme.typography.headline)
+                    .foregroundColor(colors.textPrimary)
+                
+                Spacer()
+                
+                if !nomineeService.nominees.isEmpty {
+                    Text("\(nomineeService.nominees.count)")
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(colors.textSecondary)
+                }
+            }
+            .padding(.horizontal, UnifiedTheme.Spacing.lg)
+            .padding(.top, UnifiedTheme.Spacing.md)
+            
+            // Nominee List
+            if nomineeService.nominees.isEmpty {
+                // Empty state
+                VStack(spacing: UnifiedTheme.Spacing.sm) {
+                    Image(systemName: "person.badge.plus")
+                        .font(.system(size: 32))
+                        .foregroundColor(colors.textTertiary)
+                    
+                    Text("No Nominees")
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(colors.textSecondary)
+                    
+                    Text("Invite people to access this vault")
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textTertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, UnifiedTheme.Spacing.xl)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: UnifiedTheme.Spacing.md) {
+                        ForEach(nomineeService.nominees.prefix(5)) { nominee in
+                            NomineeListItem(nominee: nominee, colors: colors, theme: theme)
+                        }
+                    }
+                    .padding(.horizontal, UnifiedTheme.Spacing.lg)
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(colors.surface)
+                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: -5)
+        )
+        .padding(.horizontal, UnifiedTheme.Spacing.lg)
+        .padding(.top, UnifiedTheme.Spacing.md)
+    }
+}
+
+// MARK: - Nominee List Item
+struct NomineeListItem: View {
+    let nominee: Nominee
+    let colors: UnifiedTheme.Colors
+    let theme: UnifiedTheme
+    
+    var body: some View {
+        VStack(spacing: UnifiedTheme.Spacing.sm) {
+            // Avatar
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                statusColor,
+                                statusColor.opacity(0.7)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 56, height: 56)
+                
+                Image(systemName: "person.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.white)
+            }
+            
+            // Name
+            Text(nominee.name)
+                .font(theme.typography.subheadline)
+                .foregroundColor(colors.textPrimary)
+                .lineLimit(1)
+                .frame(width: 80)
+            
+            // Status
+            Text(nominee.status.displayName)
+                .font(theme.typography.caption2)
+                .foregroundColor(statusColor)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(statusColor.opacity(0.15))
+                .cornerRadius(8)
+        }
+        .frame(width: 100)
+        .padding(.vertical, UnifiedTheme.Spacing.sm)
+    }
+    
+    private var statusColor: Color {
+        switch nominee.status {
+        case .pending: return colors.warning
+        case .accepted, .active: return colors.success
+        case .inactive, .revoked: return colors.textTertiary
+        }
     }
 }
