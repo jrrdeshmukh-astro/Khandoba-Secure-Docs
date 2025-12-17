@@ -500,16 +500,30 @@ final class VaultService: ObservableObject {
     
     /// Archive vault in Supabase
     private func archiveVaultInSupabase(vault: Vault, supabaseService: SupabaseService) async throws {
-        let update: [String: Any] = [
-            "status": "archived",
-            "last_accessed_at": ISO8601DateFormatter().string(from: Date()),
-            "updated_at": ISO8601DateFormatter().string(from: Date())
-        ]
+        // Fetch existing vault to get all required fields
+        let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: vault.id)
+        var updatedVault = SupabaseVault(
+            id: existingVault.id,
+            name: existingVault.name,
+            vaultDescription: existingVault.vaultDescription,
+            ownerID: existingVault.ownerID,
+            createdAt: existingVault.createdAt,
+            lastAccessedAt: Date(),
+            status: "archived",
+            keyType: existingVault.keyType,
+            vaultType: existingVault.vaultType,
+            isSystemVault: existingVault.isSystemVault,
+            encryptionKeyData: existingVault.encryptionKeyData,
+            isEncrypted: existingVault.isEncrypted,
+            isZeroKnowledge: existingVault.isZeroKnowledge,
+            relationshipOfficerID: existingVault.relationshipOfficerID,
+            updatedAt: Date()
+        )
         
         let _: SupabaseVault = try await supabaseService.update(
             "vaults",
             id: vault.id,
-            values: update
+            values: updatedVault
         )
         
         // Close any active sessions
@@ -530,16 +544,30 @@ final class VaultService: ObservableObject {
     
     /// Unarchive vault in Supabase
     private func unarchiveVaultInSupabase(vault: Vault, supabaseService: SupabaseService) async throws {
-        let update: [String: Any] = [
-            "status": "locked",
-            "last_accessed_at": ISO8601DateFormatter().string(from: Date()),
-            "updated_at": ISO8601DateFormatter().string(from: Date())
-        ]
+        // Fetch existing vault to get all required fields
+        let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: vault.id)
+        var updatedVault = SupabaseVault(
+            id: existingVault.id,
+            name: existingVault.name,
+            vaultDescription: existingVault.vaultDescription,
+            ownerID: existingVault.ownerID,
+            createdAt: existingVault.createdAt,
+            lastAccessedAt: Date(),
+            status: "locked",
+            keyType: existingVault.keyType,
+            vaultType: existingVault.vaultType,
+            isSystemVault: existingVault.isSystemVault,
+            encryptionKeyData: existingVault.encryptionKeyData,
+            isEncrypted: existingVault.isEncrypted,
+            isZeroKnowledge: existingVault.isZeroKnowledge,
+            relationshipOfficerID: existingVault.relationshipOfficerID,
+            updatedAt: Date()
+        )
         
         let _: SupabaseVault = try await supabaseService.update(
             "vaults",
             id: vault.id,
-            values: update
+            values: updatedVault
         )
         
         // Update local vault status
@@ -1417,6 +1445,60 @@ final class VaultService: ObservableObject {
         try? await loadVaults()
     }
     
+    /// Close expired session in Supabase
+    private func closeExpiredSessionInSupabase(session: SupabaseVaultSession, supabaseService: SupabaseService) async {
+        do {
+            let updatedSession = SupabaseVaultSession(
+                id: session.id,
+                vaultID: session.vaultID,
+                userID: session.userID,
+                startedAt: session.startedAt,
+                expiresAt: session.expiresAt,
+                isActive: false,
+                wasExtended: session.wasExtended,
+                createdAt: session.createdAt,
+                updatedAt: Date()
+            )
+            let _: SupabaseVaultSession = try await supabaseService.update(
+                "vault_sessions",
+                id: session.id,
+                values: updatedSession
+            )
+            
+            // Update vault status to locked
+            let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: session.vaultID)
+            var updatedVault = SupabaseVault(
+                id: existingVault.id,
+                name: existingVault.name,
+                vaultDescription: existingVault.vaultDescription,
+                ownerID: existingVault.ownerID,
+                createdAt: existingVault.createdAt,
+                lastAccessedAt: existingVault.lastAccessedAt,
+                status: "locked",
+                keyType: existingVault.keyType,
+                vaultType: existingVault.vaultType,
+                isSystemVault: existingVault.isSystemVault,
+                encryptionKeyData: existingVault.encryptionKeyData,
+                isEncrypted: existingVault.isEncrypted,
+                isZeroKnowledge: existingVault.isZeroKnowledge,
+                relationshipOfficerID: existingVault.relationshipOfficerID,
+                updatedAt: Date()
+            )
+            let _: SupabaseVault = try await supabaseService.update("vaults", id: session.vaultID, values: updatedVault)
+            
+            // Remove from local active sessions
+            await MainActor.run {
+                activeSessions.removeValue(forKey: session.vaultID)
+                sessionTimeoutTasks[session.vaultID]?.cancel()
+                sessionTimeoutTasks.removeValue(forKey: session.vaultID)
+            }
+            
+            print("✅ Expired session closed in Supabase for vault ID: \(session.vaultID)")
+        } catch {
+            print("⚠️ Failed to close expired session in Supabase: \(error.localizedDescription)")
+        }
+    }
+    
     /// Close/lock vault in Supabase mode
     private func closeVaultInSupabase(
         vault: Vault,
@@ -1452,12 +1534,12 @@ final class VaultService: ObservableObject {
         try await supabaseService.update("vaults", id: vault.id, values: updatedVault)
         
         // End all active sessions for this vault
-        let activeSessions: [SupabaseVaultSession] = try await supabaseService.fetchAll(
+        let supabaseSessions: [SupabaseVaultSession] = try await supabaseService.fetchAll(
             "vault_sessions",
             filters: ["vault_id": vault.id.uuidString, "is_active": true]
         )
         
-        for session in activeSessions {
+        for session in supabaseSessions {
             // Create updated session with same ID and all required fields
             let updatedSession = SupabaseVaultSession(
                 id: session.id,
@@ -1493,7 +1575,7 @@ final class VaultService: ObservableObject {
         // Update local state
         await MainActor.run {
             vault.status = "locked"
-            activeSessions.removeValue(forKey: vault.id)
+            self.activeSessions.removeValue(forKey: vault.id)
             sessionTimeoutTasks[vault.id]?.cancel()
             sessionTimeoutTasks.removeValue(forKey: vault.id)
         }

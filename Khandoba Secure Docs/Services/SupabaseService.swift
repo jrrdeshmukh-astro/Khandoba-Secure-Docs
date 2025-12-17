@@ -211,37 +211,51 @@ final class SupabaseService: ObservableObject {
             throw SupabaseError.clientNotInitialized
         }
         
-        var query = client.database.from(table).select()
+        // Build query with filters
+        var filterQuery = client.database.from(table).select()
         
+        // Apply filters
         if let filters = filters {
             for (key, value) in filters {
                 // Convert value to PostgrestFilterValue-compatible type
                 if let stringValue = value as? String {
-                    query = query.eq(key, value: stringValue)
+                    filterQuery = filterQuery.eq(key, value: stringValue)
                 } else if let uuidValue = value as? UUID {
-                    query = query.eq(key, value: uuidValue.uuidString)
+                    filterQuery = filterQuery.eq(key, value: uuidValue.uuidString)
                 } else if let intValue = value as? Int {
-                    query = query.eq(key, value: intValue)
+                    filterQuery = filterQuery.eq(key, value: intValue)
                 } else if let boolValue = value as? Bool {
-                    query = query.eq(key, value: boolValue)
+                    filterQuery = filterQuery.eq(key, value: boolValue)
                 } else {
                     // Fallback: convert to string
-                    query = query.eq(key, value: String(describing: value))
+                    filterQuery = filterQuery.eq(key, value: String(describing: value))
                 }
             }
         }
         
-        // Apply ordering if specified
+        // Build final query with ordering and limit
+        // Note: order() and limit() return PostgrestTransformBuilder
+        // We need to apply order() first to get a transform builder, then we can apply limit()
+        let response: [T]
         if let orderBy = orderBy {
-            query = query.order(orderBy, ascending: ascending)
+            // Apply order first to get PostgrestTransformBuilder
+            let transformQuery = filterQuery.order(orderBy, ascending: ascending)
+            if let limit = limit {
+                // Both order and limit
+                response = try await transformQuery.limit(limit).execute().value
+            } else {
+                // Only order
+                response = try await transformQuery.execute().value
+            }
+        } else if let limit = limit {
+            // Only limit - apply a default order first to get transform builder
+            // Using a common column that should exist in most tables
+            let transformQuery = filterQuery.order("created_at", ascending: false)
+            response = try await transformQuery.limit(limit).execute().value
+        } else {
+            // No order or limit - execute filter query directly
+            response = try await filterQuery.execute().value
         }
-        
-        // Apply limit if specified
-        if let limit = limit {
-            query = query.limit(limit)
-        }
-        
-        let response: [T] = try await query.execute().value
         return response
     }
     

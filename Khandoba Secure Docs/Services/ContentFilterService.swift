@@ -13,6 +13,7 @@ import AVFoundation
 import CoreML
 import PDFKit
 import Speech
+import Combine
 
 /// Content filter result
 struct ContentFilterResult {
@@ -191,11 +192,9 @@ final class ContentFilterService: ObservableObject {
         }
         
         // 2. Object detection (detect weapons, drugs, etc.)
-        let objectRequest = VNDetectObjectRectanglesRequest()
-        try handler.perform([objectRequest])
-        
-        // Note: VNDetectObjectRectanglesRequest is basic - for production, use custom Core ML models
-        // or Vision's object detection capabilities
+        // Note: VNDetectObjectRectanglesRequest is deprecated in iOS 13+
+        // For production, use custom Core ML models or VNDetectHumanRectanglesRequest
+        // For now, we'll skip object detection and rely on scene classification
         
         // 3. Text recognition (check for profanity in image text)
         let textRequest = VNRecognizeTextRequest()

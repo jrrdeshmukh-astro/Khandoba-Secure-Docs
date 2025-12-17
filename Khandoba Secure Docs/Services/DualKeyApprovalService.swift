@@ -32,7 +32,7 @@ final class DualKeyApprovalService: ObservableObject {
     nonisolated init() {}
     
     @MainActor
-    func configure(modelContext: ModelContext, supabaseService: SupabaseService? = nil, vaultService: VaultService? = nil) {
+    func configure(modelContext: ModelContext? = nil, supabaseService: SupabaseService? = nil, vaultService: VaultService? = nil) {
         self.modelContext = modelContext
         self.supabaseService = supabaseService
         self.vaultService = vaultService

@@ -43,7 +43,7 @@ final class RedactionService {
                 annotation.border?.lineWidth = 0
                 
                 // Mark as redaction annotation (removes underlying content)
-                annotation.setValue(true, forAnnotationKey: .shouldDisplay)
+                // Note: PDFKit doesn't have native redaction support, so we use a custom annotation type
                 annotation.setValue("Redaction", forAnnotationKey: .subtype)
                 
                 page.addAnnotation(annotation)
@@ -105,7 +105,10 @@ final class RedactionService {
                 
                 // Draw redaction annotations as black rectangles (flattening)
                 for annotation in originalPage.annotations {
-                    if annotation.type == "Redaction" || annotation.subtype == "Redaction" {
+                    // Check if this is a redaction annotation by checking the type or subtype key
+                    let isRedaction = annotation.type == "Redaction" || 
+                                     annotation.value(forAnnotationKey: .subtype) as? String == "Redaction"
+                    if isRedaction {
                         let bounds = annotation.bounds
                         let scaledBounds = CGRect(
                             x: bounds.origin.x * scale,

@@ -121,7 +121,8 @@ struct UnifiedAddNomineeView: View {
                 if let userID = authService.currentUser?.id {
                     if AppConfig.useSupabase {
                         documentService.configure(supabaseService: supabaseService, userID: userID)
-                    } else if let modelContext = modelContext {
+                    } else {
+                        // modelContext from @Environment is non-optional
                         documentService.configure(modelContext: modelContext, userID: userID)
                     }
                 }
