@@ -41,20 +41,11 @@ struct VaultListView: View {
     @State private var showNomineeList = false
     @State private var frontVaultIndex: Int = 0
     
-    // Filter out system vaults and separate active/archived vaults
+    // Filter out system vaults
     private var activeVaults: [Vault] {
         vaultService.vaults.filter { vault in
             vault.name != "Intel Reports" && 
-            !vault.isSystemVault && 
-            vault.status != "archived"
-        }
-    }
-    
-    private var archivedVaults: [Vault] {
-        vaultService.vaults.filter { vault in
-            vault.name != "Intel Reports" && 
-            !vault.isSystemVault && 
-            vault.status == "archived"
+            !vault.isSystemVault
         }
     }
     
@@ -117,11 +108,12 @@ struct VaultListView: View {
                         VStack(spacing: UnifiedTheme.Spacing.xl) {
                             // Active Vaults Section
                             if !activeVaults.isEmpty {
-                                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                                VStack(alignment: .leading, spacing: 0) {
                                     Text("Active Vaults")
                                         .font(theme.typography.headline)
                                         .foregroundColor(colors.textPrimary)
                                         .padding(.horizontal)
+                                        .padding(.bottom, UnifiedTheme.Spacing.lg)
                                     
                                     // Circular rolodex view (PassKit-inspired)
                                     CircularRolodexView(
@@ -147,6 +139,7 @@ struct VaultListView: View {
                                         colors: colors,
                                         theme: theme
                                     )
+                                    .padding(.top, UnifiedTheme.Spacing.xl)
                                     .transition(TransitionStyles.slideFromBottom)
                                     .id("nominees-\(frontVault.id)")
                                     .onAppear {
@@ -158,54 +151,9 @@ struct VaultListView: View {
                                     }
                                 }
                             }
-                            
-                            // Archived Vaults Section
-                            if !archivedVaults.isEmpty {
-                                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
-                                    Text("Archived Vaults")
-                                        .font(theme.typography.headline)
-                                        .foregroundColor(colors.textSecondary)
-                                        .padding(.horizontal)
-                                    
-                                    ForEach(archivedVaults) { vault in
-                                        NavigationLink {
-                                            VaultDetailView(vault: vault)
-                                        } label: {
-                                            StandardCard {
-                                                HStack(spacing: UnifiedTheme.Spacing.md) {
-                                                    Image(systemName: "archivebox.fill")
-                                                        .foregroundColor(colors.textSecondary)
-                                                        .font(.title2)
-                                                    
-                                                    VStack(alignment: .leading, spacing: 4) {
-                                                        Text(vault.name)
-                                                            .font(theme.typography.headline)
-                                                            .foregroundColor(colors.textPrimary)
-                                                        
-                                                        if let description = vault.vaultDescription {
-                                                            Text(description)
-                                                                .font(theme.typography.caption)
-                                                                .foregroundColor(colors.textSecondary)
-                                                                .lineLimit(2)
-                                                        }
-                                                    }
-                                                    
-                                                    Spacer()
-                                                    
-                                                    Image(systemName: "chevron.right")
-                                                        .foregroundColor(colors.textTertiary)
-                                                        .font(.caption)
-                                                }
-                                                .padding(UnifiedTheme.Spacing.md)
-                                            }
-                                        }
-                                        .padding(.horizontal)
-                                    }
-                                }
-                                .padding(.top, UnifiedTheme.Spacing.lg)
-                            }
                         }
-                        .padding(.vertical)
+                        .padding(.vertical, UnifiedTheme.Spacing.lg)
+                        .padding(.top, UnifiedTheme.Spacing.md)
                     }
                     .background(
                         // Hidden NavigationLink for programmatic navigation
@@ -726,18 +674,20 @@ struct NomineeListSection: View {
             // Nominee List (Vertical, Wallet-style)
             if nomineeService.nominees.isEmpty {
                 // Empty state with invite button
-                VStack(spacing: UnifiedTheme.Spacing.md) {
+                VStack(spacing: UnifiedTheme.Spacing.lg) {
                     Image(systemName: "person.badge.plus")
                         .font(.system(size: 32))
                         .foregroundColor(colors.textTertiary)
                     
-                    Text("No Nominees")
-                        .font(theme.typography.subheadline)
-                        .foregroundColor(colors.textSecondary)
-                    
-                    Text("Invite people to access this vault")
-                        .font(theme.typography.caption)
-                        .foregroundColor(colors.textTertiary)
+                    VStack(spacing: UnifiedTheme.Spacing.xs) {
+                        Text("No Nominees")
+                            .font(theme.typography.subheadline)
+                            .foregroundColor(colors.textSecondary)
+                        
+                        Text("Invite people to access this vault")
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textTertiary)
+                    }
                     
                     Button {
                         showInviteSheet = true
@@ -759,10 +709,11 @@ struct NomineeListSection: View {
                         )
                         .cornerRadius(UnifiedTheme.CornerRadius.md)
                     }
-                    .padding(.top, UnifiedTheme.Spacing.sm)
+                    .padding(.top, UnifiedTheme.Spacing.md)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, UnifiedTheme.Spacing.xl)
+                .padding(.vertical, UnifiedTheme.Spacing.xxl)
+                .padding(.horizontal, UnifiedTheme.Spacing.lg)
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(nomineeService.nominees.enumerated()), id: \.element.id) { index, nominee in

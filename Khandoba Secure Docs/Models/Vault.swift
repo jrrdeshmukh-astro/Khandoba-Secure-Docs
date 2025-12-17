@@ -58,11 +58,9 @@ final class Vault {
     @Relationship(deleteRule: .cascade, inverse: \VaultAccessRequest.vault)
     var accessRequests: [VaultAccessRequest]?
     
-    @Relationship(deleteRule: .nullify, inverse: \AntiVault.monitoredVault)
-    var antiVaults: [AntiVault]? // Anti-vaults monitoring this vault
-    
-    @Relationship(deleteRule: .nullify, inverse: \AntiVault.vault)
-    var antiVaultReference: AntiVault? // Reference from AntiVault when this vault IS the anti-vault
+    // Anti-vaults monitoring this vault
+    // Note: Relationship removed to avoid circular dependency - use UUID lookup instead
+    // var antiVaults: [AntiVault]? // Look up by monitoredVaultID when needed
     
     init(
         id: UUID = UUID(),

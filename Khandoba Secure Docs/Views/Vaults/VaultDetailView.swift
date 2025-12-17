@@ -89,14 +89,14 @@ struct VaultDetailView: View {
             
             scrollContent
             
-            if !hasActiveSession && vault.status != "archived" {
+            if !hasActiveSession {
                 unlockOverlay
             }
         }
         .navigationTitle(vault.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            toolbarContent
+            // Toolbar removed - archive functionality no longer available
         }
         .sheet(isPresented: $showUploadSheet) {
             DocumentUploadView(vault: vault)
@@ -175,7 +175,7 @@ struct VaultDetailView: View {
                 }
                 
                 // Media Actions section
-                if hasActiveSession && !vault.isSystemVault && vault.status != "archived" {
+                if hasActiveSession && !vault.isSystemVault {
                     mediaActionsSection(colors: colors)
                 }
                 
@@ -477,64 +477,10 @@ struct VaultDetailView: View {
                 .foregroundColor(colors.textPrimary)
                 .padding(.horizontal)
             
-            if vault.status == "archived" {
-                archivedDocumentsView(colors: colors)
-            } else if !hasActiveSession {
+            if !hasActiveSession {
                 lockedDocumentsView(colors: colors)
             } else {
                 activeDocumentsView(colors: colors)
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private func archivedDocumentsView(colors: UnifiedTheme.Colors) -> some View {
-        StandardCard {
-            VStack(spacing: UnifiedTheme.Spacing.md) {
-                Image(systemName: "archivebox.fill")
-                    .font(.largeTitle)
-                    .foregroundColor(colors.textSecondary)
-                
-                Text("Vault Archived")
-                    .font(theme.typography.headline)
-                    .foregroundColor(colors.textPrimary)
-                
-                Text("This vault is archived. Documents are read-only. Unarchive the vault to make changes.")
-                    .font(theme.typography.body)
-                    .foregroundColor(colors.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding()
-        }
-        .padding(.horizontal)
-        
-        let archivedDocuments: [Document] = AppConfig.useSupabase
-            ? documentService.documents.filter { $0.status == "active" }
-            : (vault.documents ?? []).filter { $0.status == "active" }
-        
-        if archivedDocuments.isEmpty {
-            StandardCard {
-                VStack(spacing: UnifiedTheme.Spacing.sm) {
-                    Image(systemName: "doc")
-                        .font(.largeTitle)
-                        .foregroundColor(colors.textTertiary)
-                    
-                    Text("No Documents")
-                        .font(theme.typography.headline)
-                        .foregroundColor(colors.textPrimary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, UnifiedTheme.Spacing.xl)
-            }
-            .padding(.horizontal)
-        } else {
-            ForEach(archivedDocuments) { document in
-                NavigationLink {
-                    DocumentPreviewView(document: document)
-                } label: {
-                    DocumentRow(document: document)
-                }
-                .padding(.horizontal)
             }
         }
     }
@@ -606,46 +552,6 @@ struct VaultDetailView: View {
         }
     }
     
-    // MARK: - Toolbar
-    
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                if vault.status == "archived" {
-                    Button {
-                        Task {
-                            do {
-                                try await vaultService.unarchiveVault(vault)
-                            } catch {
-                                errorMessage = error.localizedDescription
-                                showError = true
-                            }
-                        }
-                    } label: {
-                        Label("Unarchive", systemImage: "archivebox")
-                    }
-                } else {
-                    Button(role: .destructive) {
-                        Task {
-                            do {
-                                try await vaultService.archiveVault(vault)
-                            } catch {
-                                errorMessage = error.localizedDescription
-                                showError = true
-                            }
-                        }
-                    } label: {
-                        Label("Archive", systemImage: "archivebox.fill")
-                    }
-                }
-            } label: {
-                let colors = viewColors
-                Image(systemName: "ellipsis.circle")
-                    .foregroundColor(colors.primary)
-            }
-        }
-    }
     
     // MARK: - Unlock Overlay
     
@@ -857,7 +763,7 @@ struct VaultDetailView: View {
     private func lockVault() {
         Task {
             do {
-                guard vault.status == "active" || hasActiveSession else {
+                guard hasActiveSession else {
                     print("⚠️ Vault is already locked")
                     return
                 }
@@ -870,6 +776,7 @@ struct VaultDetailView: View {
                 }
                 
                 print("✅ Vault locked successfully")
+                // Stay on vault detail page - no navigation needed
             } catch {
                 print("❌ Failed to lock vault: \(error.localizedDescription)")
                 await MainActor.run {

@@ -31,16 +31,16 @@ final class AntiVault: Identifiable {
     var id: UUID = UUID()
     
     // The anti-vault itself (references a Vault with isAntiVault = true)
-    @Relationship(deleteRule: .nullify, inverse: \Vault.antiVaultReference)
-    var vault: Vault?
+    // Using UUID instead of relationship to avoid circular dependency
+    var vaultID: UUID?
     
     // The vault being monitored (many-to-one: multiple anti-vaults can monitor one vault)
-    @Relationship(deleteRule: .nullify, inverse: \Vault.antiVaults)
-    var monitoredVault: Vault?
+    // Using UUID instead of relationship to avoid circular dependency
+    var monitoredVaultID: UUID?
     
     // Owner (authorized department/user)
-    @Relationship(deleteRule: .nullify, inverse: \User.ownedAntiVaults)
-    var owner: User?
+    // Using UUID instead of relationship to avoid circular dependency
+    var ownerID: UUID?
     
     // Status
     var status: String = "locked" // "locked", "active", "archived"
@@ -65,10 +65,10 @@ final class AntiVault: Identifiable {
             guard let data = autoUnlockPolicyData else {
                 return AutoUnlockPolicy()
             }
-            return nonisolatedDecode(data: data) ?? AutoUnlockPolicy()
+            return decodePolicy(data: data) ?? AutoUnlockPolicy()
         }
         set {
-            autoUnlockPolicyData = nonisolatedEncode(value: newValue)
+            autoUnlockPolicyData = encodePolicy(value: newValue)
         }
     }
     
@@ -77,33 +77,74 @@ final class AntiVault: Identifiable {
             guard let data = threatDetectionSettingsData else {
                 return ThreatDetectionSettings()
             }
-            return nonisolatedDecode(data: data) ?? ThreatDetectionSettings()
+            return decodeSettings(data: data) ?? ThreatDetectionSettings()
         }
         set {
-            threatDetectionSettingsData = nonisolatedEncode(value: newValue)
+            threatDetectionSettingsData = encodeSettings(value: newValue)
         }
     }
     
     // Nonisolated helpers to avoid main actor isolation issues
-    nonisolated private func nonisolatedDecode<T: Decodable>(data: Data) -> T? {
-        return try? JSONDecoder().decode(T.self, from: data)
+    // Manual encoding/decoding using JSONSerialization to avoid Codable isolation
+    nonisolated private func decodePolicy(data: Data) -> AutoUnlockPolicy? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return AutoUnlockPolicy(
+            unlockOnSessionNomination: json["unlockOnSessionNomination"] as? Bool ?? true,
+            unlockOnSubsetNomination: json["unlockOnSubsetNomination"] as? Bool ?? true,
+            requireApproval: json["requireApproval"] as? Bool ?? false,
+            approvalUserIDs: (json["approvalUserIDs"] as? [String])?.compactMap { UUID(uuidString: $0) } ?? []
+        )
     }
     
-    nonisolated private func nonisolatedEncode<T: Encodable>(value: T) -> Data? {
-        return try? JSONEncoder().encode(value)
+    nonisolated private func encodePolicy(value: AutoUnlockPolicy) -> Data? {
+        let json: [String: Any] = [
+            "unlockOnSessionNomination": value.unlockOnSessionNomination,
+            "unlockOnSubsetNomination": value.unlockOnSubsetNomination,
+            "requireApproval": value.requireApproval,
+            "approvalUserIDs": value.approvalUserIDs.map { $0.uuidString }
+        ]
+        return try? JSONSerialization.data(withJSONObject: json)
+    }
+    
+    nonisolated private func decodeSettings(data: Data) -> ThreatDetectionSettings? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return ThreatDetectionSettings(
+            detectContentDiscrepancies: json["detectContentDiscrepancies"] as? Bool ?? true,
+            detectMetadataMismatches: json["detectMetadataMismatches"] as? Bool ?? true,
+            detectAccessPatternAnomalies: json["detectAccessPatternAnomalies"] as? Bool ?? true,
+            detectGeographicInconsistencies: json["detectGeographicInconsistencies"] as? Bool ?? true,
+            detectEditHistoryDiscrepancies: json["detectEditHistoryDiscrepancies"] as? Bool ?? true,
+            minThreatSeverity: json["minThreatSeverity"] as? String ?? "medium"
+        )
+    }
+    
+    nonisolated private func encodeSettings(value: ThreatDetectionSettings) -> Data? {
+        let json: [String: Any] = [
+            "detectContentDiscrepancies": value.detectContentDiscrepancies,
+            "detectMetadataMismatches": value.detectMetadataMismatches,
+            "detectAccessPatternAnomalies": value.detectAccessPatternAnomalies,
+            "detectGeographicInconsistencies": value.detectGeographicInconsistencies,
+            "detectEditHistoryDiscrepancies": value.detectEditHistoryDiscrepancies,
+            "minThreatSeverity": value.minThreatSeverity
+        ]
+        return try? JSONSerialization.data(withJSONObject: json)
     }
     
     init(
         id: UUID = UUID(),
-        vault: Vault? = nil,
-        monitoredVault: Vault? = nil,
-        owner: User? = nil,
+        vaultID: UUID? = nil,
+        monitoredVaultID: UUID? = nil,
+        ownerID: UUID? = nil,
         status: String = "locked"
     ) {
         self.id = id
-        self.vault = vault
-        self.monitoredVault = monitoredVault
-        self.owner = owner
+        self.vaultID = vaultID
+        self.monitoredVaultID = monitoredVaultID
+        self.ownerID = ownerID
         self.status = status
         self.autoUnlockPolicy = AutoUnlockPolicy()
         self.threatDetectionSettings = ThreatDetectionSettings()

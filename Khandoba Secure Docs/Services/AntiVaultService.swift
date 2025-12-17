@@ -76,9 +76,9 @@ final class AntiVaultService: ObservableObject {
         
         // Create anti-vault record
         let antiVault = AntiVault(
-            vault: antiVaultVault,
-            monitoredVault: monitoredVault,
-            owner: nil, // Will be set if user found
+            vaultID: antiVaultVault.id,
+            monitoredVaultID: monitoredVault.id,
+            ownerID: ownerID,
             status: "locked"
         )
         
@@ -93,14 +93,6 @@ final class AntiVaultService: ObservableObject {
                 throw AntiVaultError.contextNotAvailable
             }
             
-            // Find owner user
-            let userDescriptor = FetchDescriptor<User>(
-                predicate: #Predicate { $0.id == ownerID }
-            )
-            if let owner = try? modelContext.fetch(userDescriptor).first {
-                antiVault.owner = owner
-            }
-            
             modelContext.insert(antiVault)
             try modelContext.save()
         }
@@ -110,8 +102,8 @@ final class AntiVaultService: ObservableObject {
     }
     
     private func createAntiVaultInSupabase(antiVault: AntiVault, ownerID: UUID, supabaseService: SupabaseService) async throws {
-        guard let vaultID = antiVault.vault?.id,
-              let monitoredVaultID = antiVault.monitoredVault?.id else {
+        guard let vaultID = antiVault.vaultID,
+              let monitoredVaultID = antiVault.monitoredVaultID else {
             throw AntiVaultError.invalidData
         }
         
@@ -154,7 +146,7 @@ final class AntiVaultService: ObservableObject {
             }
             
             let descriptor = FetchDescriptor<AntiVault>(
-                predicate: #Predicate { $0.monitoredVault?.id == vaultID }
+                predicate: #Predicate { $0.monitoredVaultID == vaultID }
             )
             monitoringAntiVaults = try modelContext.fetch(descriptor)
         }
@@ -210,7 +202,8 @@ final class AntiVaultService: ObservableObject {
         }
         
         // Unlock the vault itself
-        if let vault = antiVault.vault, let vaultService = vaultService {
+        if let vaultID = antiVault.vaultID, let vaultService = vaultService {
+            let vault = try await getVault(id: vaultID)
             try await vaultService.openVault(vault)
         }
         
@@ -247,10 +240,11 @@ final class AntiVaultService: ObservableObject {
         }
         
         // Load anti-vault documents
-        guard let antiVaultVault = antiVault.vault else {
+        guard let antiVaultVaultID = antiVault.vaultID else {
             throw AntiVaultError.invalidData
         }
         
+        let antiVaultVault = try await getVault(id: antiVaultVaultID)
         try await documentService.loadDocuments(for: antiVaultVault)
         let antiVaultDocuments = documentService.documents
         
@@ -467,9 +461,9 @@ final class AntiVaultService: ObservableObject {
     }
     
     private func convertToSupabaseAntiVault(_ antiVault: AntiVault) async throws -> SupabaseAntiVault {
-        guard let vaultID = antiVault.vault?.id,
-              let monitoredVaultID = antiVault.monitoredVault?.id,
-              let ownerID = antiVault.owner?.id else {
+        guard let vaultID = antiVault.vaultID,
+              let monitoredVaultID = antiVault.monitoredVaultID,
+              let ownerID = antiVault.ownerID else {
             throw AntiVaultError.invalidData
         }
         
@@ -511,9 +505,9 @@ final class AntiVaultService: ObservableObject {
             
             let antiVault = AntiVault(
                 id: supabase.id,
-                vault: vaultModel,
-                monitoredVault: monitoredVaultModel,
-                owner: ownerModel,
+                vaultID: vaultModel.id,
+                monitoredVaultID: monitoredVaultModel.id,
+                ownerID: ownerModel.id,
                 status: supabase.status
             )
             antiVault.autoUnlockPolicy = supabase.autoUnlockPolicy

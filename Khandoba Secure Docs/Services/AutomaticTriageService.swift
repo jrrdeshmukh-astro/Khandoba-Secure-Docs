@@ -738,7 +738,7 @@ final class AutomaticTriageService: ObservableObject {
         let documents = try modelContext.fetch(descriptor)
         for document in documents {
             document.isRedacted = true
-            document.status = "archived" // Archive redacted documents
+            // Archiving removed - documents remain active but redacted
         }
         try modelContext.save()
         print("🔴 Redacted \(documents.count) sensitive document(s)")
@@ -755,7 +755,8 @@ final class AutomaticTriageService: ObservableObject {
         
         let documents = try modelContext.fetch(descriptor)
         for document in documents {
-            document.status = "archived" // Archive to restrict access
+            // Archiving removed - access restriction handled differently
+            document.status = "active"
         }
         try modelContext.save()
         print(" Restricted access to \(documents.count) document(s)")

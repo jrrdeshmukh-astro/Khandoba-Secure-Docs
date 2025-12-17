@@ -643,39 +643,6 @@ final class DocumentService: ObservableObject {
         print("✅ Document deleted from Supabase")
     }
     
-    func archiveDocument(_ document: Document) async throws {
-        // Supabase mode
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            // Fetch current document
-            let supabaseDoc: SupabaseDocument = try await supabaseService.fetch(
-                "documents",
-                id: document.id
-            )
-            
-            // Update archive status
-            var updated = supabaseDoc
-            updated.isArchived = !supabaseDoc.isArchived
-            
-            let _: SupabaseDocument = try await supabaseService.update(
-                "documents",
-                id: document.id,
-                values: updated
-            )
-            
-            // Update local document
-            await MainActor.run {
-                document.isArchived = updated.isArchived
-            }
-            return
-        }
-        
-        // SwiftData/CloudKit mode
-        guard let modelContext = modelContext else { return }
-        
-        document.isArchived = !document.isArchived
-        try modelContext.save()
-    }
-    
     func renameDocument(_ document: Document, newName: String) async throws {
         // Supabase mode
         if AppConfig.useSupabase, let supabaseService = supabaseService {

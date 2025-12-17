@@ -41,8 +41,8 @@ final class User {
     var dualKeyRequests: [DualKeyRequest]?
     
     // Anti-vaults owned by this user
-    @Relationship(deleteRule: .nullify, inverse: \AntiVault.owner)
-    var ownedAntiVaults: [AntiVault]?
+    // Note: Relationship removed to avoid circular dependency - use UUID lookup instead
+    // var ownedAntiVaults: [AntiVault]? // Look up by ownerID when needed
     
     // Subscription status
     var isPremiumSubscriber: Bool = false
@@ -71,7 +71,6 @@ final class User {
         self.sentMessages = []
         self.vaultSessions = []
         self.dualKeyRequests = []
-        self.ownedAntiVaults = []
     }
 }
 

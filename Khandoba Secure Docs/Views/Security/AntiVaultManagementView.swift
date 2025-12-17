@@ -51,6 +51,7 @@ struct AntiVaultManagementView: View {
                                 AntiVaultDetailView(antiVault: antiVault)
                             } label: {
                                 AntiVaultRow(antiVault: antiVault, colors: colors, theme: theme)
+                                    .environmentObject(vaultService)
                             }
                         }
                     }
@@ -131,6 +132,7 @@ struct AntiVaultRow: View {
     let antiVault: AntiVault
     let colors: UnifiedTheme.Colors
     let theme: UnifiedTheme
+    @EnvironmentObject var vaultService: VaultService
     
     var body: some View {
         HStack(spacing: UnifiedTheme.Spacing.md) {
@@ -145,11 +147,11 @@ struct AntiVaultRow: View {
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(antiVault.vault?.name ?? "Anti-Vault")
+                Text(vaultName(for: antiVault.vaultID) ?? "Anti-Vault")
                     .font(theme.typography.headline)
                     .foregroundColor(colors.textPrimary)
                 
-                Text("Monitoring: \(antiVault.monitoredVault?.name ?? "Unknown")")
+                Text("Monitoring: \(vaultName(for: antiVault.monitoredVaultID) ?? "Unknown")")
                     .font(theme.typography.caption)
                     .foregroundColor(colors.textSecondary)
                 
@@ -172,6 +174,11 @@ struct AntiVaultRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+    
+    private func vaultName(for vaultID: UUID?) -> String? {
+        guard let vaultID = vaultID else { return nil }
+        return vaultService.vaults.first(where: { $0.id == vaultID })?.name
     }
 }
 
@@ -331,8 +338,8 @@ struct CreateAntiVaultView: View {
             // Save policy updates
             if AppConfig.useSupabase {
                 // Convert and update in Supabase
-                guard let vaultID = antiVault.vault?.id,
-                      let monitoredVaultID = antiVault.monitoredVault?.id,
+                guard let vaultID = antiVault.vaultID,
+                      let monitoredVaultID = antiVault.monitoredVaultID,
                       let ownerID = authService.currentUser?.id else {
                     errorMessage = "Invalid anti-vault data"
                     showError = true
@@ -372,6 +379,7 @@ struct AntiVaultDetailView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var antiVaultService: AntiVaultService
+    @EnvironmentObject var vaultService: VaultService
     
     @State private var detectedThreats: [ThreatDetection] = []
     @State private var isLoading = false
@@ -409,7 +417,7 @@ struct AntiVaultDetailView: View {
                             .font(theme.typography.headline)
                             .foregroundColor(colors.textPrimary)
                         
-                        Text(antiVault.monitoredVault?.name ?? "Unknown")
+                        Text(vaultName(for: antiVault.monitoredVaultID) ?? "Unknown")
                             .font(theme.typography.body)
                             .foregroundColor(colors.textSecondary)
                     }
@@ -456,11 +464,16 @@ struct AntiVaultDetailView: View {
             .padding()
         }
         .background(colors.background)
-        .navigationTitle(antiVault.vault?.name ?? "Anti-Vault")
+        .navigationTitle(vaultName(for: antiVault.vaultID) ?? "Anti-Vault")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await loadThreats()
         }
+    }
+    
+    private func vaultName(for vaultID: UUID?) -> String? {
+        guard let vaultID = vaultID else { return nil }
+        return vaultService.vaults.first(where: { $0.id == vaultID })?.name
     }
     
     private func loadThreats() async {
