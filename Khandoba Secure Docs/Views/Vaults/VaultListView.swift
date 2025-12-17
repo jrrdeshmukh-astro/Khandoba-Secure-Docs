@@ -41,11 +41,26 @@ struct VaultListView: View {
     @State private var showNomineeList = false
     @State private var frontVaultIndex: Int = 0
     
-    // Filter out system vaults (Intel Reports, etc.)
-    private var userVaults: [Vault] {
+    // Filter out system vaults and separate active/archived vaults
+    private var activeVaults: [Vault] {
         vaultService.vaults.filter { vault in
-            vault.name != "Intel Reports" && !vault.isSystemVault
+            vault.name != "Intel Reports" && 
+            !vault.isSystemVault && 
+            vault.status != "archived"
         }
+    }
+    
+    private var archivedVaults: [Vault] {
+        vaultService.vaults.filter { vault in
+            vault.name != "Intel Reports" && 
+            !vault.isSystemVault && 
+            vault.status == "archived"
+        }
+    }
+    
+    // For backward compatibility
+    private var userVaults: [Vault] {
+        activeVaults
     }
     
     var body: some View {
@@ -97,18 +112,87 @@ struct VaultListView: View {
                         .padding(.horizontal, UnifiedTheme.Spacing.xl)
                     }
                 } else {
-                    VStack(spacing: 0) {
-                        // Circular rolodex view (PassKit-inspired)
-                        CircularRolodexView(
-                            vaults: userVaults,
-                            vaultService: vaultService,
-                            cardHeight: cardHeight,
-                            cardSpacing: cardSpacing,
-                            cardNamespace: cardNamespace,
-                            selectedVaultID: $pendingVaultID, // Use pendingVaultID to intercept taps
-                            cardsAppeared: cardsAppeared,
-                            frontVaultIndex: $frontVaultIndex
-                        )
+                    ScrollView {
+                        VStack(spacing: UnifiedTheme.Spacing.xl) {
+                            // Active Vaults Section
+                            if !activeVaults.isEmpty {
+                                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                                    Text("Active Vaults")
+                                        .font(theme.typography.headline)
+                                        .foregroundColor(colors.textPrimary)
+                                        .padding(.horizontal)
+                                    
+                                    // Circular rolodex view (PassKit-inspired)
+                                    CircularRolodexView(
+                                        vaults: activeVaults,
+                                        vaultService: vaultService,
+                                        cardHeight: cardHeight,
+                                        cardSpacing: cardSpacing,
+                                        cardNamespace: cardNamespace,
+                                        selectedVaultID: $pendingVaultID,
+                                        cardsAppeared: cardsAppeared,
+                                        frontVaultIndex: $frontVaultIndex
+                                    )
+                                    .frame(height: cardHeight)
+                                    .padding(.horizontal)
+                                }
+                                
+                                // Nominee List Section for active vaults
+                                if !activeVaults.isEmpty {
+                                    let frontVault = activeVaults[frontVaultIndex % activeVaults.count]
+                                    NomineeListSection(
+                                        vault: frontVault,
+                                        nomineeService: nomineeService,
+                                        colors: colors,
+                                        theme: theme
+                                    )
+                                    .transition(TransitionStyles.slideFromBottom)
+                                    .id("nominees-\(frontVault.id)")
+                                    .onAppear {
+                                        loadNomineesForVault(frontVault)
+                                    }
+                                    .onChange(of: frontVaultIndex) { oldValue, newValue in
+                                        let newVault = activeVaults[newValue % activeVaults.count]
+                                        loadNomineesForVault(newVault)
+                                    }
+                                }
+                            }
+                            
+                            // Archived Vaults Section
+                            if !archivedVaults.isEmpty {
+                                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                                    Text("Archived Vaults")
+                                        .font(theme.typography.headline)
+                                        .foregroundColor(colors.textSecondary)
+                                        .padding(.horizontal)
+                                    
+                                    ForEach(archivedVaults) { vault in
+                                        NavigationLink {
+                                            VaultDetailView(vault: vault)
+                                        } label: {
+                                            ArchivedVaultRow(vault: vault)
+                                        }
+                                        .padding(.horizontal)
+                                    }
+                                }
+                                .padding(.top, UnifiedTheme.Spacing.lg)
+                            }
+                        }
+                        .padding(.vertical)
+                    }
+                    .background(
+                        // Hidden NavigationLink for programmatic navigation
+                        ForEach(activeVaults) { vault in
+                            NavigationLink(
+                                destination: VaultDetailView(vault: vault),
+                                tag: vault.id,
+                                selection: $selectedVaultID
+                            ) {
+                                EmptyView()
+                            }
+                            .opacity(0)
+                        }
+                    )
                         .background(
                             // Hidden NavigationLink for programmatic navigation
                             ForEach(userVaults) { vault in
@@ -130,28 +214,6 @@ struct VaultListView: View {
                                 }
                             }
                         }
-                        
-                        // Nominee List Section (Wallet-style "Latest Transactions")
-                        // Show nominees for the front vault (currentIndex)
-                        if !userVaults.isEmpty {
-                            let frontVault = userVaults[frontVaultIndex % userVaults.count]
-                            NomineeListSection(
-                                vault: frontVault,
-                                nomineeService: nomineeService,
-                                colors: theme.colors(for: colorScheme),
-                                theme: theme
-                            )
-                            .transition(TransitionStyles.slideFromBottom)
-                            .id("nominees-\(frontVault.id)") // Force refresh when vault changes
-                            .onAppear {
-                                loadNomineesForVault(frontVault)
-                            }
-                            .onChange(of: frontVaultIndex) { oldValue, newValue in
-                                let newVault = userVaults[newValue % userVaults.count]
-                                loadNomineesForVault(newVault)
-                            }
-                        }
-                    }
                 }
             }
             .navigationTitle("Vaults")

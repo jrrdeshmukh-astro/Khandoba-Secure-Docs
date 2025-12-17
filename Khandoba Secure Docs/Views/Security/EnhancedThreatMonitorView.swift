@@ -14,6 +14,8 @@ struct EnhancedThreatMonitorView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @StateObject private var mlService = MLThreatAnalysisService()
+    @EnvironmentObject var vaultService: VaultService
+    @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
     
     @State private var geoMetrics: GeoThreatMetrics?
@@ -88,10 +90,13 @@ struct EnhancedThreatMonitorView: View {
     private func analyzeThreats() async {
         isAnalyzing = true
         
+        // Configure ML service
+        mlService.configure(vaultService: vaultService)
+        
         // Run ML analysis
-        geoMetrics = mlService.analyzeGeoClassification(for: vault)
-        accessMetrics = mlService.analyzeAccessPatterns(for: vault)
-        tagMetrics = mlService.analyzeTagPatterns(for: vault)
+        geoMetrics = await mlService.analyzeGeoClassification(for: vault)
+        accessMetrics = await mlService.analyzeAccessPatterns(for: vault)
+        tagMetrics = await mlService.analyzeTagPatterns(for: vault)
         
         // Calculate overall risk
         let geoRisk = geoMetrics?.riskScore ?? 0
@@ -102,6 +107,7 @@ struct EnhancedThreatMonitorView: View {
         
         // Run traditional threat analysis
         _ = await threatService.analyzeThreatLevel(for: vault)
+        // Note: generateThreatMetrics is now async - update call site if needed
         
         isAnalyzing = false
     }
@@ -494,6 +500,10 @@ struct ThreatTimelineCard: View {
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var vaultService: VaultService
+    @EnvironmentObject var supabaseService: SupabaseService
+    @EnvironmentObject var vaultService: VaultService
+    @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
     @State private var metrics: [ThreatMetric] = []
     
@@ -606,7 +616,7 @@ struct ThreatTimelineCard: View {
         }
         .task {
             // Load metrics on appear
-            metrics = threatService.generateThreatMetrics(for: vault)
+            metrics = await threatService.generateThreatMetrics(for: vault)
         }
     }
 }

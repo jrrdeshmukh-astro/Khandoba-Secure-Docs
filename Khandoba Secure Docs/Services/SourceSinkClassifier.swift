@@ -97,11 +97,15 @@ class SourceSinkClassifier {
     }
     
     /// Classify based on upload method
+    /// - Video recording and voice memo are SOURCE (created by user)
+    /// - Upload and download are SINK (received from external sources)
     static func classifyByUploadMethod(_ method: UploadMethod) -> String {
         switch method {
         case .camera, .photos, .voiceRecording, .videoRecording:
+            // User-created content: camera photos, voice recordings, video recordings
             return "source"
         case .files, .shareExtension, .import, .urlDownload:
+            // External content: file uploads, imports, downloads, share extensions
             return "sink"
         }
     }

@@ -38,6 +38,10 @@
 	<string>Speech recognition is required to transcribe audio documents and voice memos for intelligence analysis.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Face ID is used to securely authenticate and unlock your vaults, providing an additional layer of security for your sensitive documents.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Bluetooth access is required to share vault sessions with nearby devices for secure in-person collaboration.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Bluetooth is used to discover and connect to nearby devices for session nomination and secure vault sharing.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

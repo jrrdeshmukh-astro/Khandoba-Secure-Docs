@@ -200,7 +200,13 @@ final class SupabaseService: ObservableObject {
         return response
     }
     
-    func fetchAll<T: Codable>(_ table: String, filters: [String: Any]? = nil) async throws -> [T] {
+    func fetchAll<T: Codable>(
+        _ table: String,
+        filters: [String: Any]? = nil,
+        limit: Int? = nil,
+        orderBy: String? = nil,
+        ascending: Bool = true
+    ) async throws -> [T] {
         guard let client = supabaseClient else {
             throw SupabaseError.clientNotInitialized
         }
@@ -223,6 +229,16 @@ final class SupabaseService: ObservableObject {
                     query = query.eq(key, value: String(describing: value))
                 }
             }
+        }
+        
+        // Apply ordering if specified
+        if let orderBy = orderBy {
+            query = query.order(orderBy, ascending: ascending)
+        }
+        
+        // Apply limit if specified
+        if let limit = limit {
+            query = query.limit(limit)
         }
         
         let response: [T] = try await query.execute().value

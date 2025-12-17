@@ -21,6 +21,7 @@ struct UnifiedAddNomineeView: View {
     
     @StateObject private var nomineeService = NomineeService()
     @StateObject private var cloudKitSharing = CloudKitSharingService()
+    @StateObject private var bluetoothService = BluetoothSessionNominationService()
     
     // Form fields
     @State private var nomineeName = ""
@@ -29,6 +30,7 @@ struct UnifiedAddNomineeView: View {
     @State private var selectedDocumentIDs: Set<UUID> = [] // Selected documents for subset access
     @State private var sessionDuration: TimeInterval = 30 * 60 // Default 30 minutes
     @State private var showDocumentSelection = false
+    @State private var useBluetooth = false // Bluetooth session nomination toggle
     
     // State
     @State private var isCreating = false
@@ -38,6 +40,7 @@ struct UnifiedAddNomineeView: View {
     @State private var showCloudKitSharing = false
     @State private var cloudKitShare: CKShare?
     @State private var showSuccess = false
+    @State private var showBluetoothNomination = false
     @StateObject private var documentService = DocumentService()
     
     var body: some View {
@@ -92,6 +95,14 @@ struct UnifiedAddNomineeView: View {
                         isPresented: $showCloudKitSharing
                     )
                 }
+            }
+            .sheet(isPresented: $showBluetoothNomination) {
+                BluetoothSessionNominationView(
+                    vault: vault,
+                    bluetoothService: bluetoothService,
+                    selectedDocumentIDs: isSubsetAccess ? Array(selectedDocumentIDs) : nil,
+                    sessionDuration: sessionDuration
+                )
             }
             .onAppear {
                 // Configure nominee service
@@ -194,6 +205,49 @@ struct UnifiedAddNomineeView: View {
                                 accessLevel = level
                             }
                         )
+                    }
+                }
+            }
+            
+            // Bluetooth Session Nomination
+            StandardCard {
+                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                    Toggle(isOn: $useBluetooth) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Image(systemName: "antenna.radiowaves.left.and.right")
+                                    .foregroundColor(colors.primary)
+                                Text("Bluetooth Session Nomination")
+                                    .font(theme.typography.subheadline)
+                                    .foregroundColor(colors.textPrimary)
+                                    .fontWeight(.semibold)
+                            }
+                            
+                            Text("Share vault session with nearby devices via Bluetooth. Perfect for in-person collaboration.")
+                                .font(theme.typography.caption)
+                                .foregroundColor(colors.textSecondary)
+                        }
+                    }
+                    .tint(colors.primary)
+                    
+                    if useBluetooth {
+                        Divider()
+                        
+                        Button {
+                            showBluetoothNomination = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "antenna.radiowaves.left.and.right")
+                                    .foregroundColor(colors.primary)
+                                Text("Start Bluetooth Sharing")
+                                    .foregroundColor(colors.textPrimary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(colors.textTertiary)
+                                    .font(.caption)
+                            }
+                            .padding(.vertical, UnifiedTheme.Spacing.sm)
+                        }
                     }
                 }
             }

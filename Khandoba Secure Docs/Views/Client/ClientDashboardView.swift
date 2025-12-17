@@ -13,18 +13,15 @@ struct ClientDashboardView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var vaultService: VaultService
+    @EnvironmentObject var supabaseService: SupabaseService
+    @EnvironmentObject var authService: AuthenticationService
     
-    // OPTIMIZATION: Only fetch recent logs (last 50) to prevent hanging
-    @Query(sort: \VaultAccessLog.timestamp, order: .reverse)
-    private var allAccessLogs: [VaultAccessLog]
+    // Access logs - loaded from Supabase or SwiftData based on mode
+    @State private var accessLogs: [VaultAccessLog] = []
     
     @State private var isLoading = false
     @State private var totalDocuments = 0
     @State private var activeSessions = 0
-    
-    private var accessLogs: [VaultAccessLog] {
-        Array(allAccessLogs.prefix(50))
-    }
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -191,8 +188,91 @@ struct ClientDashboardView: View {
             
             // Calculate total documents
             totalDocuments = vaultService.vaults.reduce(0) { $0 + ($1.documents?.count ?? 0) }
+            
+            // Load access logs (from Supabase or SwiftData)
+            await loadAccessLogs()
         } catch {
             print("Error loading dashboard data: \(error)")
+        }
+    }
+    
+    /// Load access logs from Supabase or SwiftData
+    private func loadAccessLogs() async {
+        // Supabase mode
+        if AppConfig.useSupabase {
+            await loadAccessLogsFromSupabase()
+        } else {
+            // SwiftData/CloudKit mode
+            await loadAccessLogsFromSwiftData()
+        }
+    }
+    
+    /// Load access logs from Supabase
+    private func loadAccessLogsFromSupabase() async {
+        guard let userID = authService.currentUser?.id else {
+            print("⚠️ Cannot load access logs: User not authenticated")
+            return
+        }
+        
+        do {
+            // Fetch recent access logs from Supabase (limit 50, sorted by timestamp desc)
+            let supabaseLogs: [SupabaseVaultAccessLog] = try await supabaseService.fetchAll(
+                "vault_access_logs",
+                filters: ["user_id": userID.uuidString],
+                limit: 50,
+                orderBy: "timestamp",
+                ascending: false
+            )
+            
+            // Convert to VaultAccessLog models
+            await MainActor.run {
+                self.accessLogs = supabaseLogs.map { supabaseLog in
+                    let log = VaultAccessLog(
+                        timestamp: supabaseLog.timestamp,
+                        accessType: supabaseLog.accessType,
+                        userID: supabaseLog.userID,
+                        userName: supabaseLog.userName,
+                        deviceInfo: supabaseLog.deviceInfo
+                    )
+                    log.id = supabaseLog.id
+                    log.locationLatitude = supabaseLog.locationLatitude
+                    log.locationLongitude = supabaseLog.locationLongitude
+                    log.ipAddress = supabaseLog.ipAddress
+                    log.documentID = supabaseLog.documentID
+                    log.documentName = supabaseLog.documentName
+                    
+                    // Link to vault if available
+                    if let vault = vaultService.vaults.first(where: { $0.id == supabaseLog.vaultID }) {
+                        log.vault = vault
+                    }
+                    
+                    return log
+                }
+            }
+            
+            print("✅ Loaded \(accessLogs.count) access log(s) from Supabase")
+        } catch {
+            print("❌ Failed to load access logs from Supabase: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Load access logs from SwiftData
+    private func loadAccessLogsFromSwiftData() async {
+        do {
+            let descriptor = FetchDescriptor<VaultAccessLog>(
+                sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+            )
+            descriptor.fetchLimit = 50
+            
+            let fetchedLogs = try modelContext.fetch(descriptor)
+            
+            await MainActor.run {
+                self.accessLogs = Array(fetchedLogs)
+            }
+            
+            print("✅ Loaded \(accessLogs.count) access log(s) from SwiftData")
+        } catch {
+            print("❌ Failed to load access logs from SwiftData: \(error.localizedDescription)")
         }
     }
 }

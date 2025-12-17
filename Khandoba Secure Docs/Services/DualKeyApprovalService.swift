@@ -17,6 +17,8 @@ final class DualKeyApprovalService: ObservableObject {
     @Published var isProcessing = false
     
     private var modelContext: ModelContext?
+    private var supabaseService: SupabaseService?
+    private var vaultService: VaultService?
     private let threatService = ThreatMonitoringService()
     private let locationService = LocationService()
     private let formalLogicEngine = FormalLogicEngine()
@@ -30,8 +32,11 @@ final class DualKeyApprovalService: ObservableObject {
     nonisolated init() {}
     
     @MainActor
-    func configure(modelContext: ModelContext) {
+    func configure(modelContext: ModelContext, supabaseService: SupabaseService? = nil, vaultService: VaultService? = nil) {
         self.modelContext = modelContext
+        self.supabaseService = supabaseService
+        self.vaultService = vaultService
+        threatService.configure(vaultService: vaultService ?? VaultService(), supabaseService: supabaseService)
     }
     
     /// Process dual-key request with ML including geospatial analysis
@@ -79,7 +84,18 @@ final class DualKeyApprovalService: ObservableObject {
     // OPTIMIZED: Lightweight threat calculation
     private func calculateThreatScoreOptimized(for vault: Vault) async -> Double {
         // Quick check without heavy analysis
-        let logs = vault.accessLogs ?? []
+        // Load access logs (from Supabase or SwiftData)
+        let logs: [VaultAccessLog]
+        if AppConfig.useSupabase, let vaultService = vaultService {
+            do {
+                logs = try await vaultService.loadAccessLogs(for: vault)
+            } catch {
+                print("⚠️ Failed to load access logs for approval: \(error)")
+                logs = []
+            }
+        } else {
+            logs = vault.accessLogs ?? []
+        }
         
         if logs.isEmpty {
             return 10.0 // New vault, low risk
@@ -106,7 +122,18 @@ final class DualKeyApprovalService: ObservableObject {
         print("   Current location: \(currentLat), \(currentLon)")
         
         // Get historical locations from logs
-        let logs = vault.accessLogs ?? []
+        // Load access logs (from Supabase or SwiftData)
+        let logs: [VaultAccessLog]
+        if AppConfig.useSupabase, let vaultService = vaultService {
+            do {
+                logs = try await vaultService.loadAccessLogs(for: vault)
+            } catch {
+                print("⚠️ Failed to load access logs for approval: \(error)")
+                logs = []
+            }
+        } else {
+            logs = vault.accessLogs ?? []
+        }
         let logsWithLocation = logs.filter { $0.locationLatitude != nil && $0.locationLongitude != nil }
         
         if logsWithLocation.isEmpty {
@@ -146,7 +173,18 @@ final class DualKeyApprovalService: ObservableObject {
     
     // BEHAVIORAL ANALYSIS: Access patterns
     private func analyzeBehaviorOptimized(vault: Vault) async -> Double {
-        let logs = vault.accessLogs ?? []
+        // Load access logs (from Supabase or SwiftData)
+        let logs: [VaultAccessLog]
+        if AppConfig.useSupabase, let vaultService = vaultService {
+            do {
+                logs = try await vaultService.loadAccessLogs(for: vault)
+            } catch {
+                print("⚠️ Failed to load access logs for approval: \(error)")
+                logs = []
+            }
+        } else {
+            logs = vault.accessLogs ?? []
+        }
         
         if logs.count < 3 {
             return 20.0 // Not enough data, moderate risk
@@ -233,7 +271,18 @@ final class DualKeyApprovalService: ObservableObject {
         }
         
         // Recent access patterns
-        let logs = vault.accessLogs ?? []
+        // Load access logs (from Supabase or SwiftData)
+        let logs: [VaultAccessLog]
+        if AppConfig.useSupabase, let vaultService = vaultService {
+            do {
+                logs = try await vaultService.loadAccessLogs(for: vault)
+            } catch {
+                print("⚠️ Failed to load access logs for approval: \(error)")
+                logs = []
+            }
+        } else {
+            logs = vault.accessLogs ?? []
+        }
         let recentLogs = logs.sorted { $0.timestamp > $1.timestamp }.prefix(10)
         
         // Rapid access attempts
@@ -344,7 +393,18 @@ final class DualKeyApprovalService: ObservableObject {
             return 50.0 // Unknown requester = medium risk
         }
         
-        let logs = vault.accessLogs ?? []
+        // Load access logs (from Supabase or SwiftData)
+        let logs: [VaultAccessLog]
+        if AppConfig.useSupabase, let vaultService = vaultService {
+            do {
+                logs = try await vaultService.loadAccessLogs(for: vault)
+            } catch {
+                print("⚠️ Failed to load access logs for approval: \(error)")
+                logs = []
+            }
+        } else {
+            logs = vault.accessLogs ?? []
+        }
         let userLogs = logs.filter { $0.userID == requester.id }
         
         // New user requesting access
@@ -666,7 +726,18 @@ final class DualKeyApprovalService: ObservableObject {
     }
     
     private func getUserTypicalLocations(vault: Vault) -> [(latitude: Double, longitude: Double)] {
-        let logs = vault.accessLogs ?? []
+        // Load access logs (from Supabase or SwiftData)
+        let logs: [VaultAccessLog]
+        if AppConfig.useSupabase, let vaultService = vaultService {
+            do {
+                logs = try await vaultService.loadAccessLogs(for: vault)
+            } catch {
+                print("⚠️ Failed to load access logs for approval: \(error)")
+                logs = []
+            }
+        } else {
+            logs = vault.accessLogs ?? []
+        }
         var locations: [(Double, Double)] = []
         
         for log in logs {

@@ -10,6 +10,7 @@ import SwiftData
 import CoreLocation
 import QuickLook
 import UniformTypeIdentifiers
+import UIKit
 
 struct DocumentPreviewView: View {
     let document: Document
@@ -93,6 +94,15 @@ struct DocumentPreviewView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    // Print option (only export allowed)
+                    Button {
+                        printDocument()
+                    } label: {
+                        Label("Print", systemImage: "printer.fill")
+                    }
+                    
+                    Divider()
+                    
                     Button {
                         showRenameSheet = true
                     } label: {
@@ -111,6 +121,8 @@ struct DocumentPreviewView: View {
                         Label("Redact (HIPAA/CUI)", systemImage: "eye.slash.fill")
                     }
                     .disabled(!isRedactionSupported(document: document))
+                    
+                    Divider()
                     
                     Button(role: .destructive) {
                         showDeleteConfirm = true
@@ -306,6 +318,38 @@ struct DocumentPreviewView: View {
         Task {
             try? await documentService.deleteDocument(document)
             dismiss()
+        }
+    }
+    
+    // MARK: - Print Functionality
+    
+    private func printDocument() {
+        guard let previewURL = previewURL else {
+            print("⚠️ Cannot print: Document not loaded")
+            return
+        }
+        
+        // Create print info
+        let printInfo = UIPrintInfo(dictionary: nil)
+        printInfo.outputType = .general
+        printInfo.jobName = document.name
+        printInfo.duplex = .none
+        
+        // Create print controller
+        let printController = UIPrintInteractionController.shared
+        printController.printInfo = printInfo
+        printController.printingItem = previewURL
+        
+        // Present print dialog
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootViewController = windowScene.windows.first?.rootViewController {
+            printController.present(animated: true) { controller, completed, error in
+                if let error = error {
+                    print("❌ Print error: \(error.localizedDescription)")
+                } else if completed {
+                    print("✅ Document sent to printer")
+                }
+            }
         }
     }
     

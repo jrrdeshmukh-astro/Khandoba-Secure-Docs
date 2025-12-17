@@ -17,18 +17,39 @@ final class ThreatMonitoringService: ObservableObject {
     @Published var anomalyScore: Double = 0.0
     @Published var recentThreats: [ThreatEvent] = []
     
+    private var vaultService: VaultService?
+    private var supabaseService: SupabaseService?
+    
     nonisolated init() {}
+    
+    func configure(vaultService: VaultService, supabaseService: SupabaseService? = nil) {
+        self.vaultService = vaultService
+        self.supabaseService = supabaseService
+    }
     
     /// Analyze vault access patterns for threats
     func analyzeThreatLevel(for vault: Vault) async -> ThreatLevel {
-        let logs = vault.accessLogs ?? [].sorted { $0.timestamp > $1.timestamp }
+        // Load access logs (from Supabase or SwiftData)
+        let logs: [VaultAccessLog]
+        if AppConfig.useSupabase, let vaultService = vaultService {
+            do {
+                logs = try await vaultService.loadAccessLogs(for: vault)
+            } catch {
+                print("⚠️ Failed to load access logs for threat analysis: \(error)")
+                logs = []
+            }
+        } else {
+            logs = vault.accessLogs ?? []
+        }
+        
+        let sortedLogs = logs.sorted { $0.timestamp > $1.timestamp }
         
         var suspiciousActivities = 0
         var anomalyPoints = 0.0
         
         // Check for rapid successive access (brute force indicator)
-        if logs.count > 10 {
-            let recentLogs = logs.prefix(10)
+        if sortedLogs.count > 10 {
+            let recentLogs = sortedLogs.prefix(10)
             let timeWindow = recentLogs.first!.timestamp.timeIntervalSince(recentLogs.last!.timestamp)
             
             if timeWindow < 60 { // 10 accesses in less than 1 minute
@@ -38,20 +59,20 @@ final class ThreatMonitoringService: ObservableObject {
         }
         
         // Check for unusual time patterns
-        let nightAccessCount = logs.filter { isNightTime($0.timestamp) }.count
-        if Double(nightAccessCount) / Double(logs.count) > 0.5 {
+        let nightAccessCount = sortedLogs.filter { isNightTime($0.timestamp) }.count
+        if Double(nightAccessCount) / Double(sortedLogs.count) > 0.5 {
             anomalyPoints += 15
         }
         
         // Check for geographic anomalies
-        if hasGeographicAnomalies(logs) {
+        if hasGeographicAnomalies(sortedLogs) {
             suspiciousActivities += 1
             anomalyPoints += 25
         }
         
         // Check for unusual deletion patterns
-        let deletionCount = logs.filter { $0.accessType == "deleted" }.count
-        if Double(deletionCount) / Double(max(logs.count, 1)) > 0.3 {
+        let deletionCount = sortedLogs.filter { $0.accessType == "deleted" }.count
+        if Double(deletionCount) / Double(max(sortedLogs.count, 1)) > 0.3 {
             anomalyPoints += 30
         }
         
@@ -71,15 +92,28 @@ final class ThreatMonitoringService: ObservableObject {
     }
     
     /// Generate threat metrics over time
-    func generateThreatMetrics(for vault: Vault) -> [ThreatMetric] {
-        let logs = vault.accessLogs ?? [].sorted { $0.timestamp < $1.timestamp }
+    func generateThreatMetrics(for vault: Vault) async -> [ThreatMetric] {
+        // Load access logs (from Supabase or SwiftData)
+        let logs: [VaultAccessLog]
+        if AppConfig.useSupabase, let vaultService = vaultService {
+            do {
+                logs = try await vaultService.loadAccessLogs(for: vault)
+            } catch {
+                print("⚠️ Failed to load access logs for metrics: \(error)")
+                logs = []
+            }
+        } else {
+            logs = vault.accessLogs ?? []
+        }
+        
+        let sortedLogs = logs.sorted { $0.timestamp < $1.timestamp }
         var metrics: [ThreatMetric] = []
         
         // Group by day
         let calendar = Calendar.current
         var dailyGroups: [Date: [VaultAccessLog]] = [:]
         
-        for log in logs {
+        for log in sortedLogs {
             let day = calendar.startOfDay(for: log.timestamp)
             if dailyGroups[day] == nil {
                 dailyGroups[day] = []
@@ -111,13 +145,27 @@ final class ThreatMonitoringService: ObservableObject {
     }
     
     /// Detect specific threat patterns
-    func detectThreats(for vault: Vault) -> [ThreatEvent] {
+    func detectThreats(for vault: Vault) async -> [ThreatEvent] {
         var threats: [ThreatEvent] = []
-        let logs = vault.accessLogs ?? [].sorted { $0.timestamp > $1.timestamp }
+        
+        // Load access logs (from Supabase or SwiftData)
+        let logs: [VaultAccessLog]
+        if AppConfig.useSupabase, let vaultService = vaultService {
+            do {
+                logs = try await vaultService.loadAccessLogs(for: vault)
+            } catch {
+                print("⚠️ Failed to load access logs for threat detection: \(error)")
+                logs = []
+            }
+        } else {
+            logs = vault.accessLogs ?? []
+        }
+        
+        let sortedLogs = logs.sorted { $0.timestamp > $1.timestamp }
         
         // Detect rapid access pattern
-        if logs.count >= 5 {
-            let recent = logs.prefix(5)
+        if sortedLogs.count >= 5 {
+            let recent = sortedLogs.prefix(5)
             let timeSpan = recent.first!.timestamp.timeIntervalSince(recent.last!.timestamp)
             
             if timeSpan < 30 {
@@ -131,12 +179,12 @@ final class ThreatMonitoringService: ObservableObject {
         }
         
         // Detect unusual location
-        if let recentLog = logs.first,
+        if let recentLog = sortedLogs.first,
            let lat = recentLog.locationLatitude,
            let lon = recentLog.locationLongitude {
             
             // Check if location is far from previous accesses
-            let previousLogs = logs.dropFirst().prefix(10)
+            let previousLogs = sortedLogs.dropFirst().prefix(10)
             var averageLat = 0.0
             var averageLon = 0.0
             var count = 0

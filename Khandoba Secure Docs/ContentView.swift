@@ -169,6 +169,11 @@ struct ContentView: View {
                 handleCloudKitShareInvitation(metadata)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .bluetoothSessionInvitationReceived)) { notification in
+            if let invitation = notification.userInfo?["invitation"] as? BluetoothSessionInvitation {
+                handleBluetoothSessionInvitation(invitation)
+            }
+        }
     }
     
     private func handleDeepLink(_ url: URL) {
@@ -356,6 +361,19 @@ struct ContentView: View {
         }
         
         return nil
+    }
+    
+    /// Handle Bluetooth session invitation
+    private func handleBluetoothSessionInvitation(_ invitation: BluetoothSessionInvitation) {
+        print("📥 Bluetooth session invitation received")
+        print("   Vault ID: \(invitation.vaultID)")
+        print("   Inviter: \(invitation.inviterUserID)")
+        print("   Duration: \(Int(invitation.sessionDuration / 60)) minutes")
+        
+        // Show alert to accept invitation
+        // In a real implementation, you'd navigate to accept the invitation
+        // For now, we'll just log it
+        // TODO: Create AcceptBluetoothInvitationView
     }
     
     private func acceptCloudKitShare(metadata: CKShare.Metadata) {

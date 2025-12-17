@@ -226,7 +226,8 @@ struct VaultDetailView: View {
                         .padding(.horizontal)
                     }
                     
-                    if hasActiveSession && !vault.isSystemVault {
+                    // Media Actions - only show for active vaults with active session
+                    if hasActiveSession && !vault.isSystemVault && vault.status != "archived" {
                         VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                             Text("Media Actions")
                                 .font(theme.typography.headline)
@@ -334,7 +335,58 @@ struct VaultDetailView: View {
                             .foregroundColor(colors.textPrimary)
                             .padding(.horizontal)
                         
-                        if !hasActiveSession {
+                        // Archived vaults: show read-only view
+                        if vault.status == "archived" {
+                            StandardCard {
+                                VStack(spacing: UnifiedTheme.Spacing.md) {
+                                    Image(systemName: "archivebox.fill")
+                                        .font(.largeTitle)
+                                        .foregroundColor(colors.textSecondary)
+                                    
+                                    Text("Vault Archived")
+                                        .font(theme.typography.headline)
+                                        .foregroundColor(colors.textPrimary)
+                                    
+                                    Text("This vault is archived. Documents are read-only. Unarchive the vault to make changes.")
+                                        .font(theme.typography.body)
+                                        .foregroundColor(colors.textSecondary)
+                                        .multilineTextAlignment(.center)
+                                }
+                                .padding()
+                            }
+                            .padding(.horizontal)
+                            
+                            // Show documents in read-only mode (no upload actions)
+                            let archivedDocuments: [Document] = AppConfig.useSupabase 
+                                ? documentService.documents.filter { $0.status == "active" }
+                                : (vault.documents ?? []).filter { $0.status == "active" }
+                            
+                            if archivedDocuments.isEmpty {
+                                StandardCard {
+                                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                                        Image(systemName: "doc")
+                                            .font(.largeTitle)
+                                            .foregroundColor(colors.textTertiary)
+                                        
+                                        Text("No Documents")
+                                            .font(theme.typography.headline)
+                                            .foregroundColor(colors.textPrimary)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, UnifiedTheme.Spacing.xl)
+                                }
+                                .padding(.horizontal)
+                            } else {
+                                ForEach(archivedDocuments) { document in
+                                    NavigationLink {
+                                        DocumentPreviewView(document: document)
+                                    } label: {
+                                        DocumentRow(document: document)
+                                    }
+                                    .padding(.horizontal)
+                                }
+                            }
+                        } else if !hasActiveSession {
                             StandardCard {
                                 VStack(spacing: UnifiedTheme.Spacing.sm) {
                                     Image(systemName: "lock.fill")
@@ -354,7 +406,7 @@ struct VaultDetailView: View {
                             }
                             .padding(.horizontal)
                         } else {
-                            // Filter documents based on access level
+                            // Active vaults: normal document list
                             var documentsToShow: [Document] = AppConfig.useSupabase 
                                 ? documentService.documents.filter { $0.status == "active" }
                                 : (vault.documents ?? []).filter { $0.status == "active" }
@@ -401,14 +453,48 @@ struct VaultDetailView: View {
             
             // Face ID is now handled before navigation in VaultListView
             // If we reach here without an active session, show unlock button
-            if !hasActiveSession {
+            // Archived vaults don't need unlocking - they're read-only
+            if !hasActiveSession && vault.status != "archived" {
                 unlockOverlay
             }
         }
         .navigationTitle(vault.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            // Collaboration menu removed - now handled in VaultListView
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    if vault.status == "archived" {
+                        Button {
+                            Task {
+                                do {
+                                    try await vaultService.unarchiveVault(vault)
+                                } catch {
+                                    errorMessage = error.localizedDescription
+                                    showError = true
+                                }
+                            }
+                        } label: {
+                            Label("Unarchive", systemImage: "archivebox")
+                        }
+                    } else {
+                        Button(role: .destructive) {
+                            Task {
+                                do {
+                                    try await vaultService.archiveVault(vault)
+                                } catch {
+                                    errorMessage = error.localizedDescription
+                                    showError = true
+                                }
+                            }
+                        } label: {
+                            Label("Archive", systemImage: "archivebox.fill")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundColor(colors.primary)
+                }
+            }
         }
         .sheet(isPresented: $showUploadSheet) {
             DocumentUploadView(vault: vault)
@@ -605,11 +691,27 @@ struct VaultDetailView: View {
     private func lockVault() {
         Task {
             do {
+                // Verify vault is currently open before locking
+                guard vault.status == "active" || hasActiveSession else {
+                    print("⚠️ Vault is already locked")
+                    return
+                }
+                
                 try await vaultService.closeVault(vault)
-                print(" Vault locked by owner")
+                
+                // Update local state
+                await MainActor.run {
+                    vault.status = "locked"
+                    hasActiveSession = false
+                }
+                
+                print("✅ Vault locked successfully")
             } catch {
-                errorMessage = error.localizedDescription
-                showError = true
+                print("❌ Failed to lock vault: \(error.localizedDescription)")
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
             }
         }
     }

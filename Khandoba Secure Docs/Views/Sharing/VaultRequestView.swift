@@ -403,15 +403,18 @@ struct VaultPickerView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
+    @EnvironmentObject var vaultService: VaultService
     
     @Binding var selectedVault: Vault?
     
-    @Query(sort: \Vault.createdAt, order: .reverse) private var allVaults: [Vault]
+    @State private var availableVaults: [Vault] = []
+    @State private var isLoading = false
     
     var body: some View {
         NavigationStack {
             List {
-                ForEach(allVaults.filter { $0.owner?.id == authService.currentUser?.id }) { vault in
+                ForEach(availableVaults) { vault in
                     Button {
                         selectedVault = vault
                         dismiss()
@@ -446,6 +449,43 @@ struct VaultPickerView: View {
                     }
                 }
             }
+            .task {
+                await loadVaults()
+            }
         }
+    }
+    
+    /// Load vaults from Supabase or SwiftData
+    private func loadVaults() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        // Supabase mode
+        if AppConfig.useSupabase {
+            // Use vaults from VaultService (already loaded)
+            await MainActor.run {
+                self.availableVaults = vaultService.vaults.filter { vault in
+                    vault.owner?.id == authService.currentUser?.id
+                }
+            }
+        } else {
+            // SwiftData/CloudKit mode
+            do {
+                let descriptor = FetchDescriptor<Vault>(
+                    sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+                )
+                
+                let allVaults = try modelContext.fetch(descriptor)
+                
+                await MainActor.run {
+                    self.availableVaults = allVaults.filter { vault in
+                        vault.owner?.id == authService.currentUser?.id
+                    }
+                }
+            } catch {
+                print("❌ Failed to load vaults: \(error.localizedDescription)")
+            }
+        }
+    }
     }
 }

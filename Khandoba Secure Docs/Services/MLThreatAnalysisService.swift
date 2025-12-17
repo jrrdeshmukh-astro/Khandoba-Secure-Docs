@@ -19,9 +19,26 @@ final class MLThreatAnalysisService: ObservableObject {
     
     // MARK: - Geo-Classification Analysis
     
+    private var vaultService: VaultService?
+    
+    func configure(vaultService: VaultService) {
+        self.vaultService = vaultService
+    }
+    
     /// Analyze access patterns by geographic clustering (zero-knowledge)
-    func analyzeGeoClassification(for vault: Vault) -> GeoThreatMetrics {
-        let accessLogs = vault.accessLogs ?? []
+    func analyzeGeoClassification(for vault: Vault) async -> GeoThreatMetrics {
+        // Load access logs (from Supabase or SwiftData)
+        let accessLogs: [VaultAccessLog]
+        if AppConfig.useSupabase, let vaultService = vaultService {
+            do {
+                accessLogs = try await vaultService.loadAccessLogs(for: vault)
+            } catch {
+                print("⚠️ Failed to load access logs for geo analysis: \(error)")
+                accessLogs = []
+            }
+        } else {
+            accessLogs = vault.accessLogs ?? []
+        }
         
         // Extract coordinates (metadata only, no document content)
         let coordinates = accessLogs.compactMap { log -> CLLocationCoordinate2D? in
@@ -71,8 +88,19 @@ final class MLThreatAnalysisService: ObservableObject {
     // MARK: - Access Pattern Analysis
     
     /// Detect anomalous access patterns using ML (zero-knowledge)
-    func analyzeAccessPatterns(for vault: Vault) -> AccessPatternMetrics {
-        let accessLogs = vault.accessLogs ?? []
+    func analyzeAccessPatterns(for vault: Vault) async -> AccessPatternMetrics {
+        // Load access logs (from Supabase or SwiftData)
+        let accessLogs: [VaultAccessLog]
+        if AppConfig.useSupabase, let vaultService = vaultService {
+            do {
+                accessLogs = try await vaultService.loadAccessLogs(for: vault)
+            } catch {
+                print("⚠️ Failed to load access logs for access pattern analysis: \(error)")
+                accessLogs = []
+            }
+        } else {
+            accessLogs = vault.accessLogs ?? []
+        }
         
         // Temporal analysis
         let timestamps = accessLogs.map { $0.timestamp }

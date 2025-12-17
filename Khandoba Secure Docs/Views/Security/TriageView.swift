@@ -16,9 +16,10 @@ struct TriageView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     
+    @EnvironmentObject var vaultService: VaultService
+    @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
     @StateObject private var mlService = MLThreatAnalysisService()
-    @StateObject private var vaultService = VaultService()
     @StateObject private var autoTriageService = AutomaticTriageService()
     
     @State private var allThreats: [ThreatItem] = []
@@ -193,12 +194,16 @@ struct TriageView: View {
         var detectedThreats: [ThreatItem] = []
         var detectedLeaks: [DataLeak] = []
         
+        // Configure services
+        threatService.configure(vaultService: vaultService, supabaseService: supabaseService)
+        mlService.configure(vaultService: vaultService)
+        
         // Analyze each vault
         for vault in vaults {
             // Traditional threat detection
             // Note: threatLevel is calculated but not used in this loop
             _ = await threatService.analyzeThreatLevel(for: vault)
-            let threats = threatService.detectThreats(for: vault)
+            let threats = await threatService.detectThreats(for: vault)
             
             for threat in threats {
                 detectedThreats.append(ThreatItem(

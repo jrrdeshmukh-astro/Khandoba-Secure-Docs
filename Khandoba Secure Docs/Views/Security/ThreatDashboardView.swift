@@ -14,6 +14,8 @@ struct ThreatDashboardView: View {
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var vaultService: VaultService
+    @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
     
     @State private var threatMetrics: [ThreatMetric] = []
@@ -135,14 +137,16 @@ struct ThreatDashboardView: View {
         .navigationTitle("Threat Dashboard")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            // Configure threat service
+            threatService.configure(vaultService: vaultService, supabaseService: supabaseService)
             await analyzeThreat()
         }
     }
     
     private func analyzeThreat() async {
         _ = await threatService.analyzeThreatLevel(for: vault)
-        threatMetrics = threatService.generateThreatMetrics(for: vault)
-        threats = threatService.detectThreats(for: vault)
+        threatMetrics = await threatService.generateThreatMetrics(for: vault)
+        threats = await threatService.detectThreats(for: vault)
     }
 }
 

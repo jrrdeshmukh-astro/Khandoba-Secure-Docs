@@ -432,6 +432,155 @@ final class VaultService: ObservableObject {
         return vault
     }
     
+    /// Archive a vault
+    func archiveVault(_ vault: Vault) async throws {
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            try await archiveVaultInSupabase(vault: vault, supabaseService: supabaseService)
+            return
+        }
+        
+        // SwiftData/CloudKit mode
+        guard let modelContext = modelContext else {
+            throw VaultError.contextNotAvailable
+        }
+        
+        vault.status = "archived"
+        vault.lastAccessedAt = Date()
+        
+        // Close any active sessions
+        if let session = activeSessions[vault.id] {
+            session.isActive = false
+            activeSessions.removeValue(forKey: vault.id)
+        }
+        
+        try modelContext.save()
+        
+        // Reload vaults to update UI
+        try await loadVaults()
+        
+        print("✅ Vault archived: \(vault.name)")
+    }
+    
+    /// Unarchive a vault
+    func unarchiveVault(_ vault: Vault) async throws {
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            try await unarchiveVaultInSupabase(vault: vault, supabaseService: supabaseService)
+            return
+        }
+        
+        // SwiftData/CloudKit mode
+        guard let modelContext = modelContext else {
+            throw VaultError.contextNotAvailable
+        }
+        
+        vault.status = "locked" // Unarchive sets to locked, not active
+        vault.lastAccessedAt = Date()
+        
+        try modelContext.save()
+        
+        // Reload vaults to update UI
+        try await loadVaults()
+        
+        print("✅ Vault unarchived: \(vault.name)")
+    }
+    
+    /// Archive vault in Supabase
+    private func archiveVaultInSupabase(vault: Vault, supabaseService: SupabaseService) async throws {
+        let update: [String: Any] = [
+            "status": "archived",
+            "last_accessed_at": ISO8601DateFormatter().string(from: Date()),
+            "updated_at": ISO8601DateFormatter().string(from: Date())
+        ]
+        
+        let _: SupabaseVault = try await supabaseService.update(
+            "vaults",
+            id: vault.id,
+            values: update
+        )
+        
+        // Close any active sessions
+        if let session = activeSessions[vault.id] {
+            session.isActive = false
+            activeSessions.removeValue(forKey: vault.id)
+        }
+        
+        // Update local vault status
+        vault.status = "archived"
+        vault.lastAccessedAt = Date()
+        
+        // Reload vaults to update UI
+        try await loadVaults()
+        
+        print("✅ Vault archived in Supabase: \(vault.name)")
+    }
+    
+    /// Unarchive vault in Supabase
+    private func unarchiveVaultInSupabase(vault: Vault, supabaseService: SupabaseService) async throws {
+        let update: [String: Any] = [
+            "status": "locked",
+            "last_accessed_at": ISO8601DateFormatter().string(from: Date()),
+            "updated_at": ISO8601DateFormatter().string(from: Date())
+        ]
+        
+        let _: SupabaseVault = try await supabaseService.update(
+            "vaults",
+            id: vault.id,
+            values: update
+        )
+        
+        // Update local vault status
+        vault.status = "locked"
+        vault.lastAccessedAt = Date()
+        
+        // Reload vaults to update UI
+        try await loadVaults()
+        
+        print("✅ Vault unarchived in Supabase: \(vault.name)")
+    }
+    
+    /// Load access logs for a vault (works in both Supabase and SwiftData modes)
+    func loadAccessLogs(for vault: Vault) async throws -> [VaultAccessLog] {
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            return try await loadAccessLogsFromSupabase(for: vault, supabaseService: supabaseService)
+        }
+        
+        // SwiftData/CloudKit mode - use relationship
+        return vault.accessLogs ?? []
+    }
+    
+    /// Load access logs from Supabase for a vault
+    private func loadAccessLogsFromSupabase(for vault: Vault, supabaseService: SupabaseService) async throws -> [VaultAccessLog] {
+        // Fetch access logs for this vault
+        let supabaseLogs: [SupabaseVaultAccessLog] = try await supabaseService.fetchAll(
+            "vault_access_logs",
+            filters: ["vault_id": vault.id.uuidString],
+            orderBy: "timestamp",
+            ascending: false
+        )
+        
+        // Convert to VaultAccessLog models
+        return supabaseLogs.map { supabaseLog in
+            let log = VaultAccessLog(
+                timestamp: supabaseLog.timestamp,
+                accessType: supabaseLog.accessType,
+                userID: supabaseLog.userID,
+                userName: supabaseLog.userName,
+                deviceInfo: supabaseLog.deviceInfo
+            )
+            log.id = supabaseLog.id
+            log.locationLatitude = supabaseLog.locationLatitude
+            log.locationLongitude = supabaseLog.locationLongitude
+            log.ipAddress = supabaseLog.ipAddress
+            log.documentID = supabaseLog.documentID
+            log.documentName = supabaseLog.documentName
+            log.vault = vault
+            return log
+        }
+    }
+    
     func deleteVault(_ vault: Vault) async throws {
         // Supabase mode
         if AppConfig.useSupabase, let supabaseService = supabaseService {
@@ -488,7 +637,11 @@ final class VaultService: ObservableObject {
                 // Use Task with @MainActor to avoid Sendable requirement
                 let approvalService = await Task { @MainActor in
                     let service = DualKeyApprovalService()
-                    service.configure(modelContext: modelContext)
+                    service.configure(
+                        modelContext: modelContext,
+                        supabaseService: supabaseService,
+                        vaultService: self
+                    )
                     return service
                 }.value
                 
@@ -541,7 +694,11 @@ final class VaultService: ObservableObject {
                 // Use Task with @MainActor to avoid Sendable requirement
                 let approvalService = await Task { @MainActor in
                     let service = DualKeyApprovalService()
-                    service.configure(modelContext: modelContext)
+                    service.configure(
+                        modelContext: modelContext,
+                        supabaseService: supabaseService,
+                        vaultService: self
+                    )
                     return service
                 }.value
                 
