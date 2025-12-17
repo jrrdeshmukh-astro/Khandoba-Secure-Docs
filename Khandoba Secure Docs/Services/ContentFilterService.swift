@@ -79,6 +79,10 @@ final class ContentFilterService: ObservableObject {
     var blockOnHigh: Bool = true // Block high severity content
     var blockOnExplicit: Bool = true // Block explicit content
     
+    // Confidence thresholds - only block if confidence is above threshold
+    // This prevents false positives from low-confidence classifications
+    var minConfidenceForBlock: Double = 0.7 // 70% confidence required to block
+    
     // Profanity word list (basic - can be expanded)
     private let profanityWords: Set<String> = [
         // Add common profanity words here
@@ -172,20 +176,39 @@ final class ContentFilterService: ObservableObject {
                 let identifier = observation.identifier.lowercased()
                 let confidence = Double(observation.confidence)
                 
-                // Check for inappropriate content
-                if identifier.contains("adult") || identifier.contains("nude") || identifier.contains("nudity") || identifier.contains("explicit") {
-                    categories.append(.nudity)
-                    if confidence > maxConfidence {
-                        maxConfidence = confidence
-                        maxSeverity = .explicit
-                        reasons.append("Detected adult/nude content (confidence: \(Int(confidence * 100))%)")
+                // Only consider classifications with sufficient confidence to prevent false positives
+                guard confidence >= minConfidenceForBlock else {
+                    continue
+                }
+                
+                // Use exact word matching to prevent substring false positives
+                // e.g., "glass" shouldn't match "nudity" substring checks
+                let words = identifier.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+                
+                for word in words {
+                    // Check for nudity-related content (exact word matches)
+                    if word == "adult" || word == "nude" || word == "nudity" || word == "explicit" || 
+                       word == "pornographic" || word == "sexual" || word == "erotic" {
+                        categories.append(.nudity)
+                        if confidence > maxConfidence {
+                            maxConfidence = confidence
+                            maxSeverity = .explicit
+                            reasons.append("Detected adult/nude content (confidence: \(Int(confidence * 100))%, identifier: \(identifier))")
+                        }
+                        print("🚫 Content filter: Detected nudity in image (confidence: \(Int(confidence * 100))%, identifier: \(identifier))")
+                        break
                     }
-                } else if identifier.contains("violence") || identifier.contains("weapon") || identifier.contains("gun") || identifier.contains("blood") {
-                    categories.append(.violence)
-                    if confidence > maxConfidence {
-                        maxConfidence = confidence
-                        maxSeverity = .high
-                        reasons.append("Detected violent content (confidence: \(Int(confidence * 100))%)")
+                    // Check for violence-related content (exact word matches)
+                    else if word == "violence" || word == "weapon" || word == "gun" || word == "blood" ||
+                            word == "knife" || word == "fight" || word == "combat" {
+                        categories.append(.violence)
+                        if confidence > maxConfidence {
+                            maxConfidence = confidence
+                            maxSeverity = .high
+                            reasons.append("Detected violent content (confidence: \(Int(confidence * 100))%, identifier: \(identifier))")
+                        }
+                        print("🚫 Content filter: Detected violence in image (confidence: \(Int(confidence * 100))%, identifier: \(identifier))")
+                        break
                     }
                 }
             }
@@ -221,8 +244,15 @@ final class ContentFilterService: ObservableObject {
             }
         }
         
-        // Determine if content should be blocked
-        let shouldBlock = determineBlockStatus(severity: maxSeverity)
+        // Only block if we have sufficient confidence AND severity
+        // This prevents false positives from low-confidence misclassifications
+        let shouldBlock = maxConfidence >= minConfidenceForBlock && determineBlockStatus(severity: maxSeverity)
+        
+        if !shouldBlock && maxSeverity != .safe {
+            print("⚠️ Content filter: Image detected potential issue but confidence too low (\(Int(maxConfidence * 100))% < \(Int(minConfidenceForBlock * 100))%) - allowing content")
+        } else if shouldBlock {
+            print("🚫 Content filter: Image blocked - severity: \(maxSeverity), confidence: \(Int(maxConfidence * 100))%")
+        }
         
         return ContentFilterResult(
             isBlocked: shouldBlock,
@@ -284,7 +314,15 @@ final class ContentFilterService: ObservableObject {
             // For now, we'll rely on frame analysis
         }
         
-        let shouldBlock = determineBlockStatus(severity: maxSeverity)
+        // Only block if we have sufficient confidence AND severity
+        // This prevents false positives from low-confidence misclassifications
+        let shouldBlock = maxConfidence >= minConfidenceForBlock && determineBlockStatus(severity: maxSeverity)
+        
+        if !shouldBlock && maxSeverity != .safe {
+            print("⚠️ Content filter: Video detected potential issue but confidence too low (\(Int(maxConfidence * 100))% < \(Int(minConfidenceForBlock * 100))%) - allowing content")
+        } else if shouldBlock {
+            print("🚫 Content filter: Video blocked - severity: \(maxSeverity), confidence: \(Int(maxConfidence * 100))%")
+        }
         
         return ContentFilterResult(
             isBlocked: shouldBlock,
@@ -309,28 +347,58 @@ final class ContentFilterService: ObservableObject {
                 let identifier = observation.identifier.lowercased()
                 let confidence = Double(observation.confidence)
                 
-                if identifier.contains("adult") || identifier.contains("nude") || identifier.contains("nudity") || identifier.contains("explicit") {
-                    categories.append(.nudity)
-                    if confidence > maxConfidence {
-                        maxConfidence = confidence
-                        maxSeverity = .explicit
+                // Only consider classifications with sufficient confidence to prevent false positives
+                guard confidence >= minConfidenceForBlock else {
+                    continue
+                }
+                
+                // Use exact word matching or word boundaries to prevent substring false positives
+                // e.g., "glass" shouldn't match "nudity" substring checks
+                let words = identifier.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+                
+                for word in words {
+                    // Check for nudity-related content (exact word matches)
+                    if word == "adult" || word == "nude" || word == "nudity" || word == "explicit" || 
+                       word == "pornographic" || word == "sexual" || word == "erotic" {
+                        categories.append(.nudity)
+                        if confidence > maxConfidence {
+                            maxConfidence = confidence
+                            maxSeverity = .explicit
+                        }
+                        print("🚫 Content filter: Detected nudity in frame (confidence: \(Int(confidence * 100))%, identifier: \(identifier))")
+                        break
                     }
-                } else if identifier.contains("violence") || identifier.contains("weapon") || identifier.contains("blood") {
-                    categories.append(.violence)
-                    if confidence > maxConfidence {
-                        maxConfidence = confidence
-                        maxSeverity = .high
+                    // Check for violence-related content (exact word matches)
+                    else if word == "violence" || word == "weapon" || word == "gun" || word == "blood" ||
+                            word == "knife" || word == "fight" || word == "combat" {
+                        categories.append(.violence)
+                        if confidence > maxConfidence {
+                            maxConfidence = confidence
+                            maxSeverity = .high
+                        }
+                        print("🚫 Content filter: Detected violence in frame (confidence: \(Int(confidence * 100))%, identifier: \(identifier))")
+                        break
                     }
                 }
             }
         }
         
+        // Only block if we have sufficient confidence AND severity
+        // This prevents false positives from low-confidence misclassifications
+        let shouldBlock = maxConfidence >= minConfidenceForBlock && determineBlockStatus(severity: maxSeverity)
+        
+        if !shouldBlock && maxSeverity != .safe {
+            print("⚠️ Content filter: Frame detected potential issue but confidence too low (\(Int(maxConfidence * 100))% < \(Int(minConfidenceForBlock * 100))%) - allowing content")
+        } else if shouldBlock {
+            print("🚫 Content filter: Frame blocked - severity: \(maxSeverity), confidence: \(Int(maxConfidence * 100))%")
+        }
+        
         return ContentFilterResult(
-            isBlocked: determineBlockStatus(severity: maxSeverity),
+            isBlocked: shouldBlock,
             severity: maxSeverity,
             categories: categories,
             confidence: maxConfidence,
-            reason: nil
+            reason: shouldBlock ? "Detected inappropriate content (confidence: \(Int(maxConfidence * 100))%)" : nil
         )
     }
     

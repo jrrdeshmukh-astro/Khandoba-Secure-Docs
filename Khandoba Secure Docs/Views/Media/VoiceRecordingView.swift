@@ -179,10 +179,10 @@ struct VoiceRecordingView: View {
                 let data = try Data(contentsOf: recordingURL)
                 let fileName = "voice_\(Date().timeIntervalSince1970).m4a"
                 
-            // Premium subscription - unlimited voice recordings
+                // Premium subscription - unlimited voice recordings
                 
                 // Upload
-                _ = try await documentService.uploadDocument(
+                let document = try await documentService.uploadDocument(
                     data: data,
                     name: fileName,
                     mimeType: "audio/m4a",
@@ -190,7 +190,14 @@ struct VoiceRecordingView: View {
                     uploadMethod: .voiceRecording
                 )
                 
-                dismiss()
+                print("✅ Voice memo saved successfully: \(document.name)")
+                
+                // Reload documents for the vault to ensure UI updates
+                try await documentService.loadDocuments(for: vault)
+                
+                await MainActor.run {
+                    dismiss()
+                }
             } catch let error as DocumentError {
                 switch error {
                 case .contentBlocked(let severity, let categories, let reason):
@@ -200,10 +207,20 @@ struct VoiceRecordingView: View {
                         showContentBlocked = true
                     }
                 default:
-                    print("Error saving recording: \(error.localizedDescription)")
+                    print("❌ Error saving recording: \(error.localizedDescription)")
+                    await MainActor.run {
+                        // Show error to user
+                        blockedContentReason = error.localizedDescription
+                        showContentBlocked = true
+                    }
                 }
             } catch {
-                print("Error saving recording: \(error.localizedDescription)")
+                print("❌ Error saving recording: \(error.localizedDescription)")
+                await MainActor.run {
+                    // Show error to user
+                    blockedContentReason = error.localizedDescription
+                    showContentBlocked = true
+                }
             }
         }
     }

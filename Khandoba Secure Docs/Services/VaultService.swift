@@ -68,8 +68,14 @@ final class VaultService: ObservableObject {
     }
     
     func loadVaults() async throws {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+        }
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
         
         // Supabase mode
         if AppConfig.useSupabase, let supabaseService = supabaseService, let userID = currentUserID {
@@ -305,6 +311,15 @@ final class VaultService: ObservableObject {
     }
     
     func createVault(name: String, description: String?, keyType: String, vaultType: String = "both") async throws -> Vault {
+        await MainActor.run {
+            isLoading = true
+        }
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
+        
         // Supabase mode
         if AppConfig.useSupabase, let supabaseService = supabaseService, let currentUserID = currentUserID {
             return try await createVaultInSupabase(
@@ -503,6 +518,15 @@ final class VaultService: ObservableObject {
     }
     
     func openVault(_ vault: Vault) async throws {
+        await MainActor.run {
+            isLoading = true
+        }
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
+        
         guard let currentUserID = currentUserID else {
             throw VaultError.userNotFound
         }
@@ -1245,6 +1269,15 @@ final class VaultService: ObservableObject {
     }
     
     func closeVault(_ vault: Vault) async throws {
+        await MainActor.run {
+            isLoading = true
+        }
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
+        
         guard let currentUserID = currentUserID else {
             throw VaultError.userNotFound
         }

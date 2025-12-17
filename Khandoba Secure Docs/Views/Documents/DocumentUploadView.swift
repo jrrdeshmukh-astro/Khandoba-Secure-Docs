@@ -180,6 +180,32 @@ struct DocumentUploadView: View {
                     await handleFileSelection(result)
                 }
             }
+            .overlay {
+                if isUploading || documentService.isLoading {
+                    LoadingOverlay(message: isUploading ? "Uploading document..." : "Processing...")
+                }
+            }
+            .overlay {
+                if documentService.uploadProgress > 0 && documentService.uploadProgress < 1 {
+                    VStack {
+                        Spacer()
+                        VStack(spacing: UnifiedTheme.Spacing.sm) {
+                            ProgressView(value: documentService.uploadProgress)
+                                .progressViewStyle(LinearProgressViewStyle(tint: colors.primary))
+                                .frame(width: 200)
+                            
+                            Text("\(Int(documentService.uploadProgress * 100))%")
+                                .font(theme.typography.caption)
+                                .foregroundColor(colors.textSecondary)
+                        }
+                        .padding()
+                        .background(colors.surface)
+                        .cornerRadius(UnifiedTheme.CornerRadius.md)
+                        .shadow(radius: 5)
+                        .padding(.bottom, 100)
+                    }
+                }
+            }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -283,12 +309,20 @@ struct DocumentUploadView: View {
         method: UploadMethod
     ) async {
         
-        isUploading = true
+        await MainActor.run {
+            isUploading = true
+        }
+        
+        defer {
+            Task { @MainActor in
+                isUploading = false
+            }
+        }
         
         do {
             // All features included - unlimited uploads
             
-            // Upload document
+            // Upload document with progress tracking
             _ = try await documentService.uploadDocument(
                 data: data,
                 name: name,
@@ -297,23 +331,27 @@ struct DocumentUploadView: View {
                 uploadMethod: method
             )
             
-            dismiss()
+            await MainActor.run {
+                dismiss()
+            }
         } catch let error as DocumentError {
-            switch error {
-            case .contentBlocked(let severity, let categories, let reason):
-                blockedContentReason = reason
-                blockedContentCategories = categories
-                showContentBlocked = true
-            default:
-                errorMessage = error.localizedDescription
-                showError = true
+            await MainActor.run {
+                switch error {
+                case .contentBlocked(let severity, let categories, let reason):
+                    blockedContentReason = reason
+                    blockedContentCategories = categories
+                    showContentBlocked = true
+                default:
+                    errorMessage = ErrorHandler.userFriendlyMessage(for: error)
+                    showError = true
+                }
             }
         } catch {
-            errorMessage = error.localizedDescription
-            showError = true
+            await MainActor.run {
+                errorMessage = ErrorHandler.userFriendlyMessage(for: error)
+                showError = true
+            }
         }
-        
-        isUploading = false
     }
 }
 

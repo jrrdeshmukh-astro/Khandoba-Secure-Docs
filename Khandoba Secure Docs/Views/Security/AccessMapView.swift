@@ -262,7 +262,21 @@ struct AccessMapView: View {
                 await loadDataFromSupabase()
             }
             
-            // Load access points after permission check
+            // Load access points after data is loaded (must be on main actor)
+            await MainActor.run {
+                loadAccessPoints()
+            }
+        }
+        .onChange(of: loadedAccessLogs) { oldValue, newValue in
+            // Reload access points when data changes
+            loadAccessPoints()
+        }
+        .onChange(of: loadedDocuments) { oldValue, newValue in
+            // Reload access points when documents change
+            loadAccessPoints()
+        }
+        .onChange(of: loadedDualKeyRequests) { oldValue, newValue in
+            // Reload access points when dual key requests change
             loadAccessPoints()
         }
     }
@@ -360,6 +374,8 @@ struct AccessMapView: View {
                     document.vault = vault
                     return document
                 }
+                // Reload access points after documents are loaded
+                loadAccessPoints()
             }
             
             // 3. Load dual-key requests
@@ -389,6 +405,8 @@ struct AccessMapView: View {
                         request.vault = vault
                         return request
                     }
+                    // Reload access points after dual-key requests are loaded
+                    loadAccessPoints()
                 }
             } catch {
                 print("⚠️ Failed to load dual-key requests: \(error.localizedDescription)")
@@ -537,10 +555,15 @@ struct AccessMapView: View {
         allAnnotations.append(contentsOf: reportAnnotations)
         print("MAP: Loaded \(reportAnnotations.count) report generation events")
         
-        // Sort by timestamp (most recent first)
-        annotations = allAnnotations.sorted { $0.timestamp > $1.timestamp }
+        // Sort by timestamp (most recent first) and update on main actor
+        let sortedAnnotations = allAnnotations.sorted { $0.timestamp > $1.timestamp }
         
-        print("MAP SUMMARY: Total events on map: \(annotations.count)")
+        // Update annotations on main actor to trigger UI update
+        Task { @MainActor in
+            annotations = sortedAnnotations
+        }
+        
+        print("MAP SUMMARY: Total events on map: \(sortedAnnotations.count)")
         print("   Access: \(logAnnotations.count)")
         print("   Document Actions: \(documentActionAnnotations.count)")
         print("   Dual-Key: \(requestAnnotations.count)")

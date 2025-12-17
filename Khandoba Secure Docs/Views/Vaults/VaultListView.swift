@@ -19,6 +19,7 @@ struct VaultListView: View {
     @State private var showCreateVault = false
     @State private var isLoading = false
     @State private var selectedVaultID: UUID?
+    @State private var error: Error?
     @State private var navigateToVaultID: UUID?
     @State private var cardsAppeared = false
     
@@ -63,7 +64,7 @@ struct VaultListView: View {
                 colors.background
                     .ignoresSafeArea()
                 
-                if isLoading {
+                if vaultService.isLoading || isLoading {
                     LoadingView("Loading vaults...")
                 } else if userVaults.isEmpty {
                     VStack(spacing: UnifiedTheme.Spacing.xl) {
@@ -210,6 +211,7 @@ struct VaultListView: View {
             .refreshable {
                 await loadVaults()
             }
+            .errorAlert(error: $error)
             .overlay {
                 // Face ID prompt overlay with smooth animation
                 if showFaceIDPrompt {
@@ -298,12 +300,21 @@ struct VaultListView: View {
     }
     
     private func loadVaults() async {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+        }
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
         do {
             try await vaultService.loadVaults()
         } catch {
-            print("Error loading vaults: \(error)")
+            await MainActor.run {
+                error = error
+            }
+            print("❌ Error loading vaults: \(error.localizedDescription)")
         }
     }
     

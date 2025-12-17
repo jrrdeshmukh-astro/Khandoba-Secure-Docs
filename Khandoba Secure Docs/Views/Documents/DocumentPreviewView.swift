@@ -30,6 +30,7 @@ struct DocumentPreviewView: View {
     @State private var showRenameSheet = false
     @StateObject private var locationService = LocationService()
     @State private var previewURL: URL?
+    @State private var decryptedData: Data? // Store decrypted data for audio player
     @State private var isLoading = false
     @State private var isContentVisible = false // Secure preview - content hidden by default
     @State private var isScreenCaptured = false
@@ -47,11 +48,37 @@ struct DocumentPreviewView: View {
                 if let previewURL = previewURL {
                     if isContentVisible && !isScreenCaptured {
                         // Show content only when explicitly enabled and no screen capture detected
-                        QuickLookPreviewView(url: previewURL)
-                            .overlay(
-                                // Screenshot prevention overlay (monitors continuously)
-                                SecurePreviewOverlay(isScreenCaptured: $isScreenCaptured)
-                            )
+                        // Use specialized players for audio/video, QuickLook for others
+                        if document.documentType == "audio" || document.mimeType?.hasPrefix("audio/") == true {
+                            // Audio playback
+                            if let decryptedData = decryptedData {
+                                AudioPlayerPreviewView(document: document, audioData: decryptedData)
+                                    .overlay(
+                                        // Screenshot prevention overlay (monitors continuously)
+                                        SecurePreviewOverlay(isScreenCaptured: $isScreenCaptured)
+                                    )
+                            } else {
+                                ProgressView("Loading audio...")
+                            }
+                        } else if document.documentType == "video" || document.mimeType?.hasPrefix("video/") == true {
+                            // Video playback
+                            if let decryptedData = decryptedData, let previewURL = previewURL {
+                                VideoPlayerPreviewView(document: document, videoData: decryptedData, videoURL: previewURL)
+                                    .overlay(
+                                        // Screenshot prevention overlay (monitors continuously)
+                                        SecurePreviewOverlay(isScreenCaptured: $isScreenCaptured)
+                                    )
+                            } else {
+                                ProgressView("Loading video...")
+                            }
+                        } else {
+                            // Other file types (PDF, images, etc.) use QuickLook
+                            QuickLookPreviewView(url: previewURL)
+                                .overlay(
+                                    // Screenshot prevention overlay (monitors continuously)
+                                    SecurePreviewOverlay(isScreenCaptured: $isScreenCaptured)
+                                )
+                        }
                     } else {
                         // Secure overlay - content hidden
                         SecurePreviewOverlay(
@@ -254,6 +281,11 @@ struct DocumentPreviewView: View {
             
             await MainActor.run {
                 self.previewURL = tempURL
+                // Store decrypted data for audio and video players
+                if document.documentType == "audio" || document.mimeType?.hasPrefix("audio/") == true ||
+                   document.documentType == "video" || document.mimeType?.hasPrefix("video/") == true {
+                    self.decryptedData = data
+                }
             }
             
             print("✅ Document loaded for preview: \(document.name)")
@@ -520,6 +552,8 @@ struct PDFKitView: UIViewRepresentable {
 // MARK: - Video Preview
 struct VideoPlayerPreviewView: View {
     let document: Document
+    let videoData: Data // Decrypted video data
+    let videoURL: URL // Temporary file URL
     
     @State private var player: AVPlayer?
     
@@ -543,21 +577,17 @@ struct VideoPlayerPreviewView: View {
     }
     
     private func loadVideo() {
-        guard let data = document.encryptedFileData else { return }
-        
-        // Write to temp file for AVPlayer
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(document.id.uuidString)
-            .appendingPathExtension("mp4")
-        
-        try? data.write(to: tempURL)
-        player = AVPlayer(url: tempURL)
+        // Use the provided videoURL (already contains decrypted data)
+        // AVPlayer needs a file URL, not raw data
+        player = AVPlayer(url: videoURL)
+        print("✅ Video player initialized with URL: \(videoURL.lastPathComponent)")
     }
 }
 
 // MARK: - Audio Preview
 struct AudioPlayerPreviewView: View {
     let document: Document
+    let audioData: Data // Decrypted audio data
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
@@ -619,14 +649,13 @@ struct AudioPlayerPreviewView: View {
     }
     
     private func setupAudioPlayer() {
-        guard let data = document.encryptedFileData else { return }
-        
         do {
-            player = try AVAudioPlayer(data: data)
+            player = try AVAudioPlayer(data: audioData)
             player?.prepareToPlay()
             duration = player?.duration ?? 0
+            print("✅ Audio player initialized - Duration: \(duration) seconds")
         } catch {
-            print("Audio player error: \(error)")
+            print("❌ Audio player error: \(error.localizedDescription)")
         }
     }
     

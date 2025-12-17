@@ -25,7 +25,15 @@ final class DocumentService: ObservableObject {
     private var contentFilterService: ContentFilterService?
     private var subscriptionService: SubscriptionService?
     
+    private var notificationObserver: NSObjectProtocol?
+    
     init() {}
+    
+    deinit {
+        if let observer = notificationObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
     
     // SwiftData/CloudKit mode
     func configure(modelContext: ModelContext, userID: UUID? = nil, fidelityService: DocumentFidelityService? = nil, contentFilterService: ContentFilterService? = nil, subscriptionService: SubscriptionService? = nil) {
@@ -83,11 +91,53 @@ final class DocumentService: ObservableObject {
                 }
             }
         }
+        
+        // Setup realtime listener for document changes
+        setupRealtimeListener()
+    }
+    
+    // Track current vault for cache refresh
+    private var currentVault: Vault?
+    
+    // Setup realtime listener for document sync
+    private func setupRealtimeListener() {
+        notificationObserver = NotificationCenter.default.addObserver(
+            forName: .supabaseRealtimeUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let userInfo = notification.userInfo,
+                  let channel = userInfo["channel"] as? String,
+                  channel == "documents",
+                  let event = userInfo["event"] as? String else {
+                return
+            }
+            
+            print("📡 DocumentService: Received realtime \(event) event for documents")
+            
+            // Refresh documents cache when changes occur
+            Task {
+                if let vault = await MainActor.run({ self.currentVault }) {
+                    do {
+                        try await self.loadDocuments(for: vault)
+                        print("✅ DocumentService: Cache refreshed after realtime \(event)")
+                    } catch {
+                        print("⚠️ DocumentService: Failed to refresh cache: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
     }
     
     func loadDocuments(for vault: Vault) async throws {
         isLoading = true
         defer { isLoading = false }
+        
+        // Store current vault for realtime refresh
+        await MainActor.run {
+            self.currentVault = vault
+        }
         
         // Supabase mode
         if AppConfig.useSupabase, let supabaseService = supabaseService {
@@ -103,17 +153,20 @@ final class DocumentService: ObservableObject {
     private func loadDocumentsFromSupabase(vaultID: UUID, supabaseService: SupabaseService, vault: Vault) async throws {
         print("📄 Loading documents from Supabase for vault: \(vaultID)")
         // RLS automatically filters documents user has access to
+        // Always fetch fresh data from Supabase (no cache) to ensure consistency
         let supabaseDocs: [SupabaseDocument] = try await supabaseService.fetchAll(
             "documents",
             filters: ["vault_id": vaultID.uuidString, "status": "active"]
         )
         
-        print("   Found \(supabaseDocs.count) document(s) in Supabase")
+        print("   Found \(supabaseDocs.count) document(s) in Supabase (fresh fetch, cache replaced)")
         
         // Convert to Document models for compatibility
         // Note: We need to find the vault object to link documents to it
         // For now, we'll store documents without vault link (vault ID is in SupabaseDocument)
         await MainActor.run {
+            // Replace entire cache with fresh data (not append) to ensure consistency
+            // This prevents stale data from persisting across instances
             self.documents = supabaseDocs.map { supabaseDoc in
                 let document = Document(
                     name: supabaseDoc.name,
@@ -159,6 +212,16 @@ final class DocumentService: ObservableObject {
         to vault: Vault,
         uploadMethod: UploadMethod = .files
     ) async throws -> Document {
+        await MainActor.run {
+            isLoading = true
+            uploadProgress = 0.0
+        }
+        defer {
+            Task { @MainActor in
+                isLoading = false
+                uploadProgress = 0.0
+            }
+        }
         // Supabase mode
         if AppConfig.useSupabase, let supabaseService = supabaseService {
             return try await uploadDocumentToSupabase(
@@ -176,7 +239,9 @@ final class DocumentService: ObservableObject {
             throw DocumentError.contextNotAvailable
         }
         
-        uploadProgress = 0.1
+        await MainActor.run {
+            uploadProgress = 0.1
+        }
         
         // CONTENT FILTERING: Check for inappropriate content before processing
         if let contentFilterService = contentFilterService {
@@ -208,7 +273,9 @@ final class DocumentService: ObservableObject {
             }
         }
         
-        uploadProgress = 0.15
+        await MainActor.run {
+            uploadProgress = 0.15
+        }
         
         // Determine document type
         let documentType = determineDocumentType(from: mimeType)
@@ -223,7 +290,9 @@ final class DocumentService: ObservableObject {
             documentType: documentType
         )
         
-        uploadProgress = 0.2
+        await MainActor.run {
+            uploadProgress = 0.2
+        }
         
         // Classify as source or sink
         document.sourceSinkType = SourceSinkClassifier.classifyByUploadMethod(uploadMethod)
@@ -244,7 +313,9 @@ final class DocumentService: ObservableObject {
                 fallbackName: name
             )
             
-            uploadProgress = 0.3
+            await MainActor.run {
+                uploadProgress = 0.3
+            }
             
             // Generate comprehensive AI tags using LLaMA (on unencrypted data)
             aiTags = await NLPTaggingService.generateTags(
@@ -253,7 +324,9 @@ final class DocumentService: ObservableObject {
                 documentName: intelligentName
             )
             
-            uploadProgress = 0.4
+            await MainActor.run {
+                uploadProgress = 0.4
+            }
             
             // Extract text for searching (on unencrypted data)
             extractedText = await extractTextForIndexing(data: data, mimeType: mimeType)
@@ -263,13 +336,17 @@ final class DocumentService: ObservableObject {
         document.aiTags = aiTags
         document.extractedText = extractedText
         
-        uploadProgress = 0.5
+        await MainActor.run {
+            uploadProgress = 0.5
+        }
         
         // NOW encrypt the document (after LLaMA analysis on unencrypted data)
         document.encryptedFileData = data
         document.isEncrypted = true
         
-        uploadProgress = 0.8
+        await MainActor.run {
+            uploadProgress = 0.8
+        }
         
         // Add to vault
         document.vault = vault
@@ -328,7 +405,9 @@ final class DocumentService: ObservableObject {
         modelContext.insert(accessLog)
         try modelContext.save()
         
-        uploadProgress = 1.0
+        await MainActor.run {
+            uploadProgress = 1.0
+        }
         
         return document
     }
@@ -342,7 +421,9 @@ final class DocumentService: ObservableObject {
         uploadMethod: UploadMethod,
         supabaseService: SupabaseService
     ) async throws -> Document {
-        uploadProgress = 0.1
+        await MainActor.run {
+            uploadProgress = 0.1
+        }
         
         // CONTENT FILTERING: Check for inappropriate content before processing
         if let contentFilterService = contentFilterService {
@@ -374,13 +455,17 @@ final class DocumentService: ObservableObject {
             }
         }
         
-        uploadProgress = 0.15
+        await MainActor.run {
+            uploadProgress = 0.15
+        }
         
         // Determine document type
         let documentType = determineDocumentType(from: mimeType)
         let fileExtension = (name as NSString).pathExtension
         
-        uploadProgress = 0.2
+        await MainActor.run {
+            uploadProgress = 0.2
+        }
         
         // IMPORTANT: Run LLaMA analysis on UNENCRYPTED data before encryption
         // This allows LLaMA to analyze the actual content for better naming and tagging
@@ -419,12 +504,16 @@ final class DocumentService: ObservableObject {
             extractedText = nil
         }
         
-        uploadProgress = 0.5
+        await MainActor.run {
+            uploadProgress = 0.5
+        }
         
         // NOW encrypt the document (after LLaMA analysis on unencrypted data)
         let (encryptedData, encryptionKey) = try EncryptionService.encryptDocument(data, documentID: documentID)
         
-        uploadProgress = 0.6
+        await MainActor.run {
+            uploadProgress = 0.6
+        }
         
         // Upload encrypted file to Supabase Storage
         let storagePath = "\(vault.id.uuidString)/\(documentID.uuidString).encrypted"
@@ -464,7 +553,9 @@ final class DocumentService: ObservableObject {
             values: supabaseDocument
         )
         
-        uploadProgress = 0.9
+        await MainActor.run {
+            uploadProgress = 0.9
+        }
         
         // Create access log
         let locationService = await MainActor.run { LocationService() }
@@ -488,7 +579,9 @@ final class DocumentService: ObservableObject {
             values: accessLog
         )
         
-        uploadProgress = 1.0
+        await MainActor.run {
+            uploadProgress = 1.0
+        }
         
         // Convert to Document model for compatibility
         let document = Document(
@@ -514,16 +607,37 @@ final class DocumentService: ObservableObject {
         // Link document to vault
         document.vault = vault
         
-        // Add document to service's documents array so it appears immediately in the view
-        await MainActor.run {
-            self.documents.append(document)
-            print("✅ Document added to DocumentService: \(document.name)")
+        // Refresh documents from Supabase to ensure cache consistency
+        // This ensures all instances see the same data
+        if let vault = document.vault {
+            do {
+                try await loadDocuments(for: vault)
+                print("✅ Document uploaded and cache refreshed: \(document.name)")
+            } catch {
+                print("⚠️ Failed to refresh cache after upload: \(error.localizedDescription)")
+                // Fallback: Add to cache manually if refresh fails
+                await MainActor.run {
+                    // Only add if not already in cache (avoid duplicates)
+                    if !self.documents.contains(where: { $0.id == document.id }) {
+                        self.documents.append(document)
+                    }
+                }
+            }
         }
         
         return document
     }
     
     func deleteDocument(_ document: Document) async throws {
+        await MainActor.run {
+            isLoading = true
+        }
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
+        
         // Supabase mode
         if AppConfig.useSupabase, let supabaseService = supabaseService {
             try await deleteDocumentFromSupabase(document: document, supabaseService: supabaseService)
@@ -590,6 +704,11 @@ final class DocumentService: ObservableObject {
     }
     
     /// Delete document from Supabase
+    /// Refresh documents cache from Supabase (useful for manual refresh)
+    func refreshDocuments(for vault: Vault) async throws {
+        try await loadDocuments(for: vault)
+    }
+    
     private func deleteDocumentFromSupabase(document: Document, supabaseService: SupabaseService) async throws {
         // Fetch document from Supabase to get storage path
         let supabaseDoc: SupabaseDocument = try await supabaseService.fetch(
@@ -635,12 +754,25 @@ final class DocumentService: ObservableObject {
         // Delete document record (RLS will enforce permissions)
         try await supabaseService.delete("documents", id: document.id)
         
-        // Remove from local documents array
-        await MainActor.run {
-            documents.removeAll { $0.id == document.id }
+        // Refresh documents cache from Supabase to ensure consistency
+        // This ensures all instances see the deletion
+        if let vault = document.vault {
+            do {
+                try await loadDocuments(for: vault)
+                print("✅ Document deleted and cache refreshed")
+            } catch {
+                print("⚠️ Failed to refresh cache after deletion: \(error.localizedDescription)")
+                // Fallback: Remove from cache manually if refresh fails
+                await MainActor.run {
+                    self.documents.removeAll { $0.id == document.id }
+                }
+            }
+        } else {
+            // Remove from local cache if no vault reference
+            await MainActor.run {
+                self.documents.removeAll { $0.id == document.id }
+            }
         }
-        
-        print("✅ Document deleted from Supabase")
     }
     
     func renameDocument(_ document: Document, newName: String) async throws {

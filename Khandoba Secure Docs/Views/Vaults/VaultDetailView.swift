@@ -17,6 +17,7 @@ struct VaultDetailView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) var dismiss
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var documentService: DocumentService
     @EnvironmentObject var chatService: ChatService
@@ -28,6 +29,7 @@ struct VaultDetailView: View {
     @State private var sessionExpirationTimer: Timer?
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var error: Error?
     @State private var showUploadSheet = false
     @State private var showDocumentPicker = false
     @State private var showNomineeInvitation = false
@@ -140,6 +142,12 @@ struct VaultDetailView: View {
         .task {
             await monitorSessionExpiration()
         }
+        .overlay {
+            if isLoading || vaultService.isLoading || documentService.isLoading {
+                LoadingOverlay(message: isLoading ? "Processing..." : documentService.isLoading ? "Loading documents..." : "Loading vault...")
+            }
+        }
+        .errorAlert(error: $error)
     }
     
     // MARK: - Scroll Content
@@ -680,7 +688,10 @@ struct VaultDetailView: View {
                     }
                 }
             } catch {
-                print("⚠️ Failed to load documents: \(error.localizedDescription)")
+                await MainActor.run {
+                    error = error
+                }
+                print("❌ Error loading documents: \(error.localizedDescription)")
             }
         }
     }
@@ -750,11 +761,15 @@ struct VaultDetailView: View {
                 try await vaultService.openVault(vault)
                 try? await Task.sleep(nanoseconds: 100_000_000)
             } catch VaultError.awaitingApproval {
-                errorMessage = "Dual-key approval requested. ML is analyzing..."
-                showError = true
+                await MainActor.run {
+                    errorMessage = "Dual-key approval requested. ML is analyzing..."
+                    showError = true
+                }
             } catch {
-                errorMessage = error.localizedDescription
-                showError = true
+                await MainActor.run {
+                    errorMessage = ErrorHandler.userFriendlyMessage(for: error)
+                    showError = true
+                }
             }
             isLoading = false
         }
@@ -776,7 +791,11 @@ struct VaultDetailView: View {
                 }
                 
                 print("✅ Vault locked successfully")
-                // Stay on vault detail page - no navigation needed
+                
+                // Navigate back to vault list view
+                await MainActor.run {
+                    dismiss()
+                }
             } catch {
                 print("❌ Failed to lock vault: \(error.localizedDescription)")
                 await MainActor.run {
