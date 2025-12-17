@@ -79,13 +79,22 @@ struct VaultDetailView: View {
     @ViewBuilder
     private var bodyContent: some View {
         let colors = viewColors
+        let background = colors.background
         
         ZStack {
-            themeColors.background
+            background
                 .ignoresSafeArea()
             
-            ScrollView {
-                VStack(spacing: UnifiedTheme.Spacing.lg) {
+            scrollContent
+        }
+    }
+    
+    @ViewBuilder
+    private var scrollContent: some View {
+        let colors = viewColors
+        
+        ScrollView {
+            VStack(spacing: UnifiedTheme.Spacing.lg) {
                     if vault.keyType == "dual" && hasPendingRequest {
                         StandardCard {
                             HStack(spacing: UnifiedTheme.Spacing.md) {
@@ -482,6 +491,7 @@ struct VaultDetailView: View {
                     }
                 }
                 .padding(.vertical)
+            }
             }
             
             // Face ID is now handled before navigation in VaultListView
