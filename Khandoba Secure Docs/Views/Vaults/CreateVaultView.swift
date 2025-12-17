@@ -165,6 +165,11 @@ struct CreateVaultView: View {
                     .foregroundColor(colors.primary)
                 }
             }
+            .overlay {
+                if isLoading {
+                    LoadingOverlay(message: "Creating vault...")
+                }
+            }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -177,20 +182,53 @@ struct CreateVaultView: View {
         isLoading = true
         Task {
             do {
+                // Ensure vault service is configured with current user
+                await ensureVaultServiceConfigured()
                 
                 // Create vault
                 _ = try await vaultService.createVault(
                     name: name,
                     description: description.isEmpty ? nil : description,
-                    keyType: keyType.rawValue
+                    keyType: keyType.rawValue,
+                    vaultType: vaultType.rawValue
                 )
                 
-                dismiss()
+                await MainActor.run {
+                    dismiss()
+                }
             } catch {
-                errorMessage = error.localizedDescription
-                showError = true
+                await MainActor.run {
+                    errorMessage = ErrorHandler.userFriendlyMessage(for: error)
+                    showError = true
+                    isLoading = false
+                }
             }
-            isLoading = false
+        }
+    }
+    
+    private func ensureVaultServiceConfigured() async {
+        // Check if vault service has a user ID configured
+        // If not, configure it with the current user
+        guard let userID = authService.currentUser?.id else {
+            await MainActor.run {
+                errorMessage = "Please sign in to create a vault."
+                showError = true
+                isLoading = false
+            }
+            return
+        }
+        
+        // Check if service is already configured
+        // We can't directly check, so we'll try to configure it anyway
+        // The configure method is idempotent
+        if AppConfig.useSupabase {
+            await MainActor.run {
+                vaultService.configure(supabaseService: supabaseService, userID: userID)
+            }
+        } else {
+            await MainActor.run {
+                vaultService.configure(modelContext: modelContext, userID: userID)
+            }
         }
     }
 }

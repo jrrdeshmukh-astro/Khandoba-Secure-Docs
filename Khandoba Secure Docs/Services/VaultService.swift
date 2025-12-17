@@ -342,6 +342,19 @@ final class VaultService: ObservableObject {
             predicate: #Predicate { $0.id == currentUserID }
         )
         guard let currentUser = try modelContext.fetch(userDescriptor).first else {
+            // User not found in database - this shouldn't happen if auth is working
+            // Log detailed error for debugging
+            print("❌ VaultService.createVault: User not found in database")
+            print("   Looking for user ID: \(currentUserID)")
+            print("   Available users in database:")
+            let allUsersDescriptor = FetchDescriptor<User>()
+            if let allUsers = try? modelContext.fetch(allUsersDescriptor) {
+                for user in allUsers {
+                    print("     - User ID: \(user.id), Name: \(user.fullName)")
+                }
+            } else {
+                print("     - Could not fetch users from database")
+            }
             throw VaultError.userNotFound
         }
         
@@ -1216,7 +1229,7 @@ final class VaultService: ObservableObject {
                     createdAt: existingSession.createdAt,
                     updatedAt: Date()
                 )
-                try await supabaseService.update("vault_sessions", id: session.id, values: updatedSession)
+                _ = try await supabaseService.update("vault_sessions", id: session.id, values: updatedSession)
                 print("✅ Session extended in Supabase (new expiration: \(newExpiresAt))")
             } catch {
                 print("⚠️ Failed to update session expiration in Supabase: \(error.localizedDescription)")
@@ -1430,7 +1443,7 @@ final class VaultService: ObservableObject {
             relationshipOfficerID: existingVault.relationshipOfficerID,
             updatedAt: Date()
         )
-        try await supabaseService.update("vaults", id: vault.id, values: updatedVault)
+        _ = try await supabaseService.update("vaults", id: vault.id, values: updatedVault)
         
         // End all active sessions for this vault
         let supabaseSessions: [SupabaseVaultSession] = try await supabaseService.fetchAll(
@@ -1451,7 +1464,7 @@ final class VaultService: ObservableObject {
                 createdAt: session.createdAt,
                 updatedAt: Date()
             )
-            try await supabaseService.update("vault_sessions", id: session.id, values: updatedSession)
+            _ = try await supabaseService.update("vault_sessions", id: session.id, values: updatedSession)
         }
         
         // Create access log
@@ -1469,7 +1482,7 @@ final class VaultService: ObservableObject {
             accessLog.locationLongitude = location.coordinate.longitude
         }
         
-        try await supabaseService.insert("vault_access_logs", values: accessLog)
+        _ = try await supabaseService.insert("vault_access_logs", values: accessLog)
         
         // Update local state
         await MainActor.run {
