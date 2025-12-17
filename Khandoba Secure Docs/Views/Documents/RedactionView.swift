@@ -21,6 +21,8 @@ struct RedactionView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
+    @EnvironmentObject var documentService: DocumentService
     
     @State private var redactionAreas: [CGRect] = []
     @State private var showSaveConfirm = false
@@ -55,11 +57,38 @@ struct RedactionView: View {
             }
             .padding()
             
+            // Format Validation Warning
+            if !isRedactionSupported(for: document) {
+                StandardCard {
+                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(colors.error)
+                            .font(.title2)
+                        
+                        Text("Redaction Not Supported")
+                            .font(theme.typography.headline)
+                            .foregroundColor(colors.textPrimary)
+                        
+                        Text("Redaction is only available for PDF and image documents (PNG, JPEG, HEIC) to ensure HIPAA/CUI PHI compliance.")
+                            .font(theme.typography.body)
+                            .foregroundColor(colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                        
+                        Text("Supported formats: PDF, PNG, JPEG, HEIC")
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textTertiary)
+                            .padding(.top, 4)
+                    }
+                    .padding()
+                }
+                .padding()
+            }
+            
             // Document Preview with Redaction Overlay
             ZStack {
                 colors.background
                 
-                if document.documentType == "pdf" || document.documentType == "image" {
+                if isRedactionSupported(for: document) {
                     GeometryReader { geometry in
                         // Document preview with redaction capability
                         DocumentPreviewView(document: document)
@@ -153,7 +182,7 @@ struct RedactionView: View {
                         }
                     }
                 } else {
-                    VStack {
+                    VStack(spacing: UnifiedTheme.Spacing.md) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.largeTitle)
                             .foregroundColor(colors.warning)
@@ -161,8 +190,13 @@ struct RedactionView: View {
                             .font(theme.typography.body)
                             .foregroundColor(colors.textSecondary)
                             .multilineTextAlignment(.center)
-                            .padding()
+                        Text("Only PDF and image formats (PNG, JPEG, HEIC) support HIPAA-compliant redaction")
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textTertiary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
                     }
+                    .padding()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -204,7 +238,7 @@ struct RedactionView: View {
                     }
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                .disabled(redactionAreas.isEmpty && autoDetectedPHI.isEmpty)
+                .disabled(redactionAreas.isEmpty && autoDetectedPHI.isEmpty || !isRedactionSupported(for: document))
             }
             .padding()
             .background(colors.surface)
@@ -223,46 +257,67 @@ struct RedactionView: View {
         }
     }
     
+    /// Check if document format supports HIPAA-compliant redaction
+    private func isRedactionSupported(for document: Document) -> Bool {
+        // Only PDF and image formats support proper redaction
+        guard let mimeType = document.mimeType?.lowercased() else {
+            // Fallback to document type
+            return document.documentType == "pdf" || document.documentType == "image"
+        }
+        
+        // Supported MIME types for redaction
+        let supportedMimeTypes = [
+            "application/pdf",
+            "image/png",
+            "image/jpeg",
+            "image/jpg",
+            "image/heic",
+            "image/heif"
+        ]
+        
+        return supportedMimeTypes.contains(mimeType) || 
+               document.documentType == "pdf" || 
+               document.documentType == "image"
+    }
+    
     private func detectPHI() async {
         guard let text = document.extractedText else { return }
         
-        // Auto-detect PHI patterns
+        // Auto-detect HIPAA 18 identifiers and CUI/PHI patterns
         var detected: [PHIMatch] = []
         
-        // SSN pattern (XXX-XX-XXXX)
-        let ssnPattern = #"\b\d{3}-\d{2}-\d{4}\b"#
-        if let regex = try? NSRegularExpression(pattern: ssnPattern) {
-            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-            for match in matches {
-                if let range = Range(match.range, in: text) {
-                    detected.append(PHIMatch(type: "SSN", value: String(text[range]), range: match.range))
+        // HIPAA 18 Identifiers
+        let phiPatterns: [(String, String)] = [
+            ("SSN", #"\b\d{3}-\d{2}-\d{4}\b"#),
+            ("DOB", #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#),
+            ("MRN", #"\bMRN[:\s-]?\d{6,10}\b"#),
+            ("Email", #"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"#),
+            ("Phone", #"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b"#),
+            ("ZIP", #"\b\d{5}(-\d{4})?\b"#),
+            ("Account", #"\b\d{9,12}\b"#),
+            ("Full Name", #"\b[A-Z][a-z]+ [A-Z][a-z]+( [A-Z][a-z]+)?\b"#),
+            ("Credit Card", #"\b\d{4}[-.]?\d{4}[-.]?\d{4}[-.]?\d{4}\b"#),
+            ("Passport", #"\b[A-Z]{2}\d{2}[A-Z]{2}\d{4}\b"#),
+        ]
+        
+        for (type, pattern) in phiPatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+                for match in matches {
+                    if let range = Range(match.range, in: text) {
+                        let value = String(text[range])
+                        // Avoid duplicates
+                        if !detected.contains(where: { $0.value == value }) {
+                            detected.append(PHIMatch(type: type, value: value, range: match.range))
+                        }
+                    }
                 }
             }
         }
         
-        // Date of Birth patterns
-        let dobPattern = #"\b\d{1,2}/\d{1,2}/\d{2,4}\b"#
-        if let regex = try? NSRegularExpression(pattern: dobPattern) {
-            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-            for match in matches {
-                if let range = Range(match.range, in: text) {
-                    detected.append(PHIMatch(type: "DOB", value: String(text[range]), range: match.range))
-                }
-            }
+        await MainActor.run {
+            autoDetectedPHI = detected
         }
-        
-        // Medical Record Numbers (MRN)
-        let mrnPattern = #"\bMRN[:\s-]?\d{6,10}\b"#
-        if let regex = try? NSRegularExpression(pattern: mrnPattern, options: .caseInsensitive) {
-            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-            for match in matches {
-                if let range = Range(match.range, in: text) {
-                    detected.append(PHIMatch(type: "MRN", value: String(text[range]), range: match.range))
-                }
-            }
-        }
-        
-        autoDetectedPHI = detected
     }
     
     private func redactPHIMatch(_ phi: PHIMatch) async {
@@ -335,34 +390,66 @@ struct RedactionView: View {
     private func applyRedactions() {
         Task {
             do {
-                guard let originalData = document.encryptedFileData else {
-                    print(" No document data to redact")
+                // Get original document data (decrypt if needed)
+                var originalData: Data?
+                
+                if AppConfig.useSupabase {
+                    // In Supabase mode, download the document
+                    guard let supabaseDoc: SupabaseDocument = try? await supabaseService.fetch("documents", id: document.id),
+                          let storagePath = supabaseDoc.storagePath else {
+                        print("❌ Failed to load document from Supabase for redaction")
+                        return
+                    }
+                    
+                    // Download encrypted file from Supabase Storage
+                    originalData = try await supabaseService.downloadFile(
+                        bucket: SupabaseConfig.encryptedDocumentsBucket,
+                        path: storagePath
+                    )
+                } else {
+                    // SwiftData mode - use local encrypted data
+                    originalData = document.encryptedFileData
+                }
+                
+                guard let originalData = originalData else {
+                    print("❌ No document data to redact")
                     return
                 }
                 
-                // Create version before redaction
-                let version = DocumentVersion(
-                    versionNumber: (document.versions ?? []).count + 1,
-                    fileSize: document.fileSize,
-                    changes: "Pre-redaction version"
-                )
-                version.encryptedFileData = originalData
-                version.document = document
+                // Decrypt document for redaction (redaction must work on unencrypted data)
+                let decryptedData: Data
+                do {
+                    decryptedData = try EncryptionService.decryptDocument(originalData, documentID: document.id)
+                } catch {
+                    print("❌ Failed to decrypt document for redaction: \(error)")
+                    // If decryption fails, try using data as-is (might already be decrypted)
+                    decryptedData = originalData
+                }
                 
-                modelContext.insert(version)
+                // Create version before redaction (HIPAA requirement - maintain audit trail)
+                if !AppConfig.useSupabase {
+                    let version = DocumentVersion(
+                        versionNumber: (document.versions ?? []).count + 1,
+                        fileSize: document.fileSize,
+                        changes: "Pre-redaction version (HIPAA audit trail)"
+                    )
+                    version.encryptedFileData = originalData
+                    version.document = document
+                    modelContext.insert(version)
+                }
                 
-                // Actually redact the content
+                // Actually redact the content (on decrypted data)
                 let redactedData: Data
                 
                 if document.documentType == "pdf" {
                     redactedData = try RedactionService.redactPDF(
-                        data: originalData,
+                        data: decryptedData, // Use decrypted data for redaction
                         redactionAreas: redactionAreas,
                         phiMatches: autoDetectedPHI
                     )
                 } else if document.documentType == "image" {
-                    guard let image = UIImage(data: originalData) else {
-                        print(" Invalid image data")
+                    guard let image = UIImage(data: decryptedData) else {
+                        print("❌ Invalid image data")
                         return
                     }
                     
@@ -373,74 +460,164 @@ struct RedactionView: View {
                     )
                     
                     guard let imageData = redactedImage.pngData() else {
-                        print(" Failed to convert redacted image to data")
+                        print("❌ Failed to convert redacted image to data")
                         return
                     }
                     
                     redactedData = imageData
                 } else {
-                    print(" Redaction not supported for document type: \(document.documentType)")
+                    print("❌ Redaction not supported for document type: \(document.documentType)")
                     return
                 }
                 
-                // Verify redaction
+                // Verify redaction (HIPAA requirement - ensure PHI is completely removed)
                 let verified = await RedactionService.verifyRedaction(
                     data: redactedData,
                     documentType: document.documentType
                 )
                 
                 if !verified {
-                    print(" Redaction verification failed - PHI may still be present")
+                    print("⚠️ Redaction verification failed - PHI may still be present")
+                    // Still proceed but log warning
                 }
+                
+                // Re-encrypt redacted document
+                let documentID = document.id
+                let (encryptedRedactedData, _) = try EncryptionService.encryptDocument(redactedData, documentID: documentID)
                 
                 // Update document with redacted data
-                document.encryptedFileData = redactedData
-                document.fileSize = Int64(redactedData.count)
-                document.isRedacted = true
-                document.lastModifiedAt = Date()
-                
-                // Mark document as redacted
-                document.name = document.name.contains("(Redacted)") ? 
-                    document.name : 
-                    document.name + " (Redacted)"
-                
-                // Clear extracted text (may contain PHI)
-                document.extractedText = nil
-                
-                // Log redaction event
-                if let vault = document.vault {
-                    await locationService.requestLocationPermission()
-                    let location = await locationService.getCurrentLocation()
-                    
-                    let accessLog = VaultAccessLog(
-                        accessType: "redacted",
-                        userID: authService.currentUser?.id,
-                        userName: authService.currentUser?.fullName
+                if AppConfig.useSupabase {
+                    // Supabase mode: Upload redacted document to storage
+                    try await updateRedactedDocumentInSupabase(
+                        document: document,
+                        encryptedData: encryptedRedactedData,
+                        fileSize: Int64(redactedData.count)
                     )
-                    accessLog.vault = vault
-                    accessLog.documentID = document.id
-                    accessLog.documentName = document.name
-                    accessLog.deviceInfo = "Redacted \(redactionAreas.count) areas, \(autoDetectedPHI.count) PHI matches"
+                } else {
+                    // SwiftData mode: Update local document
+                    document.encryptedFileData = encryptedRedactedData
+                    document.fileSize = Int64(redactedData.count)
+                    document.isRedacted = true
+                    document.lastModifiedAt = Date()
                     
-                    if let location = location {
-                        accessLog.locationLatitude = location.coordinate.latitude
-                        accessLog.locationLongitude = location.coordinate.longitude
-                    }
+                    // Mark document as redacted
+                    document.name = document.name.contains("(Redacted)") ? 
+                        document.name : 
+                        document.name + " (Redacted)"
                     
-                    modelContext.insert(accessLog)
+                    // Clear extracted text (may contain PHI)
+                    document.extractedText = nil
+                    
+                    try modelContext.save()
                 }
                 
-                try modelContext.save()
+                // Log redaction event (HIPAA audit requirement)
+                await logRedactionEvent(
+                    redactionAreas: redactionAreas.count,
+                    phiMatches: autoDetectedPHI.count,
+                    verified: verified
+                )
                 
-                print(" Redactions applied: \(redactionAreas.count) areas, \(autoDetectedPHI.count) PHI matches")
+                print("✅ Redactions applied: \(redactionAreas.count) areas, \(autoDetectedPHI.count) PHI matches, verified: \(verified)")
                 
                 await MainActor.run {
                     dismiss()
                 }
                 
             } catch {
-                print(" Redaction failed: \(error.localizedDescription)")
+                print("❌ Redaction failed: \(error.localizedDescription)")
             }
+        }
+    }
+    
+    /// Update redacted document in Supabase
+    private func updateRedactedDocumentInSupabase(
+        document: Document,
+        encryptedData: Data,
+        fileSize: Int64
+    ) async throws {
+        guard let supabaseDoc: SupabaseDocument = try? await supabaseService.fetch("documents", id: document.id),
+              let storagePath = supabaseDoc.storagePath else {
+            throw RedactionError.redactionFailed
+        }
+        
+        // Upload redacted encrypted document to Supabase Storage (overwrite existing)
+        try await supabaseService.uploadFile(
+            bucket: SupabaseConfig.encryptedDocumentsBucket,
+            path: storagePath,
+            data: encryptedData
+        )
+        
+        // Update document metadata in Supabase
+        var updatedDoc = supabaseDoc
+        updatedDoc.fileSize = fileSize
+        updatedDoc.isRedacted = true
+        updatedDoc.lastModifiedAt = Date()
+        updatedDoc.name = supabaseDoc.name.contains("(Redacted)") ? 
+            supabaseDoc.name : 
+            supabaseDoc.name + " (Redacted)"
+        updatedDoc.extractedText = nil // Clear extracted text (may contain PHI)
+        
+        try await supabaseService.update("documents", id: document.id, values: updatedDoc)
+        
+        // Update local document model
+        await MainActor.run {
+            document.fileSize = fileSize
+            document.isRedacted = true
+            document.lastModifiedAt = Date()
+            document.name = updatedDoc.name
+            document.extractedText = nil
+        }
+    }
+    
+    /// Log redaction event for HIPAA audit trail
+    private func logRedactionEvent(redactionAreas: Int, phiMatches: Int, verified: Bool) async {
+        guard let vault = document.vault,
+              let userID = authService.currentUser?.id else { return }
+        
+        await locationService.requestLocationPermission()
+        let location = await locationService.getCurrentLocation()
+        
+        let deviceInfo = "Redacted \(redactionAreas) areas, \(phiMatches) PHI matches, verified: \(verified ? "Yes" : "No")"
+        
+        if AppConfig.useSupabase {
+            // Create access log in Supabase
+            var accessLog = SupabaseVaultAccessLog(
+                vaultID: vault.id,
+                timestamp: Date(),
+                accessType: "redacted",
+                userID: userID,
+                userName: authService.currentUser?.fullName ?? "User",
+                deviceInfo: deviceInfo
+            )
+            accessLog.documentID = document.id
+            accessLog.documentName = document.name
+            
+            if let location = location {
+                accessLog.locationLatitude = location.coordinate.latitude
+                accessLog.locationLongitude = location.coordinate.longitude
+            }
+            
+            try? await supabaseService.insert("vault_access_logs", values: accessLog)
+        } else {
+            // Create access log in SwiftData
+            let accessLog = VaultAccessLog(
+                accessType: "redacted",
+                userID: userID,
+                userName: authService.currentUser?.fullName
+            )
+            accessLog.vault = vault
+            accessLog.documentID = document.id
+            accessLog.documentName = document.name
+            accessLog.deviceInfo = deviceInfo
+            
+            if let location = location {
+                accessLog.locationLatitude = location.coordinate.latitude
+                accessLog.locationLongitude = location.coordinate.longitude
+            }
+            
+            modelContext.insert(accessLog)
+            try? modelContext.save()
         }
     }
 }

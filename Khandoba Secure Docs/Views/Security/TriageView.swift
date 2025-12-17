@@ -1010,6 +1010,7 @@ struct RemediationSuggestionsCard: View {
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var autoTriageService: AutomaticTriageService
     @StateObject private var aiService = ThreatRemediationAIService()
     @State private var remediations: [Remediation] = []
     @State private var isLoading = true
@@ -1062,94 +1063,180 @@ struct RemediationSuggestionsCard: View {
     }
     
     private func generateAIRemediations() async {
-        var aiRemediations: [Remediation] = []
+        // Show quick remediation steps immediately (no AI needed)
+        var quickRemediations: [Remediation] = []
         
-        // Generate AI-powered remediation for each threat
         for threat in threats {
-            let context = ThreatContext(
-                timeWindow: extractTimeWindow(from: threat.description),
-                accessCount: extractAccessCount(from: threat.description),
-                location: extractLocation(from: threat.description),
-                distance: nil,
-                deletedCount: threat.description.contains("deletion") ? 1 : nil,
-                documentCount: nil,
-                locationCount: nil,
-                burstCount: nil
-            )
-            
-            let steps = await aiService.generateRemediationSteps(
-                for: threat,
-                vaultName: threat.vaultName,
-                threatDetails: context
-            )
-            
-            // Determine priority from threat severity
+            let quickSteps = getQuickRemediationSteps(for: threat)
             let priority: RemediationPriority = threat.severity == .critical ? .immediate :
                                                 threat.severity == .high ? .high :
                                                 threat.severity == .medium ? .medium : .low
             
-            aiRemediations.append(Remediation(
+            quickRemediations.append(Remediation(
                 id: UUID(),
                 priority: priority,
                 title: generateRemediationTitle(for: threat),
                 description: generateRemediationDescription(for: threat),
-                steps: steps
+                steps: quickSteps
             ))
         }
         
-        // Generate AI-powered remediation for each leak
         for leak in leaks {
-            // Convert leak to threat item for AI service
             let threatItem = ThreatItem.fromLeak(leak)
-            let context = ThreatContext(
-                timeWindow: nil,
-                accessCount: nil,
-                location: nil,
-                distance: nil,
-                deletedCount: leak.type == .massDeletion ? leak.affectedDocuments : nil,
-                documentCount: leak.affectedDocuments,
-                locationCount: nil,
-                burstCount: nil
-            )
-            
-            let steps = await aiService.generateRemediationSteps(
-                for: threatItem,
-                vaultName: leak.vaultName,
-                threatDetails: context
-            )
-            
+            let quickSteps = getQuickRemediationSteps(for: threatItem)
             let priority: RemediationPriority = leak.severity == .critical ? .immediate :
                                                 leak.severity == .high ? .high :
                                                 leak.severity == .medium ? .medium : .low
             
-            aiRemediations.append(Remediation(
+            quickRemediations.append(Remediation(
                 id: UUID(),
                 priority: priority,
                 title: generateRemediationTitle(for: leak),
                 description: generateRemediationDescription(for: leak),
-                steps: steps
+                steps: quickSteps
             ))
         }
         
-        // Default if no threats/leaks
-        if aiRemediations.isEmpty {
-            aiRemediations.append(Remediation(
-                id: UUID(),
-                priority: .medium,
-                title: "Maintain Security Best Practices",
-                description: "Continue monitoring and follow security best practices.",
-                steps: [
-                    "Regularly review access logs",
-                    "Use strong, unique passwords",
-                    "Enable dual-key protection for sensitive vaults",
-                    "Keep app updated"
-                ]
-            ))
-        }
-        
+        // Show quick steps immediately
         await MainActor.run {
-            remediations = aiRemediations.sorted { $0.priority.rawValue > $1.priority.rawValue }
+            remediations = quickRemediations.sorted { $0.priority.rawValue > $1.priority.rawValue }
             isLoading = false
+        }
+        
+        // Optionally enhance with AI in background (with timeout)
+        Task {
+            var aiRemediations: [Remediation] = []
+            
+            // Generate AI-powered remediation for each threat (with timeout)
+            for threat in threats.prefix(3) { // Limit to 3 to avoid long waits
+                let context = ThreatContext(
+                    timeWindow: extractTimeWindow(from: threat.description),
+                    accessCount: extractAccessCount(from: threat.description),
+                    location: extractLocation(from: threat.description),
+                    distance: nil,
+                    deletedCount: threat.description.contains("deletion") ? 1 : nil,
+                    documentCount: nil,
+                    locationCount: nil,
+                    burstCount: nil
+                )
+                
+                let steps = await withTimeout(seconds: 3) {
+                    await aiService.generateRemediationSteps(
+                        for: threat,
+                        vaultName: threat.vaultName,
+                        threatDetails: context
+                    )
+                } ?? getQuickRemediationSteps(for: threat)
+                
+                let priority: RemediationPriority = threat.severity == .critical ? .immediate :
+                                                    threat.severity == .high ? .high :
+                                                    threat.severity == .medium ? .medium : .low
+                
+                aiRemediations.append(Remediation(
+                    id: UUID(),
+                    priority: priority,
+                    title: generateRemediationTitle(for: threat),
+                    description: generateRemediationDescription(for: threat),
+                    steps: steps
+                ))
+            }
+            
+            // Update with AI-enhanced steps if available
+            if !aiRemediations.isEmpty {
+                await MainActor.run {
+                    // Merge AI steps with quick steps, preferring AI when available
+                    var merged = remediations
+                    for aiRemediation in aiRemediations {
+                        if let index = merged.firstIndex(where: { $0.title == aiRemediation.title }) {
+                            merged[index] = aiRemediation
+                        } else {
+                            merged.append(aiRemediation)
+                        }
+                    }
+                    remediations = merged.sorted { $0.priority.rawValue > $1.priority.rawValue }
+                }
+            }
+        }
+    }
+    
+    /// Get quick remediation steps (no AI, instant)
+    private func getQuickRemediationSteps(for threat: ThreatItem) -> [String] {
+        switch threat.type {
+        case .threat(let type):
+            switch type {
+            case .rapidAccess:
+                return [
+                    "Review recent access logs",
+                    "Change vault password if unauthorized",
+                    "Enable dual-key protection"
+                ]
+            case .unusualLocation:
+                return [
+                    "Verify if you accessed from this location",
+                    "Review all recent access locations",
+                    "Change password if unauthorized"
+                ]
+            case .suspiciousDeletion:
+                return [
+                    "Check version history for deleted documents",
+                    "Restore important documents if needed",
+                    "Review deletion logs"
+                ]
+            case .bruteForce:
+                return [
+                    "Immediately change vault password",
+                    "Enable dual-key protection",
+                    "Review all access attempts"
+                ]
+            case .unauthorizedAccess:
+                return [
+                    "Lock the vault immediately",
+                    "Change all vault passwords",
+                    "Review all access logs"
+                ]
+            }
+        case .geographicAnomaly:
+            return [
+                "Review access locations",
+                "Verify all locations are authorized",
+                "Enable location-based alerts"
+            ]
+        case .accessBurst:
+            return [
+                "Review burst access patterns",
+                "Verify if burst was from automated script",
+                "Change password if unauthorized"
+            ]
+        case .dataExfiltration:
+            return [
+                "Immediately lock affected vaults",
+                "Review all document access",
+                "Change all passwords"
+            ]
+        case .dataLeak:
+            return [
+                "Review document sharing settings",
+                "Revoke unauthorized access",
+                "Lock affected vaults"
+            ]
+        }
+    }
+    
+    /// Helper to add timeout to async operations
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async -> T) async -> T? {
+        await withTaskGroup(of: T?.self) { group in
+            group.addTask {
+                await operation()
+            }
+            
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                return nil
+            }
+            
+            let result = await group.next()
+            group.cancelAll()
+            return result ?? nil
         }
     }
     
@@ -1393,8 +1480,12 @@ struct ThreatRemediationView: View {
                     }
                     .padding(.horizontal)
                     
-                    // Remediation Steps (AI-powered, loads asynchronously)
+                    // Remediation Steps (optimized - shows quick steps immediately)
                     RemediationStepsCard(threat: threat)
+                        .padding(.horizontal)
+                    
+                    // Available Actions (filtered by app capabilities)
+                    AvailableActionsCard(threat: threat)
                         .padding(.horizontal)
                     
                     // Actions
@@ -1430,6 +1521,150 @@ struct ThreatRemediationView: View {
                     .foregroundColor(colors.primary)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Available Actions Card
+struct AvailableActionsCard: View {
+    let threat: ThreatItem
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var autoTriageService: AutomaticTriageService
+    @State private var availableActions: [RemediationAction] = []
+    @State private var isLoading = true
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        StandardCard {
+            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                HStack {
+                    Image(systemName: "list.bullet.rectangle")
+                        .foregroundColor(colors.primary)
+                    
+                    Text("Available Actions")
+                        .font(theme.typography.headline)
+                        .foregroundColor(colors.textPrimary)
+                    
+                    if isLoading {
+                        Spacer()
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
+                }
+                
+                Divider()
+                
+                if isLoading && availableActions.isEmpty {
+                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(colors.surface)
+                            .frame(height: 40)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(colors.surface)
+                            .frame(height: 40)
+                    }
+                    .padding(.vertical, 8)
+                } else if availableActions.isEmpty {
+                    Text("No actions available for this threat")
+                        .font(theme.typography.body)
+                        .foregroundColor(colors.textSecondary)
+                        .padding(.vertical, 8)
+                } else {
+                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                        ForEach(availableActions, id: \.id) { action in
+                            HStack {
+                                Image(systemName: iconForAction(action))
+                                    .foregroundColor(colors.primary)
+                                    .frame(width: 24)
+                                
+                                Text(titleForAction(action))
+                                    .font(theme.typography.body)
+                                    .foregroundColor(colors.textPrimary)
+                                
+                                Spacer()
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+        }
+        .task {
+            await loadAvailableActions()
+        }
+    }
+    
+    private func loadAvailableActions() async {
+        // Get triage result for this threat (match by vault ID and threat type)
+        let triageResult = autoTriageService.triageResults.first { result in
+            result.vaultID == threat.vaultID
+        }
+        
+        if let result = triageResult {
+            // Use filtered actions from triage result (already filtered by app capabilities)
+            await MainActor.run {
+                availableActions = result.recommendedActions
+                isLoading = false
+            }
+        } else {
+            // Fallback: Get basic available actions based on threat type
+            // These are actions that are always available in the app
+            await MainActor.run {
+                availableActions = getBasicActions(for: threat)
+                isLoading = false
+            }
+        }
+    }
+    
+    private func getBasicActions(for threat: ThreatItem) -> [RemediationAction] {
+        var actions: [RemediationAction] = []
+        
+        switch threat.type {
+        case .threat(let type):
+            switch type {
+            case .rapidAccess, .bruteForce, .unauthorizedAccess:
+                actions.append(.lockVault(threat.vaultID))
+                actions.append(.reviewAccessLogs)
+            case .unusualLocation:
+                actions.append(.reviewAccessLogs)
+            case .suspiciousDeletion:
+                actions.append(.reviewAccessLogs)
+                actions.append(.reviewDocumentSharing)
+            }
+        case .dataExfiltration, .dataLeak:
+            actions.append(.lockVault(threat.vaultID))
+            actions.append(.reviewDocumentSharing)
+        default:
+            actions.append(.reviewAccessLogs)
+        }
+        
+        return actions
+    }
+    
+    private func iconForAction(_ action: RemediationAction) -> String {
+        switch action {
+        case .lockVault: return "lock.fill"
+        case .closeAllVaults: return "lock.shield.fill"
+        case .revokeAllSessions: return "xmark.circle.fill"
+        case .reviewAccessLogs: return "clock.fill"
+        case .reviewDocumentSharing: return "person.2.fill"
+        case .enableDualKeyProtection: return "key.fill"
+        default: return "checkmark.circle.fill"
+        }
+    }
+    
+    private func titleForAction(_ action: RemediationAction) -> String {
+        switch action {
+        case .lockVault: return "Lock Vault"
+        case .closeAllVaults: return "Close All Vaults"
+        case .revokeAllSessions: return "Revoke All Sessions"
+        case .reviewAccessLogs: return "Review Access Logs"
+        case .reviewDocumentSharing: return "Review Document Sharing"
+        case .enableDualKeyProtection: return "Enable Dual-Key Protection"
+        default: return "Action"
         }
     }
 }
@@ -1524,28 +1759,123 @@ struct RemediationStepsCard: View {
     }
     
     private func loadRemediationSteps() async {
-        // Build threat context
-        let context = ThreatContext(
-            timeWindow: extractTimeWindow(from: threat.description),
-            accessCount: extractAccessCount(from: threat.description),
-            location: extractLocation(from: threat.description),
-            distance: nil,
-            deletedCount: threat.description.contains("deletion") ? 1 : nil,
-            documentCount: nil,
-            locationCount: nil,
-            burstCount: nil
-        )
+        // Show cached/quick steps immediately if available
+        let quickSteps = getQuickRemediationSteps(for: threat)
+        if !quickSteps.isEmpty {
+            await MainActor.run {
+                steps = quickSteps
+                isLoading = false
+            }
+        }
         
-        // Generate AI-powered steps
-        let aiSteps = await aiService.generateRemediationSteps(
-            for: threat,
-            vaultName: threat.vaultName,
-            threatDetails: context
-        )
-        
-        await MainActor.run {
-            steps = aiSteps
-            isLoading = false
+        // Then load AI-powered steps asynchronously (optimized)
+        Task {
+            // Build threat context
+            let context = ThreatContext(
+                timeWindow: extractTimeWindow(from: threat.description),
+                accessCount: extractAccessCount(from: threat.description),
+                location: extractLocation(from: threat.description),
+                distance: nil,
+                deletedCount: threat.description.contains("deletion") ? 1 : nil,
+                documentCount: nil,
+                locationCount: nil,
+                burstCount: nil
+            )
+            
+            // Generate AI-powered steps (with timeout)
+            let aiSteps = await withTimeout(seconds: 5) {
+                await aiService.generateRemediationSteps(
+                    for: threat,
+                    vaultName: threat.vaultName,
+                    threatDetails: context
+                )
+            } ?? quickSteps // Fallback to quick steps if timeout
+            
+            await MainActor.run {
+                steps = aiSteps
+                isLoading = false
+            }
+        }
+    }
+    
+    /// Get quick remediation steps based on threat type (no AI needed)
+    private func getQuickRemediationSteps(for threat: ThreatItem) -> [String] {
+        switch threat.type {
+        case .threat(let type):
+            switch type {
+            case .rapidAccess:
+                return [
+                    "Review recent access logs",
+                    "Change vault password if unauthorized",
+                    "Enable dual-key protection"
+                ]
+            case .unusualLocation:
+                return [
+                    "Verify if you accessed from this location",
+                    "Review all recent access locations",
+                    "Change password if unauthorized"
+                ]
+            case .suspiciousDeletion:
+                return [
+                    "Check version history for deleted documents",
+                    "Restore important documents if needed",
+                    "Review deletion logs"
+                ]
+            case .bruteForce:
+                return [
+                    "Immediately change vault password",
+                    "Enable dual-key protection",
+                    "Review all access attempts"
+                ]
+            case .unauthorizedAccess:
+                return [
+                    "Lock the vault immediately",
+                    "Change all vault passwords",
+                    "Review all access logs"
+                ]
+            }
+        case .geographicAnomaly:
+            return [
+                "Review access locations",
+                "Verify all locations are authorized",
+                "Enable location-based alerts"
+            ]
+        case .accessBurst:
+            return [
+                "Review burst access patterns",
+                "Verify if burst was from automated script",
+                "Change password if unauthorized"
+            ]
+        case .dataExfiltration:
+            return [
+                "Immediately lock affected vaults",
+                "Review all document access",
+                "Change all passwords"
+            ]
+        case .dataLeak:
+            return [
+                "Review document sharing settings",
+                "Revoke unauthorized access",
+                "Lock affected vaults"
+            ]
+        }
+    }
+    
+    /// Helper to add timeout to async operations
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async -> T) async -> T? {
+        await withTaskGroup(of: T?.self) { group in
+            group.addTask {
+                await operation()
+            }
+            
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                return nil
+            }
+            
+            let result = await group.next()
+            group.cancelAll()
+            return result ?? nil
         }
     }
     

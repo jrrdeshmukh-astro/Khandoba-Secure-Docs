@@ -6,6 +6,7 @@
 -- Issues Fixed:
 -- 1. user_roles: Users cannot insert their own role during signup
 -- 2. vaults: Infinite recursion between vaults and nominees policies
+-- 3. vault_access_logs: Users cannot insert access logs (missing INSERT policy)
 
 -- ============================================================================
 -- FIX 1: Allow users to insert their own role during signup
@@ -113,6 +114,22 @@ USING (
 );
 
 -- ============================================================================
+-- FIX 3: Add INSERT policy for vault_access_logs
+-- ============================================================================
+
+-- Users can insert access logs for vaults they own or have access to
+-- Use security definer functions to avoid recursion
+DROP POLICY IF EXISTS "vault_access_logs_insert_accessible" ON vault_access_logs;
+
+CREATE POLICY "vault_access_logs_insert_accessible"
+ON vault_access_logs FOR INSERT
+WITH CHECK (
+    -- User can insert logs for vaults they own OR where they're accepted nominees
+    check_vault_ownership(vault_access_logs.vault_id) OR
+    check_nominee_access(vault_access_logs.vault_id)
+);
+
+-- ============================================================================
 -- VERIFICATION
 -- ============================================================================
 
@@ -122,7 +139,7 @@ SELECT
     policyname, 
     cmd as operation
 FROM pg_policies
-WHERE tablename IN ('user_roles', 'vaults', 'nominees')
+WHERE tablename IN ('user_roles', 'vaults', 'nominees', 'vault_access_logs')
 ORDER BY tablename, policyname;
 
 -- Check functions are created

@@ -164,6 +164,9 @@ final class NomineeService: ObservableObject {
             nominee.invitedByUserID = supabaseNominee.invitedByUserID
             nominee.acceptedAt = supabaseNominee.acceptedAt
             nominee.statusRaw = supabaseNominee.status
+            nominee.selectedDocumentIDs = supabaseNominee.selectedDocumentIDs
+            nominee.sessionExpiresAt = supabaseNominee.sessionExpiresAt
+            nominee.isSubsetAccess = supabaseNominee.isSubsetAccess
             
             // Fetch user name from Supabase
             Task {
@@ -368,7 +371,10 @@ final class NomineeService: ObservableObject {
         phoneNumber: String?,
         email: String?,
         to vault: Vault,
-        invitedByUserID: UUID
+        invitedByUserID: UUID,
+        selectedDocumentIDs: [UUID]? = nil,
+        sessionExpiresAt: Date? = nil,
+        isSubsetAccess: Bool = false
     ) async throws -> Nominee {
         // Supabase mode
         if AppConfig.useSupabase, let supabaseService = supabaseService {
@@ -378,6 +384,9 @@ final class NomineeService: ObservableObject {
                 email: email,
                 vault: vault,
                 invitedByUserID: invitedByUserID,
+                selectedDocumentIDs: selectedDocumentIDs,
+                sessionExpiresAt: sessionExpiresAt,
+                isSubsetAccess: isSubsetAccess,
                 supabaseService: supabaseService
             )
         }
@@ -396,6 +405,9 @@ final class NomineeService: ObservableObject {
         )
         nominee.vault = vault
         nominee.invitedByUserID = invitedByUserID
+        nominee.selectedDocumentIDs = selectedDocumentIDs
+        nominee.sessionExpiresAt = sessionExpiresAt
+        nominee.isSubsetAccess = isSubsetAccess
         
         if vault.nomineeList == nil {
             vault.nomineeList = []
@@ -462,6 +474,9 @@ final class NomineeService: ObservableObject {
         email: String?,
         vault: Vault,
         invitedByUserID: UUID,
+        selectedDocumentIDs: [UUID]? = nil,
+        sessionExpiresAt: Date? = nil,
+        isSubsetAccess: Bool = false,
         supabaseService: SupabaseService
     ) async throws -> Nominee {
         // First, find or create user by email
@@ -505,13 +520,16 @@ final class NomineeService: ObservableObject {
             return nominee
         }
         
-        // Create new nominee
+        // Create new nominee with subset access support
         let supabaseNominee = SupabaseNominee(
             vaultID: vault.id,
             userID: userID,
             invitedByUserID: invitedByUserID,
             status: "pending",
-            accessLevel: "read"
+            accessLevel: "read",
+            selectedDocumentIDs: selectedDocumentIDs,
+            sessionExpiresAt: sessionExpiresAt,
+            isSubsetAccess: isSubsetAccess
         )
         
         let created: SupabaseNominee = try await supabaseService.insert(
@@ -528,6 +546,9 @@ final class NomineeService: ObservableObject {
         )
         nominee.id = created.id
         nominee.invitedAt = created.invitedAt
+        nominee.selectedDocumentIDs = created.selectedDocumentIDs
+        nominee.sessionExpiresAt = created.sessionExpiresAt
+        nominee.isSubsetAccess = created.isSubsetAccess
         
         // Reload nominees
         try await loadNominees(for: vault)

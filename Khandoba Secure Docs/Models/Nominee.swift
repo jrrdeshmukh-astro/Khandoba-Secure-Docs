@@ -52,6 +52,11 @@ final class Nominee {
     var isCurrentlyActive: Bool = false
     var currentSessionID: UUID?
     
+    // Subset access control (session-based nomination)
+    var selectedDocumentIDs: [UUID]? // If nil, access to all documents; if set, only selected documents
+    var sessionExpiresAt: Date? // Time-bound access expiration
+    var isSubsetAccess: Bool = false // Flag for subset nominations
+    
     init(
         id: UUID = UUID(),
         name: String = "",

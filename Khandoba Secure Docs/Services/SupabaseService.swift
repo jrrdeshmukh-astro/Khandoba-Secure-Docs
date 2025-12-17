@@ -26,17 +26,14 @@ final class SupabaseService: ObservableObject {
         let config = SupabaseConfig.currentEnvironment
         
         // Configure AuthClient to use new session behavior (suppresses warning)
-        // Use default localStorage (UserDefaults) and set emitLocalSessionAsInitialSession
-        let authConfig = AuthClient.Configuration(
-            localStorage: UserDefaultsLocalStorage(prefix: "supabase.auth"),
-            emitLocalSessionAsInitialSession: true
-        )
-        
+        // The default storage (UserDefaults) will be used automatically
         let client = SupabaseClient(
             supabaseURL: URL(string: config.supabaseURL)!,
             supabaseKey: config.supabaseAnonKey,
             options: SupabaseClientOptions(
-                auth: authConfig
+                auth: .init(
+                    emitLocalSessionAsInitialSession: true
+                )
             )
         )
         

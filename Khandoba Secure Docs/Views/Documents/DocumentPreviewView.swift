@@ -8,8 +8,8 @@
 import SwiftUI
 import SwiftData
 import CoreLocation
-import PDFKit
-import AVKit
+import QuickLook
+import UniformTypeIdentifiers
 
 struct DocumentPreviewView: View {
     let document: Document
@@ -20,11 +20,17 @@ struct DocumentPreviewView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var documentService: DocumentService
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var showActions = false
     @State private var showDeleteConfirm = false
     @State private var showRenameSheet = false
     @StateObject private var locationService = LocationService()
+    @State private var previewURL: URL?
+    @State private var isLoading = false
+    @State private var isContentVisible = false // Secure preview - content hidden by default
+    @State private var isScreenCaptured = false
+    @State private var screenCaptureTimer: Timer?
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -34,19 +40,47 @@ struct DocumentPreviewView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Preview based on document type
-                if document.documentType == "image" {
-                    ImagePreviewView(document: document)
-                } else if document.documentType == "pdf" {
-                    PDFDocumentPreviewView(document: document)
-                } else if document.documentType == "video" {
-                    VideoPlayerPreviewView(document: document)
-                } else if document.documentType == "audio" {
-                    AudioPlayerPreviewView(document: document)
-                } else if document.documentType == "text" || document.mimeType == "text/markdown" || document.name.hasSuffix(".md") {
-                    MarkdownPreviewView(document: document)
+                // Secure Preview with Screenshot Prevention
+                if let previewURL = previewURL {
+                    if isContentVisible && !isScreenCaptured {
+                        // Show content only when explicitly enabled and no screen capture detected
+                        QuickLookPreviewView(url: previewURL)
+                            .overlay(
+                                // Screenshot prevention overlay (monitors continuously)
+                                SecurePreviewOverlay(isScreenCaptured: $isScreenCaptured)
+                            )
+                    } else {
+                        // Secure overlay - content hidden
+                        SecurePreviewOverlay(
+                            isScreenCaptured: $isScreenCaptured,
+                            onShowContent: {
+                                isContentVisible = true
+                            },
+                            showButton: !isContentVisible
+                        )
+                    }
+                } else if isLoading {
+                    VStack(spacing: UnifiedTheme.Spacing.md) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("Loading document...")
+                            .font(theme.typography.subheadline)
+                            .foregroundColor(colors.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    UnsupportedDocPreviewView(document: document)
+                    VStack(spacing: UnifiedTheme.Spacing.md) {
+                        Image(systemName: "doc.questionmark")
+                            .font(.system(size: 60))
+                            .foregroundColor(colors.textTertiary)
+                        Text("Unable to load document")
+                            .font(theme.typography.headline)
+                            .foregroundColor(colors.textPrimary)
+                        Text("The document could not be loaded for preview")
+                            .font(theme.typography.subheadline)
+                            .foregroundColor(colors.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 
                 // Document Info Bar
@@ -74,8 +108,9 @@ struct DocumentPreviewView: View {
                     NavigationLink {
                         RedactionView(document: document)
                     } label: {
-                        Label("Redact (HIPAA)", systemImage: "eye.slash.fill")
+                        Label("Redact (HIPAA/CUI)", systemImage: "eye.slash.fill")
                     }
+                    .disabled(!isRedactionSupported(document: document))
                     
                     Button(role: .destructive) {
                         showDeleteConfirm = true
@@ -100,8 +135,116 @@ struct DocumentPreviewView: View {
             Text("This action cannot be undone")
         }
         .task {
+            // Start screen capture monitoring
+            startScreenCaptureMonitoring()
+            
+            // Load document for preview
+            await loadDocumentForPreview()
             // Log document preview
             await logDocumentPreview()
+        }
+        .onDisappear {
+            // Stop screen capture monitoring
+            stopScreenCaptureMonitoring()
+            
+            // Hide content when leaving view
+            isContentVisible = false
+            
+            // Clean up temporary file
+            if let url = previewURL {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        .onChange(of: isScreenCaptured) { oldValue, newValue in
+            // Hide content immediately if screen capture detected
+            if newValue {
+                isContentVisible = false
+                print("🚫 Screen capture detected - hiding secure content")
+            }
+        }
+    }
+    
+    /// Load document data and prepare for QuickLook preview
+    private func loadDocumentForPreview() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            var documentData: Data?
+            
+            // In Supabase mode, download from storage
+            if AppConfig.useSupabase {
+                // Fetch document metadata to get storage path
+                let supabaseDoc: SupabaseDocument = try await supabaseService.fetch(
+                    "documents",
+                    id: document.id
+                )
+                
+                guard let storagePath = supabaseDoc.storagePath else {
+                    print("⚠️ Document has no storage path")
+                    return
+                }
+                
+                // Download encrypted file from Supabase Storage
+                let encryptedData = try await supabaseService.downloadFile(
+                    bucket: SupabaseConfig.encryptedDocumentsBucket,
+                    path: storagePath
+                )
+                
+                // Decrypt the document
+                documentData = try EncryptionService.decryptDocument(
+                    encryptedData,
+                    documentID: document.id
+                )
+            } else {
+                // SwiftData/CloudKit mode: use local encrypted data
+                guard let encryptedData = document.encryptedFileData else {
+                    print("⚠️ Document has no encrypted file data")
+                    return
+                }
+                
+                // Decrypt the document
+                documentData = try EncryptionService.decryptDocument(
+                    encryptedData,
+                    documentID: document.id
+                )
+            }
+            
+            guard let data = documentData else {
+                print("⚠️ Failed to get document data")
+                return
+            }
+            
+            // Determine file extension
+            let fileExtension = document.fileExtension ?? {
+                // Infer from mime type or document type
+                if let mimeType = document.mimeType {
+                    return UTType(mimeType: mimeType)?.preferredFilenameExtension
+                }
+                switch document.documentType {
+                case "image": return "jpg"
+                case "pdf": return "pdf"
+                case "video": return "mp4"
+                case "audio": return "m4a"
+                case "text": return "txt"
+                default: return "bin"
+                }
+            }()
+            
+            // Create temporary file for QuickLook
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(document.id.uuidString)
+                .appendingPathExtension(fileExtension ?? "bin")
+            
+            try data.write(to: tempURL)
+            
+            await MainActor.run {
+                self.previewURL = tempURL
+            }
+            
+            print("✅ Document loaded for preview: \(document.name)")
+        } catch {
+            print("❌ Failed to load document for preview: \(error.localizedDescription)")
         }
     }
     
@@ -112,25 +255,51 @@ struct DocumentPreviewView: View {
         await locationService.requestLocationPermission()
         let location = await locationService.getCurrentLocation()
         
-        // Create access log entry
-        let accessLog = VaultAccessLog(
-            accessType: "previewed",
-            userID: authService.currentUser?.id,
-            userName: authService.currentUser?.fullName
-        )
-        accessLog.vault = vault
-        accessLog.documentID = document.id
-        accessLog.documentName = document.name
-        
-        if let location = location {
-            accessLog.locationLatitude = location.coordinate.latitude
-            accessLog.locationLongitude = location.coordinate.longitude
+        // Supabase mode: Create access log in Supabase
+        if AppConfig.useSupabase {
+            var accessLog = SupabaseVaultAccessLog(
+                vaultID: vault.id,
+                accessType: "previewed",
+                userID: authService.currentUser?.id,
+                documentID: document.id,
+                documentName: document.name
+            )
+            
+            if let location = location {
+                accessLog.locationLatitude = location.coordinate.latitude
+                accessLog.locationLongitude = location.coordinate.longitude
+            }
+            
+            do {
+                let _: SupabaseVaultAccessLog = try await supabaseService.insert(
+                    "vault_access_logs",
+                    values: accessLog
+                )
+                print("📄 Document preview logged: \(document.name)")
+            } catch {
+                print("⚠️ Failed to log document preview: \(error.localizedDescription)")
+            }
+        } else {
+            // SwiftData/CloudKit mode: Create access log entry
+            let accessLog = VaultAccessLog(
+                accessType: "previewed",
+                userID: authService.currentUser?.id,
+                userName: authService.currentUser?.fullName
+            )
+            accessLog.vault = vault
+            accessLog.documentID = document.id
+            accessLog.documentName = document.name
+            
+            if let location = location {
+                accessLog.locationLatitude = location.coordinate.latitude
+                accessLog.locationLongitude = location.coordinate.longitude
+            }
+            
+            modelContext.insert(accessLog)
+            try? modelContext.save()
+            
+            print("📄 Document preview logged: \(document.name)")
         }
-        
-        modelContext.insert(accessLog)
-        try? modelContext.save()
-        
-        print("📄 Document preview logged: \(document.name)")
     }
     
     private func deleteDocument() {
@@ -138,6 +307,55 @@ struct DocumentPreviewView: View {
             try? await documentService.deleteDocument(document)
             dismiss()
         }
+    }
+    
+    // MARK: - Screenshot Prevention
+    
+    private func startScreenCaptureMonitoring() {
+        // Check immediately
+        checkScreenCapture()
+        
+        // Monitor continuously (every 0.5 seconds)
+        screenCaptureTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [self] _ in
+            checkScreenCapture()
+        }
+        
+        // Listen for screen capture notifications
+        NotificationCenter.default.addObserver(
+            forName: UIScreen.capturedDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [self] _ in
+            checkScreenCapture()
+        }
+    }
+    
+    private func stopScreenCaptureMonitoring() {
+        screenCaptureTimer?.invalidate()
+        screenCaptureTimer = nil
+        NotificationCenter.default.removeObserver(self, name: UIScreen.capturedDidChangeNotification, object: nil)
+    }
+    
+    private func checkScreenCapture() {
+        // Check if we're in an app extension
+        let isExtension = Bundle.main.bundlePath.hasSuffix(".appex")
+        if isExtension {
+            return // Screen capture detection not available in extensions
+        }
+        
+        // Get screen capture status
+        let captured = UIScreen.main.isCaptured
+        
+        if captured && !isScreenCaptured {
+            // Screen capture just started - hide content immediately
+            Task { @MainActor in
+                isContentVisible = false
+                isScreenCaptured = true
+                print("🚫 Screen capture detected - content hidden")
+            }
+        }
+        
+        isScreenCaptured = captured
     }
 }
 
@@ -610,6 +828,151 @@ struct RenameDocumentView: View {
         Task {
             try? await documentService.renameDocument(document, newName: newName)
             dismiss()
+        }
+    }
+    
+    /// Check if document format supports HIPAA-compliant redaction
+    private func isRedactionSupported(document: Document) -> Bool {
+        // Only PDF and image formats support proper redaction
+        guard let mimeType = document.mimeType?.lowercased() else {
+            // Fallback to document type
+            return document.documentType == "pdf" || document.documentType == "image"
+        }
+        
+        // Supported MIME types for redaction
+        let supportedMimeTypes = [
+            "application/pdf",
+            "image/png",
+            "image/jpeg",
+            "image/jpg",
+            "image/heic",
+            "image/heif"
+        ]
+        
+        return supportedMimeTypes.contains(mimeType) || 
+               document.documentType == "pdf" || 
+               document.documentType == "image"
+    }
+}
+
+// MARK: - Secure Preview Overlay
+
+struct SecurePreviewOverlay: View {
+    @Binding var isScreenCaptured: Bool
+    var onShowContent: (() -> Void)?
+    var showButton: Bool = true
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    @State private var showGrepButton = false
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        ZStack {
+            // Solid background to prevent screenshot
+            colors.background
+                .ignoresSafeArea()
+            
+            VStack(spacing: UnifiedTheme.Spacing.xl) {
+                Image(systemName: isScreenCaptured ? "eye.slash.fill" : "eye.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(isScreenCaptured ? colors.error : colors.warning)
+                
+                if isScreenCaptured {
+                    VStack(spacing: UnifiedTheme.Spacing.md) {
+                        Text("Screen Capture Detected")
+                            .font(theme.typography.headline)
+                            .foregroundColor(colors.error)
+                        
+                        Text("Content hidden for security. Stop screen recording to view document.")
+                            .font(theme.typography.body)
+                            .foregroundColor(colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                } else {
+                    VStack(spacing: UnifiedTheme.Spacing.md) {
+                        Text("Secure Preview")
+                            .font(theme.typography.headline)
+                            .foregroundColor(colors.textPrimary)
+                        
+                        Text("Content is hidden to prevent screenshots and screen recording. Tap 'Show Content' to view the document.")
+                            .font(theme.typography.body)
+                            .foregroundColor(colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        
+                        if showButton {
+                            Button {
+                                onShowContent?()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "eye.fill")
+                                    Text("Show Content")
+                                }
+                                .font(theme.typography.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, UnifiedTheme.Spacing.xl)
+                                .padding(.vertical, UnifiedTheme.Spacing.md)
+                                .background(colors.primary)
+                                .cornerRadius(UnifiedTheme.CornerRadius.md)
+                            }
+                            .padding(.top, UnifiedTheme.Spacing.md)
+                        }
+                        
+                        // Optional: Grep button for text search
+                        Button {
+                            showGrepButton.toggle()
+                        } label: {
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                Text("Search Text")
+                            }
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textSecondary)
+                        }
+                        .padding(.top, UnifiedTheme.Spacing.sm)
+                    }
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+// MARK: - QuickLook Preview Wrapper
+struct QuickLookPreviewView: UIViewControllerRepresentable {
+    let url: URL
+    
+    func makeUIViewController(context: Context) -> QLPreviewController {
+        let controller = QLPreviewController()
+        controller.dataSource = context.coordinator
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {
+        // Update if needed
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(url: url)
+    }
+    
+    class Coordinator: NSObject, QLPreviewControllerDataSource {
+        let url: URL
+        
+        init(url: URL) {
+            self.url = url
+        }
+        
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
+            return 1
+        }
+        
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+            return url as QLPreviewItem
         }
     }
 }

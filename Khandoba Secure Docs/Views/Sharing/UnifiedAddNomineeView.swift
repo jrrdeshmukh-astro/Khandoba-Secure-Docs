@@ -25,6 +25,10 @@ struct UnifiedAddNomineeView: View {
     // Form fields
     @State private var nomineeName = ""
     @State private var accessLevel: NomineeAccessLevel = .view
+    @State private var isSubsetAccess = false // Subset nomination toggle
+    @State private var selectedDocumentIDs: Set<UUID> = [] // Selected documents for subset access
+    @State private var sessionDuration: TimeInterval = 30 * 60 // Default 30 minutes
+    @State private var showDocumentSelection = false
     
     // State
     @State private var isCreating = false
@@ -34,6 +38,7 @@ struct UnifiedAddNomineeView: View {
     @State private var showCloudKitSharing = false
     @State private var cloudKitShare: CKShare?
     @State private var showSuccess = false
+    @StateObject private var documentService = DocumentService()
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -71,6 +76,13 @@ struct UnifiedAddNomineeView: View {
             } message: {
                 Text(errorMessage)
             }
+            .sheet(isPresented: $showDocumentSelection) {
+                DocumentSelectionView(
+                    vault: vault,
+                    selectedDocumentIDs: $selectedDocumentIDs,
+                    documentService: documentService
+                )
+            }
             .sheet(isPresented: $showCloudKitSharing) {
                 if let share = cloudKitShare {
                     CloudKitSharingView(
@@ -82,6 +94,7 @@ struct UnifiedAddNomineeView: View {
                 }
             }
             .onAppear {
+                // Configure nominee service
                 if AppConfig.useSupabase {
                     if let userID = authService.currentUser?.id {
                         nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
@@ -89,8 +102,22 @@ struct UnifiedAddNomineeView: View {
                         nomineeService.configure(supabaseService: supabaseService)
                     }
                 } else {
-                nomineeService.configure(modelContext: modelContext)
-                cloudKitSharing.configure(modelContext: modelContext)
+                    nomineeService.configure(modelContext: modelContext)
+                    cloudKitSharing.configure(modelContext: modelContext)
+                }
+                
+                // Configure document service for document selection
+                if let userID = authService.currentUser?.id {
+                    if AppConfig.useSupabase {
+                        documentService.configure(supabaseService: supabaseService, userID: userID)
+                    } else if let modelContext = modelContext {
+                        documentService.configure(modelContext: modelContext, userID: userID)
+                    }
+                }
+                
+                // Load documents for selection
+                Task {
+                    try? await documentService.loadDocuments(for: vault)
                 }
             }
         }
@@ -167,6 +194,65 @@ struct UnifiedAddNomineeView: View {
                                 accessLevel = level
                             }
                         )
+                    }
+                }
+            }
+            
+            // Subset Access (Session-Based Nomination)
+            StandardCard {
+                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                    Toggle(isOn: $isSubsetAccess) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Subset Access (Session-Based)")
+                                .font(theme.typography.subheadline)
+                                .foregroundColor(colors.textPrimary)
+                                .fontWeight(.semibold)
+                            
+                            Text("Limit access to selected documents only. Access expires automatically when session ends.")
+                                .font(theme.typography.caption)
+                                .foregroundColor(colors.textSecondary)
+                        }
+                    }
+                    .tint(colors.primary)
+                    
+                    if isSubsetAccess {
+                        Divider()
+                        
+                        // Document Selection
+                        Button {
+                            showDocumentSelection = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "doc.on.doc.fill")
+                                    .foregroundColor(colors.primary)
+                                
+                                Text(selectedDocumentIDs.isEmpty ? "Select Documents" : "\(selectedDocumentIDs.count) document(s) selected")
+                                    .foregroundColor(colors.textPrimary)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(colors.textTertiary)
+                                    .font(.caption)
+                            }
+                            .padding(.vertical, UnifiedTheme.Spacing.sm)
+                        }
+                        
+                        // Session Duration
+                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                            Text("Session Duration")
+                                .font(theme.typography.subheadline)
+                                .foregroundColor(colors.textPrimary)
+                            
+                            Picker("Duration", selection: $sessionDuration) {
+                                Text("15 minutes").tag(15.0 * 60)
+                                Text("30 minutes").tag(30.0 * 60)
+                                Text("1 hour").tag(60.0 * 60)
+                                Text("2 hours").tag(120.0 * 60)
+                                Text("4 hours").tag(240.0 * 60)
+                            }
+                            .pickerStyle(.menu)
+                        }
                     }
                 }
             }
@@ -320,12 +406,19 @@ struct UnifiedAddNomineeView: View {
         
         Task {
             do {
+                // Prepare subset access parameters
+                let selectedIDs = isSubsetAccess && !selectedDocumentIDs.isEmpty ? Array(selectedDocumentIDs) : nil
+                let expiresAt = isSubsetAccess ? Date().addingTimeInterval(sessionDuration) : nil
+                
                 let nominee = try await nomineeService.inviteNominee(
                     name: nomineeName.trimmingCharacters(in: .whitespaces),
                     phoneNumber: nil,
                     email: nil,
                     to: vault,
-                    invitedByUserID: currentUser.id
+                    invitedByUserID: currentUser.id,
+                    selectedDocumentIDs: selectedIDs,
+                    sessionExpiresAt: expiresAt,
+                    isSubsetAccess: isSubsetAccess
                 )
                 
                 await MainActor.run {
@@ -392,6 +485,92 @@ struct UnifiedAddNomineeView: View {
             print("   ℹ️ CloudKit sharing not available: \(error.localizedDescription)")
             // Don't show error - just let user use the copy link button
         }
+    }
+}
+
+// MARK: - Document Selection View
+
+struct DocumentSelectionView: View {
+    let vault: Vault
+    @Binding var selectedDocumentIDs: Set<UUID>
+    @ObservedObject var documentService: DocumentService
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        NavigationStack {
+            ZStack {
+                colors.background
+                    .ignoresSafeArea()
+                
+                List {
+                    ForEach(documentService.documents.filter { $0.vault?.id == vault.id && $0.status == "active" }) { document in
+                        DocumentSelectionRow(
+                            document: document,
+                            isSelected: selectedDocumentIDs.contains(document.id)
+                        ) {
+                            if selectedDocumentIDs.contains(document.id) {
+                                selectedDocumentIDs.remove(document.id)
+                            } else {
+                                selectedDocumentIDs.insert(document.id)
+                            }
+                        }
+                    }
+                }
+                .listStyle(.insetGrouped)
+            }
+            .navigationTitle("Select Documents")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+            }
+        }
+    }
+}
+
+struct DocumentSelectionRow: View {
+    let document: Document
+    let isSelected: Bool
+    let onToggle: () -> Void
+    
+    @Environment(\.unifiedTheme) var theme
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        Button(action: onToggle) {
+            HStack {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? colors.primary : colors.textTertiary)
+                    .font(.title3)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(document.name)
+                        .font(theme.typography.body)
+                        .foregroundColor(colors.textPrimary)
+                    
+                    if let fileSize = document.fileSize as Int64? {
+                        Text(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textSecondary)
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
     }
 }
 

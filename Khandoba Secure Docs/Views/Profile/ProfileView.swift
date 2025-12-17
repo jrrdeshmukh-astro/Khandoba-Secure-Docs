@@ -88,19 +88,6 @@ struct ProfileView: View {
                     // Settings Section
                     Section("Settings") {
                         NavigationLink {
-                            ManualInviteTokenView()
-                        } label: {
-                            HStack(spacing: UnifiedTheme.Spacing.md) {
-                                Image(systemName: "person.badge.plus")
-                                    .foregroundColor(colors.primary)
-                                    .frame(width: 24)
-                                Text("Accept Invitation")
-                                    .foregroundColor(colors.textPrimary)
-                            }
-                        }
-                        .listRowBackground(colors.surface)
-                        
-                        NavigationLink {
                             NotificationSettingsView()
                         } label: {
                             HStack(spacing: UnifiedTheme.Spacing.md) {

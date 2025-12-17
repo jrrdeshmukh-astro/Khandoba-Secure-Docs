@@ -15,6 +15,7 @@ struct AccessMapView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var supabaseService: SupabaseService
     @State private var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
@@ -22,6 +23,12 @@ struct AccessMapView: View {
     @State private var annotations: [AccessAnnotation] = []
     @State private var selectedAnnotation: AccessAnnotation?
     @State private var eventTypeFilter: EventFilter = .all
+    @State private var isLoading = false
+    
+    // Supabase mode: Store loaded data
+    @State private var loadedAccessLogs: [VaultAccessLog] = []
+    @State private var loadedDocuments: [Document] = []
+    @State private var loadedDualKeyRequests: [DualKeyRequest] = []
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -30,7 +37,16 @@ struct AccessMapView: View {
             colors.background
                 .ignoresSafeArea()
             
-            VStack(spacing: 0) {
+            if isLoading {
+                VStack(spacing: UnifiedTheme.Spacing.md) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("Loading access map data...")
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(colors.textSecondary)
+                }
+            } else {
+                VStack(spacing: 0) {
                 // Summary Stats & Filter
                 if !annotations.isEmpty {
                     VStack(spacing: UnifiedTheme.Spacing.sm) {
@@ -207,7 +223,8 @@ struct AccessMapView: View {
                             }
                             .padding(.horizontal)
                             
-                            let logs: [VaultAccessLog] = vault.accessLogs ?? []
+                            // In Supabase mode, use loadedAccessLogs; otherwise use vault.accessLogs
+                            let logs: [VaultAccessLog] = AppConfig.useSupabase ? loadedAccessLogs : (vault.accessLogs ?? [])
                             ForEach(Array(logs.prefix(20))) { log in
                                 if log.locationLatitude != nil && log.locationLongitude != nil {
                                     Button {
@@ -231,6 +248,7 @@ struct AccessMapView: View {
                     .background(colors.surface)
                 }
             }
+            }
         }
         .navigationTitle("Access Map")
         .navigationBarTitleDisplayMode(.inline)
@@ -238,6 +256,11 @@ struct AccessMapView: View {
             // Ensure location permissions are granted
             let locationService = LocationService()
             await locationService.requestLocationPermission()
+            
+            // Load data from Supabase if in Supabase mode
+            if AppConfig.useSupabase {
+                await loadDataFromSupabase()
+            }
             
             // Load access points after permission check
             loadAccessPoints()
@@ -268,6 +291,87 @@ struct AccessMapView: View {
         return annotations.filter { $0.eventCategory == filter.rawValue }.count
     }
     
+    /// Load data from Supabase for access map
+    private func loadDataFromSupabase() async {
+        guard AppConfig.useSupabase else { return }
+        
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            print("🗺️ Loading access map data from Supabase for vault: \(vault.id)")
+            
+            // 1. Load access logs
+            let supabaseLogs: [SupabaseVaultAccessLog] = try await supabaseService.fetchAll(
+                "vault_access_logs",
+                filters: ["vault_id": vault.id.uuidString]
+            )
+            
+            print("   Found \(supabaseLogs.count) access logs")
+            
+            // Convert to VaultAccessLog models
+            await MainActor.run {
+                loadedAccessLogs = supabaseLogs.map { supabaseLog in
+                    let log = VaultAccessLog(
+                        id: supabaseLog.id,
+                        timestamp: supabaseLog.timestamp,
+                        accessType: supabaseLog.accessType,
+                        userID: supabaseLog.userID,
+                        userName: supabaseLog.userName,
+                        deviceInfo: supabaseLog.deviceInfo
+                    )
+                    log.locationLatitude = supabaseLog.locationLatitude
+                    log.locationLongitude = supabaseLog.locationLongitude
+                    log.ipAddress = supabaseLog.ipAddress
+                    log.documentID = supabaseLog.documentID
+                    log.documentName = supabaseLog.documentName
+                    log.vault = vault
+                    return log
+                }
+            }
+            
+            // 2. Load documents (for upload events)
+            let supabaseDocs: [SupabaseDocument] = try await supabaseService.fetchAll(
+                "documents",
+                filters: ["vault_id": vault.id.uuidString, "status": "active"]
+            )
+            
+            print("   Found \(supabaseDocs.count) documents")
+            
+            // Convert to Document models
+            await MainActor.run {
+                loadedDocuments = supabaseDocs.map { supabaseDoc in
+                    let document = Document(
+                        name: supabaseDoc.name,
+                        fileExtension: supabaseDoc.fileExtension,
+                        mimeType: supabaseDoc.mimeType,
+                        fileSize: supabaseDoc.fileSize,
+                        documentType: supabaseDoc.documentType,
+                        isEncrypted: supabaseDoc.isEncrypted,
+                        isArchived: supabaseDoc.isArchived,
+                        isRedacted: supabaseDoc.isRedacted,
+                        status: supabaseDoc.status,
+                        aiTags: supabaseDoc.aiTags
+                    )
+                    document.id = supabaseDoc.id
+                    document.createdAt = supabaseDoc.createdAt
+                    document.uploadedAt = supabaseDoc.uploadedAt
+                    document.lastModifiedAt = supabaseDoc.lastModifiedAt
+                    document.vault = vault
+                    return document
+                }
+            }
+            
+            // 3. Load dual-key requests (if table exists)
+            // Note: Dual-key requests might not be migrated yet, so we'll skip for now
+            // TODO: Add dual-key requests loading when table is available
+            
+            print("✅ Loaded access map data from Supabase")
+        } catch {
+            print("❌ Failed to load access map data from Supabase: \(error.localizedDescription)")
+        }
+    }
+    
     private func loadAccessPoints() {
         var allAnnotations: [AccessAnnotation] = []
         
@@ -276,7 +380,8 @@ struct AccessMapView: View {
         
         // 1. VAULT ACCESS LOGS (opening, closing, viewing)
         print("MAP: Loading vault events (limit: \(maxEvents))...")
-        let logs: [VaultAccessLog] = vault.accessLogs ?? []
+        // In Supabase mode, use loadedAccessLogs; otherwise use vault.accessLogs
+        let logs: [VaultAccessLog] = AppConfig.useSupabase ? loadedAccessLogs : (vault.accessLogs ?? [])
         print("MAP: Found \(logs.count) access logs total")
         
         // Only process most recent logs
@@ -302,7 +407,8 @@ struct AccessMapView: View {
         
         // 2. DUAL-KEY REQUESTS
         // Note: Dual-key requests use location from the access log at request time
-        let dualKeyRequests: [DualKeyRequest] = vault.dualKeyRequests ?? []
+        // In Supabase mode, use loadedDualKeyRequests; otherwise use vault.dualKeyRequests
+        let dualKeyRequests: [DualKeyRequest] = AppConfig.useSupabase ? loadedDualKeyRequests : (vault.dualKeyRequests ?? [])
         var requestAnnotations: [AccessAnnotation] = []
         
         for request in dualKeyRequests {
@@ -356,7 +462,8 @@ struct AccessMapView: View {
         
         // 4. DOCUMENT UPLOADS
         // OPTIMIZATION: Only show recent uploads
-        let documents: [Document] = vault.documents ?? []
+        // In Supabase mode, use loadedDocuments; otherwise use vault.documents
+        let documents: [Document] = AppConfig.useSupabase ? loadedDocuments : (vault.documents ?? [])
         let recentDocuments = documents.sorted { $0.uploadedAt > $1.uploadedAt }.prefix(20)
         var uploadAnnotations: [AccessAnnotation] = []
         

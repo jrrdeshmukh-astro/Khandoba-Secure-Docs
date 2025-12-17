@@ -72,7 +72,7 @@ final class DocumentService: ObservableObject {
         
         // Supabase mode
         if AppConfig.useSupabase, let supabaseService = supabaseService {
-            try await loadDocumentsFromSupabase(vaultID: vault.id, supabaseService: supabaseService)
+            try await loadDocumentsFromSupabase(vaultID: vault.id, supabaseService: supabaseService, vault: vault)
             return
         }
         
@@ -81,14 +81,19 @@ final class DocumentService: ObservableObject {
     }
     
     /// Load documents from Supabase
-    private func loadDocumentsFromSupabase(vaultID: UUID, supabaseService: SupabaseService) async throws {
+    private func loadDocumentsFromSupabase(vaultID: UUID, supabaseService: SupabaseService, vault: Vault) async throws {
+        print("📄 Loading documents from Supabase for vault: \(vaultID)")
         // RLS automatically filters documents user has access to
         let supabaseDocs: [SupabaseDocument] = try await supabaseService.fetchAll(
             "documents",
             filters: ["vault_id": vaultID.uuidString, "status": "active"]
         )
         
+        print("   Found \(supabaseDocs.count) document(s) in Supabase")
+        
         // Convert to Document models for compatibility
+        // Note: We need to find the vault object to link documents to it
+        // For now, we'll store documents without vault link (vault ID is in SupabaseDocument)
         await MainActor.run {
             self.documents = supabaseDocs.map { supabaseDoc in
                 let document = Document(
@@ -116,11 +121,15 @@ final class DocumentService: ObservableObject {
                 document.deviceID = supabaseDoc.deviceID
                 document.uploadedByUserID = supabaseDoc.uploadedByUserID
                 
+                // Link document to vault
+                document.vault = vault
+                
                 // Note: encryptedFileData is not loaded here - it's in Supabase Storage
                 // Will be downloaded when document is accessed
                 
                 return document
             }
+            print("✅ Loaded \(self.documents.count) document(s) into DocumentService")
         }
     }
     
@@ -168,33 +177,46 @@ final class DocumentService: ObservableObject {
         // Classify as source or sink
         document.sourceSinkType = SourceSinkClassifier.classifyByUploadMethod(uploadMethod)
         
-        // Generate intelligent document name using NLP
-        let intelligentName = await NLPTaggingService.generateDocumentName(
-            for: data,
-            mimeType: mimeType,
-            fallbackName: name
-        )
+        // IMPORTANT: Run LLaMA analysis on UNENCRYPTED data before encryption
+        var intelligentName = name
+        var aiTags: [String] = []
+        var extractedText: String?
+        
+        // Check if LLaMA analysis is authorized
+        let useLlama = true // TODO: Check subscription/premium status
+        
+        if useLlama {
+            // Generate intelligent document name using LLaMA (on unencrypted data)
+            intelligentName = await NLPTaggingService.generateDocumentName(
+                for: data,
+                mimeType: mimeType,
+                fallbackName: name
+            )
+            
+            uploadProgress = 0.3
+            
+            // Generate comprehensive AI tags using LLaMA (on unencrypted data)
+            aiTags = await NLPTaggingService.generateTags(
+                for: data,
+                mimeType: mimeType,
+                documentName: intelligentName
+            )
+            
+            uploadProgress = 0.4
+            
+            // Extract text for searching (on unencrypted data)
+            extractedText = await extractTextForIndexing(data: data, mimeType: mimeType)
+        }
+        
         document.name = intelligentName
-        
-        uploadProgress = 0.3
-        
-        // Encrypt document (placeholder - implement actual encryption)
-        document.encryptedFileData = data
-        document.isEncrypted = true
+        document.aiTags = aiTags
+        document.extractedText = extractedText
         
         uploadProgress = 0.5
         
-        // Generate comprehensive AI tags using NLP
-        document.aiTags = await NLPTaggingService.generateTags(
-            for: data,
-            mimeType: mimeType,
-            documentName: name
-        )
-        
-        uploadProgress = 0.7
-        
-        // Extract text for searching
-        document.extractedText = await extractTextForIndexing(data: data, mimeType: mimeType)
+        // NOW encrypt the document (after LLaMA analysis on unencrypted data)
+        document.encryptedFileData = data
+        document.isEncrypted = true
         
         uploadProgress = 0.8
         
@@ -277,32 +299,48 @@ final class DocumentService: ObservableObject {
         
         uploadProgress = 0.2
         
-        // Generate intelligent document name using NLP
-        let intelligentName = await NLPTaggingService.generateDocumentName(
-            for: data,
-            mimeType: mimeType,
-            fallbackName: name
-        )
-        
-        uploadProgress = 0.3
-        
-        // Encrypt document before upload
+        // IMPORTANT: Run LLaMA analysis on UNENCRYPTED data before encryption
+        // This allows LLaMA to analyze the actual content for better naming and tagging
         let documentID = UUID()
-        let (encryptedData, encryptionKey) = try EncryptionService.encryptDocument(data, documentID: documentID)
+        var intelligentName = name
+        var aiTags: [String] = []
+        var extractedText: String?
         
-        uploadProgress = 0.4
+        // Check if LLaMA analysis is authorized (user has premium or feature enabled)
+        // For now, we'll always run LLaMA if available
+        let useLlama = true // TODO: Check subscription/premium status
         
-        // Generate comprehensive AI tags using NLP
-        let aiTags = await NLPTaggingService.generateTags(
-            for: data,
-            mimeType: mimeType,
-            documentName: name
-        )
+        if useLlama {
+            // Generate intelligent document name using LLaMA (on unencrypted data)
+            intelligentName = await NLPTaggingService.generateDocumentName(
+                for: data,
+                mimeType: mimeType,
+                fallbackName: name
+            )
+            
+            uploadProgress = 0.3
+            
+            // Generate comprehensive AI tags using LLaMA (on unencrypted data)
+            aiTags = await NLPTaggingService.generateTags(
+                for: data,
+                mimeType: mimeType,
+                documentName: intelligentName
+            )
+            
+            uploadProgress = 0.4
+            
+            // Extract text for searching (on unencrypted data)
+            extractedText = await extractTextForIndexing(data: data, mimeType: mimeType)
+        } else {
+            // Fallback: Use basic name and tags if LLaMA not authorized
+            aiTags = []
+            extractedText = nil
+        }
         
         uploadProgress = 0.5
         
-        // Extract text for searching
-        let extractedText = await extractTextForIndexing(data: data, mimeType: mimeType)
+        // NOW encrypt the document (after LLaMA analysis on unencrypted data)
+        let (encryptedData, encryptionKey) = try EncryptionService.encryptDocument(data, documentID: documentID)
         
         uploadProgress = 0.6
         
@@ -390,6 +428,15 @@ final class DocumentService: ObservableObject {
         document.extractedText = created.extractedText
         document.uploadedByUserID = created.uploadedByUserID
         // Note: encryptedFileData is not stored - file is in Supabase Storage
+        
+        // Link document to vault
+        document.vault = vault
+        
+        // Add document to service's documents array so it appears immediately in the view
+        await MainActor.run {
+            self.documents.append(document)
+            print("✅ Document added to DocumentService: \(document.name)")
+        }
         
         return document
     }

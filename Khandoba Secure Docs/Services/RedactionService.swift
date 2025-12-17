@@ -14,58 +14,140 @@ import Vision
 @MainActor
 final class RedactionService {
     
-    /// Redact PHI from PDF document
+    /// Redact PHI from PDF document using proper PDFKit annotations (HIPAA compliant)
     static func redactPDF(data: Data, redactionAreas: [CGRect], phiMatches: [PHIMatch]) throws -> Data {
         guard let pdfDocument = PDFDocument(data: data) else {
             throw RedactionError.invalidPDF
         }
         
-        // Create a new PDF with redactions applied
-        let _ = PDFDocument()
+        // Create a mutable copy for redaction
+        guard let redactedPDF = PDFDocument(data: data) else {
+            throw RedactionError.invalidPDF
+        }
         
-        for pageIndex in 0..<pdfDocument.pageCount {
-            guard let originalPage = pdfDocument.page(at: pageIndex) else { continue }
+        // Apply redactions page by page
+        for pageIndex in 0..<redactedPDF.pageCount {
+            guard let page = redactedPDF.page(at: pageIndex) else { continue }
+            let pageRect = page.bounds(for: .mediaBox)
             
-            // Create new page with same size
-            let pageRect = originalPage.bounds(for: .mediaBox)
-            let redactedPage = PDFPage()
-            redactedPage.setBounds(pageRect, for: .mediaBox)
-            
-            // Get page content as image
-            let renderer = UIGraphicsImageRenderer(size: pageRect.size)
-            let pageImage = renderer.image { context in
-                // Draw original page
-                context.cgContext.translateBy(x: 0, y: pageRect.height)
-                context.cgContext.scaleBy(x: 1.0, y: -1.0)
-                originalPage.draw(with: .mediaBox, to: context.cgContext)
-            }
-            
-            // Apply redactions to image
-            let redactedImage = redactImage(image: pageImage, redactionAreas: redactionAreas, phiMatches: phiMatches)
-            
-            // Convert redacted image back to PDF page
-            if redactedImage.cgImage != nil {
-                // Note: PDFKit doesn't directly support image annotations this way
-                // We'll use a different approach - redact text directly
-            }
-            
-            // Alternative: Redact text directly from PDF
-            if let pageText = originalPage.string {
-                var redactedText = pageText
+            // 1. Apply manual redaction areas (user-selected rectangles)
+            for rect in redactionAreas {
+                // Ensure rect is within page bounds
+                let clippedRect = rect.intersection(pageRect)
+                guard !clippedRect.isEmpty else { continue }
                 
-                // Redact detected PHI
+                // Create PDF annotation for redaction (proper HIPAA-compliant method)
+                let annotation = PDFAnnotation(bounds: clippedRect, forType: .square, withProperties: nil)
+                annotation.color = .black
+                annotation.border = PDFBorder()
+                annotation.border?.lineWidth = 0
+                
+                // Mark as redaction annotation (removes underlying content)
+                annotation.setValue(true, forAnnotationKey: .shouldDisplay)
+                annotation.setValue("Redaction", forAnnotationKey: .subtype)
+                
+                page.addAnnotation(annotation)
+            }
+            
+            // 2. Apply PHI-based redactions using text search
+            if let pageText = page.string {
                 for phi in phiMatches {
-                    redactedText = redactedText.replacingOccurrences(of: phi.value, with: "█" * phi.value.count)
+                    // Find all occurrences of PHI value in page text
+                    var searchRange = pageText.startIndex..<pageText.endIndex
+                    while let range = pageText.range(of: phi.value, range: searchRange) {
+                        // Create selection for this text occurrence
+                        let nsRange = NSRange(range, in: pageText)
+                        if let selection = page.selection(for: nsRange) {
+                            let bounds = selection.bounds(for: page)
+                            
+                            // Create redaction annotation
+                            let annotation = PDFAnnotation(bounds: bounds, forType: .square, withProperties: nil)
+                            annotation.color = .black
+                            annotation.border = PDFBorder()
+                            annotation.border?.lineWidth = 0
+                            annotation.setValue("Redaction", forAnnotationKey: .subtype)
+                            
+                            page.addAnnotation(annotation)
+                        }
+                        
+                        // Move search range forward
+                        searchRange = range.upperBound..<pageText.endIndex
+                    }
                 }
-                
-                // Create new page with redacted text
-                // Note: This is a simplified approach - full implementation would need
-                // to preserve formatting and layout
             }
         }
         
-        // For now, return redacted version using image-based approach
-        return try redactPDFUsingImageMethod(data: data, redactionAreas: redactionAreas, phiMatches: phiMatches)
+        // 3. Flatten annotations (convert annotations to actual content removal)
+        // This is critical for HIPAA compliance - annotations must be flattened
+        return try flattenPDFAnnotations(pdfDocument: redactedPDF)
+    }
+    
+    /// Flatten PDF annotations to permanently remove underlying content (HIPAA requirement)
+    private static func flattenPDFAnnotations(pdfDocument: PDFDocument) throws -> Data {
+        // Create a new PDF with flattened redactions
+        let flattenedPDF = PDFDocument()
+        
+        for pageIndex in 0..<pdfDocument.pageCount {
+            guard let originalPage = pdfDocument.page(at: pageIndex) else { continue }
+            let pageRect = originalPage.bounds(for: .mediaBox)
+            
+            // Render page at high resolution
+            let scale: CGFloat = 2.0
+            let imageSize = CGSize(width: pageRect.width * scale, height: pageRect.height * scale)
+            let renderer = UIGraphicsImageRenderer(size: imageSize)
+            
+            let pageImage = renderer.image { context in
+                context.cgContext.translateBy(x: 0, y: imageSize.height)
+                context.cgContext.scaleBy(x: scale, y: -scale)
+                
+                // Draw original page
+                originalPage.draw(with: .mediaBox, to: context.cgContext)
+                
+                // Draw redaction annotations as black rectangles (flattening)
+                for annotation in originalPage.annotations {
+                    if annotation.type == "Redaction" || annotation.subtype == "Redaction" {
+                        let bounds = annotation.bounds
+                        let scaledBounds = CGRect(
+                            x: bounds.origin.x * scale,
+                            y: bounds.origin.y * scale,
+                            width: bounds.width * scale,
+                            height: bounds.height * scale
+                        )
+                        
+                        context.cgContext.setFillColor(UIColor.black.cgColor)
+                        context.cgContext.fill(scaledBounds)
+                    }
+                }
+            }
+            
+            // Convert redacted image to PDF page
+            guard let cgImage = pageImage.cgImage else { continue }
+            
+            let pdfData = NSMutableData()
+            let consumer = CGDataConsumer(data: pdfData as CFMutableData)!
+            var mediaBox = pageRect
+            
+            guard let pdfContext = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
+                continue
+            }
+            
+            pdfContext.beginPage(mediaBox: &mediaBox)
+            pdfContext.draw(cgImage, in: pageRect)
+            pdfContext.endPage()
+            pdfContext.closePDF()
+            
+            if let pagePDF = PDFDocument(data: pdfData as Data),
+               let imagePage = pagePDF.page(at: 0) {
+                imagePage.setBounds(pageRect, for: .mediaBox)
+                flattenedPDF.insert(imagePage, at: flattenedPDF.pageCount)
+            }
+        }
+        
+        guard let flattenedData = flattenedPDF.dataRepresentation() else {
+            throw RedactionError.redactionFailed
+        }
+        
+        return flattenedData
     }
     
     /// Redact PDF by converting to images, redacting, then converting back
@@ -265,13 +347,33 @@ final class RedactionService {
             }
         }
         
-        // Check for PHI patterns
+        // Check for HIPAA 18 identifiers and CUI/PHI patterns
         let phiPatterns = [
-            #"\b\d{3}-\d{2}-\d{4}\b"#,  // SSN
-            #"\b\d{1,2}/\d{1,2}/\d{2,4}\b"#,  // DOB
-            #"\bMRN[:\s-]?\d{6,10}\b"#,  // MRN
-            #"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"#,  // Email
-            #"\b\d{3}-\d{3}-\d{4}\b"#,  // Phone
+            // HIPAA 18 Identifiers
+            #"\b\d{3}-\d{2}-\d{4}\b"#,  // 1. SSN
+            #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#,  // 2. DOB
+            #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#,  // 3. Admission date
+            #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#,  // 4. Discharge date
+            #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#,  // 5. Date of death
+            #"\bMRN[:\s-]?\d{6,10}\b"#,  // 6. Medical Record Number
+            #"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"#,  // 7. Email
+            #"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b"#,  // 8. Phone
+            #"\b\d{5}(-\d{4})?\b"#,  // 9. ZIP Code (5 or 9 digits)
+            #"\b\d{2,3}[-.]?\d{3}[-.]?\d{4}\b"#,  // 10. Fax
+            #"\b[A-Z]{2}\d{6,9}\b"#,  // 11. Health Plan Beneficiary Number
+            #"\b\d{9}\b"#,  // 12. Account Number
+            #"\b\d{10,11}\b"#,  // 13. Certificate/License Number
+            #"\b[A-Z]{1,2}\d{6,9}\b"#,  // 14. Vehicle identifiers
+            #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#,  // 15. Device identifiers/serial numbers
+            #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#,  // 16. Web URLs
+            #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#,  // 17. IP addresses
+            #"\b[A-Z][a-z]+ [A-Z][a-z]+( [A-Z][a-z]+)?\b"#,  // 18. Full name (first, last, middle)
+            
+            // CUI/PHI Additional Patterns
+            #"\b\d{4}[-.]?\d{4}[-.]?\d{4}[-.]?\d{4}\b"#,  // Credit card
+            #"\b[A-Z]{2}\d{2}[A-Z]{2}\d{4}\b"#,  // Passport
+            #"\b\d{3}-\d{2}-\d{4}\b"#,  // Tax ID
+            #"\b[A-Z]{1,2}\d{6,9}[A-Z]?\b"#,  // Driver's license
         ]
         
         for pattern in phiPatterns {

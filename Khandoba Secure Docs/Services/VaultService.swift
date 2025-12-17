@@ -450,7 +450,18 @@ final class VaultService: ObservableObject {
     }
     
     func openVault(_ vault: Vault) async throws {
-        guard let modelContext = modelContext, let currentUserID = currentUserID else {
+        guard let currentUserID = currentUserID else {
+            throw VaultError.userNotFound
+        }
+        
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            try await openVaultInSupabase(vault: vault, supabaseService: supabaseService, userID: currentUserID)
+            return
+        }
+        
+        // SwiftData/CloudKit mode
+        guard let modelContext = modelContext else {
             throw VaultError.contextNotAvailable
         }
         
@@ -659,6 +670,156 @@ final class VaultService: ObservableObject {
         try await loadVaults()
     }
     
+    /// Open vault in Supabase mode
+    private func openVaultInSupabase(
+        vault: Vault,
+        supabaseService: SupabaseService,
+        userID: UUID
+    ) async throws {
+        print("🔓 Opening vault in Supabase mode: \(vault.name)")
+        
+        // TODO: Add dual-key approval support for Supabase mode
+        // For now, skip dual-key check and proceed directly
+        
+        // Get location for access log
+        let locationService = await MainActor.run { LocationService() }
+        let currentLocation = await MainActor.run { locationService.currentLocation }
+        if currentLocation == nil {
+            await locationService.requestLocationPermission()
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+        }
+        let finalLocation = await MainActor.run { locationService.currentLocation }
+        
+        // Get device info
+        let deviceInfo = UIDevice.current.model + " " + (UIDevice.current.systemVersion)
+        
+        // Get user name
+        var userName: String? = nil
+        do {
+            let supabaseUser: SupabaseUser = try await supabaseService.fetch("users", id: userID)
+            userName = supabaseUser.fullName
+        } catch {
+            print("⚠️ Failed to fetch user name: \(error)")
+        }
+        
+        // Create vault session in Supabase
+        let expiresAt = Date().addingTimeInterval(sessionTimeout)
+        let supabaseSession = SupabaseVaultSession(
+            vaultID: vault.id,
+            userID: userID,
+            startedAt: Date(),
+            expiresAt: expiresAt,
+            isActive: true,
+            wasExtended: false
+        )
+        
+        print("📝 Creating vault session in Supabase...")
+        let createdSession: SupabaseVaultSession
+        do {
+            createdSession = try await supabaseService.insert(
+                "vault_sessions",
+                values: supabaseSession
+            )
+            print("✅ Vault session created (ID: \(createdSession.id))")
+        } catch {
+            print("❌ Failed to create vault session: \(error.localizedDescription)")
+            throw error
+        }
+        
+        // Create local VaultSession for compatibility
+        let vaultSession = VaultSession(
+            startedAt: createdSession.startedAt,
+            expiresAt: createdSession.expiresAt,
+            isActive: createdSession.isActive,
+            wasExtended: createdSession.wasExtended
+        )
+        vaultSession.id = createdSession.id
+        vaultSession.vault = vault
+        
+        // Update vault status
+        vault.status = "active"
+        vault.lastAccessedAt = Date()
+        
+        // Create access log in Supabase
+        var accessLog = SupabaseVaultAccessLog(
+            vaultID: vault.id,
+            timestamp: Date(),
+            accessType: "opened",
+            userID: userID,
+            userName: userName,
+            deviceInfo: deviceInfo
+        )
+        
+        // Add location data
+        if let location = finalLocation {
+            accessLog.locationLatitude = location.coordinate.latitude
+            accessLog.locationLongitude = location.coordinate.longitude
+            print("   Location logged: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+        } else {
+            // Use default coordinates if location unavailable
+            accessLog.locationLatitude = 37.7749
+            accessLog.locationLongitude = -122.4194
+            print("   Using default location (permissions may be denied)")
+        }
+        
+        print("📝 Creating access log in Supabase...")
+        do {
+            let _: SupabaseVaultAccessLog = try await supabaseService.insert(
+                "vault_access_logs",
+                values: accessLog
+            )
+            print("✅ Access log created")
+        } catch {
+            print("⚠️ Failed to create access log: \(error.localizedDescription)")
+            // Continue anyway - session is more important
+        }
+        
+        // Update vault in Supabase (fetch first to get ownerID)
+        do {
+            // Fetch existing vault to get ownerID (it's a let constant)
+            let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: vault.id)
+            
+            // Create updated vault with mutable fields
+            var updatedVault = SupabaseVault(
+                id: existingVault.id,
+                name: existingVault.name,
+                vaultDescription: existingVault.vaultDescription,
+                ownerID: existingVault.ownerID, // Use existing ownerID
+                createdAt: existingVault.createdAt,
+                lastAccessedAt: Date(),
+                status: "active",
+                keyType: existingVault.keyType,
+                vaultType: existingVault.vaultType,
+                isSystemVault: existingVault.isSystemVault,
+                encryptionKeyData: existingVault.encryptionKeyData,
+                isEncrypted: existingVault.isEncrypted,
+                isZeroKnowledge: existingVault.isZeroKnowledge,
+                relationshipOfficerID: existingVault.relationshipOfficerID,
+                updatedAt: Date()
+            )
+            
+            let _: SupabaseVault = try await supabaseService.update(
+                "vaults",
+                id: vault.id,
+                values: updatedVault
+            )
+            print("✅ Vault status updated")
+        } catch {
+            print("⚠️ Failed to update vault status: \(error.localizedDescription)")
+            // Continue anyway - session is more important
+        }
+        
+        // Store session locally
+        await MainActor.run {
+            activeSessions[vault.id] = vaultSession
+        }
+        
+        // Start session timeout timer
+        startSessionTimeout(for: vault)
+        
+        print("✅ Vault opened successfully")
+    }
+    
     // MARK: - Nominee Access Management
     
     /// Check if current user is a nominee and grant access if eligible
@@ -767,8 +928,21 @@ final class VaultService: ObservableObject {
         try? modelContext.save()
     }
     
-    func closeVault(_ vault: Vault) async {
-        guard let modelContext = modelContext, let currentUserID = currentUserID else { return }
+    func closeVault(_ vault: Vault) async throws {
+        guard let currentUserID = currentUserID else {
+            throw VaultError.userNotFound
+        }
+        
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            try await closeVaultInSupabase(vault: vault, supabaseService: supabaseService, userID: currentUserID)
+            return
+        }
+        
+        // SwiftData/CloudKit mode
+        guard let modelContext = modelContext else {
+            throw VaultError.contextNotAvailable
+        }
         
         vault.status = "locked"
         
@@ -819,6 +993,90 @@ final class VaultService: ObservableObject {
         try? modelContext.save()
         
         try? await loadVaults()
+    }
+    
+    /// Close/lock vault in Supabase mode
+    private func closeVaultInSupabase(
+        vault: Vault,
+        supabaseService: SupabaseService,
+        userID: UUID
+    ) async throws {
+        print("🔒 Locking vault in Supabase mode: \(vault.name)")
+        
+        // Get location and device info
+        let locationService = await MainActor.run { LocationService() }
+        let location = await MainActor.run { locationService.currentLocation }
+        let deviceInfo = UIDevice.current.model
+        
+        // Update vault status to "locked" in Supabase
+        let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: vault.id)
+        var updatedVault = SupabaseVault(
+            id: existingVault.id,
+            name: existingVault.name,
+            vaultDescription: existingVault.vaultDescription,
+            ownerID: existingVault.ownerID,
+            createdAt: existingVault.createdAt,
+            lastAccessedAt: existingVault.lastAccessedAt,
+            status: "locked",
+            keyType: existingVault.keyType,
+            vaultType: existingVault.vaultType,
+            isSystemVault: existingVault.isSystemVault,
+            encryptionKeyData: existingVault.encryptionKeyData,
+            isEncrypted: existingVault.isEncrypted,
+            isZeroKnowledge: existingVault.isZeroKnowledge,
+            relationshipOfficerID: existingVault.relationshipOfficerID,
+            updatedAt: Date()
+        )
+        try await supabaseService.update("vaults", id: vault.id, values: updatedVault)
+        
+        // End all active sessions for this vault
+        let activeSessions: [SupabaseVaultSession] = try await supabaseService.fetchAll(
+            "vault_sessions",
+            filters: ["vault_id": vault.id.uuidString, "is_active": true]
+        )
+        
+        for session in activeSessions {
+            // Create updated session with same ID and all required fields
+            let updatedSession = SupabaseVaultSession(
+                id: session.id,
+                vaultID: session.vaultID,
+                userID: session.userID,
+                startedAt: session.startedAt,
+                expiresAt: session.expiresAt,
+                isActive: false,
+                wasExtended: session.wasExtended,
+                createdAt: session.createdAt,
+                updatedAt: Date()
+            )
+            try await supabaseService.update("vault_sessions", id: session.id, values: updatedSession)
+        }
+        
+        // Create access log
+        var accessLog = SupabaseVaultAccessLog(
+            vaultID: vault.id,
+            timestamp: Date(),
+            accessType: "closed",
+            userID: userID,
+            userName: currentUser?.fullName ?? "User",
+            deviceInfo: deviceInfo
+        )
+        
+        if let location = location {
+            accessLog.locationLatitude = location.coordinate.latitude
+            accessLog.locationLongitude = location.coordinate.longitude
+        }
+        
+        try await supabaseService.insert("vault_access_logs", values: accessLog)
+        
+        // Update local state
+        await MainActor.run {
+            vault.status = "locked"
+            activeSessions.removeValue(forKey: vault.id)
+            sessionTimeoutTasks[vault.id]?.cancel()
+            sessionTimeoutTasks.removeValue(forKey: vault.id)
+        }
+        
+        print("✅ Vault locked successfully")
     }
     
     func hasActiveSession(for vaultID: UUID) -> Bool {

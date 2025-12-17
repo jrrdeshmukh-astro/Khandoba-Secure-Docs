@@ -21,8 +21,11 @@ struct VaultDetailView: View {
     @EnvironmentObject var documentService: DocumentService
     @EnvironmentObject var chatService: ChatService
     @EnvironmentObject var supabaseService: SupabaseService
+    @StateObject private var nomineeService = NomineeService()
     
     @State private var isLoading = false
+    @State private var currentNominee: Nominee? // Current user's nominee record if they're a nominee
+    @State private var sessionExpirationTimer: Timer?
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showUploadSheet = false
@@ -350,28 +353,38 @@ struct VaultDetailView: View {
                                 .padding(.vertical, UnifiedTheme.Spacing.xl)
                             }
                             .padding(.horizontal)
-                        } else if vault.documents?.isEmpty ?? true {
-                            StandardCard {
-                                VStack(spacing: UnifiedTheme.Spacing.sm) {
-                                    Image(systemName: "doc")
-                                        .font(.largeTitle)
-                                        .foregroundColor(colors.textTertiary)
-                                    
-                                    Text("No Documents")
-                                        .font(theme.typography.headline)
-                                        .foregroundColor(colors.textPrimary)
-                                    
-                                    Text("Add your first document")
-                                        .font(theme.typography.subheadline)
-                                        .foregroundColor(colors.textSecondary)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, UnifiedTheme.Spacing.xl)
-                            }
-                            .padding(.horizontal)
                         } else {
-                            ForEach(vault.documents ?? []) { document in
-                                if document.status == "active" {
+                            // Filter documents based on access level
+                            var documentsToShow: [Document] = AppConfig.useSupabase 
+                                ? documentService.documents.filter { $0.status == "active" }
+                                : (vault.documents ?? []).filter { $0.status == "active" }
+                            
+                            // If current user is a nominee with subset access, filter to selected documents only
+                            if let nominee = currentNominee, nominee.isSubsetAccess, let selectedIDs = nominee.selectedDocumentIDs {
+                                documentsToShow = documentsToShow.filter { selectedIDs.contains($0.id) }
+                            }
+                            
+                            if documentsToShow.isEmpty {
+                                StandardCard {
+                                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                                        Image(systemName: "doc")
+                                            .font(.largeTitle)
+                                            .foregroundColor(colors.textTertiary)
+                                        
+                                        Text("No Documents")
+                                            .font(theme.typography.headline)
+                                            .foregroundColor(colors.textPrimary)
+                                        
+                                        Text("Add your first document")
+                                            .font(theme.typography.subheadline)
+                                            .foregroundColor(colors.textSecondary)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, UnifiedTheme.Spacing.xl)
+                                }
+                                .padding(.horizontal)
+                            } else {
+                                ForEach(documentsToShow) { document in
                                     NavigationLink {
                                         DocumentPreviewView(document: document)
                                     } label: {
@@ -409,9 +422,82 @@ struct VaultDetailView: View {
             Text(errorMessage)
         }
         .onAppear {
+            // Configure nominee service
+            if let userID = authService.currentUser?.id {
+                if AppConfig.useSupabase {
+                    nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
+                } else if let modelContext = modelContext {
+                    nomineeService.configure(modelContext: modelContext, currentUserID: userID)
+                }
+            }
+            
+            // Check if current user is a nominee with subset access
+            Task {
+                try? await nomineeService.loadNominees(for: vault)
+                await MainActor.run {
+                    // Match nominee by email (since nominees may not have userID until they accept)
+                    if let currentUser = authService.currentUser {
+                        currentNominee = nomineeService.nominees.first { nominee in
+                            nominee.email == currentUser.email ||
+                            (nominee.phoneNumber != nil && nominee.phoneNumber == currentUser.phoneNumber)
+                        }
+                        
+                        // Check session expiration for subset access
+                        if let nominee = currentNominee, nominee.isSubsetAccess {
+                            checkAndRevokeExpiredSession(nominee: nominee)
+                            startSessionExpirationMonitoring(nominee: nominee)
+                        }
+                    }
+                }
+            }
+            
             // If vault already has an active session, mark as unlocked
             if hasActiveSession {
                 isBiometricallyUnlocked = true
+            }
+            
+            // Load documents for this vault (especially important in Supabase mode)
+            Task {
+                do {
+                    try await documentService.loadDocuments(for: vault)
+                    // In Supabase mode, populate vault.documents from documentService
+                    if AppConfig.useSupabase {
+                        await MainActor.run {
+                            if vault.documents == nil {
+                                vault.documents = []
+                            }
+                            // Update vault.documents with loaded documents
+                            vault.documents = documentService.documents
+                        }
+                    }
+                } catch {
+                    print("⚠️ Failed to load documents: \(error.localizedDescription)")
+                }
+            }
+        }
+        .onDisappear {
+            // Stop session expiration monitoring
+            sessionExpirationTimer?.invalidate()
+            sessionExpirationTimer = nil
+        }
+        .onChange(of: hasActiveSession) { oldValue, newValue in
+            // Reload documents when vault is unlocked
+            if newValue && !oldValue {
+                Task {
+                    do {
+                        try await documentService.loadDocuments(for: vault)
+                        if AppConfig.useSupabase {
+                            await MainActor.run {
+                                if vault.documents == nil {
+                                    vault.documents = []
+                                }
+                                vault.documents = documentService.documents
+                            }
+                        }
+                    } catch {
+                        print("⚠️ Failed to load documents after unlock: \(error.localizedDescription)")
+                    }
+                }
             }
         }
     }
@@ -524,6 +610,46 @@ struct VaultDetailView: View {
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true
+            }
+        }
+    }
+    
+    // MARK: - Nominee Subset Access Management
+    
+    /// Check if nominee session has expired and revoke access
+    private func checkAndRevokeExpiredSession(nominee: Nominee) {
+        guard let expiresAt = nominee.sessionExpiresAt else { return }
+        
+        if Date() >= expiresAt {
+            // Session expired - revoke access
+            Task {
+                do {
+                    try await nomineeService.removeNominee(nominee, permanently: false)
+                    print("⏰ Subset nomination session expired - access revoked")
+                    
+                    // Show alert to user
+                    await MainActor.run {
+                        errorMessage = "Your subset access session has expired. Access has been revoked."
+                        showError = true
+                    }
+                } catch {
+                    print("❌ Failed to revoke expired nominee access: \(error)")
+                }
+            }
+        }
+    }
+    
+    /// Start monitoring session expiration for subset nominations
+    private func startSessionExpirationMonitoring(nominee: Nominee) {
+        guard let expiresAt = nominee.sessionExpiresAt else { return }
+        
+        // Check every minute
+        sessionExpirationTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor in
+                if let currentNominee = self.currentNominee, currentNominee.id == nominee.id {
+                    self.checkAndRevokeExpiredSession(nominee: currentNominee)
+                }
             }
         }
     }
