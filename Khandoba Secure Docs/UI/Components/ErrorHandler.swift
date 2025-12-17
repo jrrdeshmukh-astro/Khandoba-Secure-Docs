@@ -96,20 +96,35 @@ struct ErrorAlertModifier: ViewModifier {
     @Binding var error: Error?
     @State private var showAlert = false
     @State private var errorMessage = ""
+    @State private var currentError: Error?
+    @State private var errorHash: Int = 0
     
     func body(content: Content) -> some View {
         content
-            .onChange(of: error) { oldValue, newValue in
-                if newValue != nil {
-                    errorMessage = ErrorHandler.userFriendlyMessage(for: newValue!)
+            .onChange(of: errorHash) { _ in
+                // Error changed - update UI
+                if let newError = error {
+                    currentError = newError
+                    errorMessage = ErrorHandler.userFriendlyMessage(for: newError)
                     showAlert = true
+                } else {
+                    currentError = nil
+                    showAlert = false
+                }
+            }
+            .onChange(of: error) { _ in
+                // Update hash when error changes (using description as hash)
+                if let err = error {
+                    errorHash = ErrorHandler.userFriendlyMessage(for: err).hashValue
+                } else {
+                    errorHash = 0
                 }
             }
             .alert("Error", isPresented: $showAlert) {
                 Button("OK") {
                     error = nil
                 }
-                if let retrySuggestion = error.flatMap({ ErrorHandler.retrySuggestion(for: $0) }) {
+                if let currentError = currentError, let retrySuggestion = ErrorHandler.retrySuggestion(for: currentError) {
                     Button("Retry") {
                         // Retry logic would be handled by parent view
                         error = nil

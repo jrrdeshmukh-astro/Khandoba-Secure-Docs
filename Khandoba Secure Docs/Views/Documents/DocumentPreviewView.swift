@@ -62,7 +62,7 @@ struct DocumentPreviewView: View {
                             }
                         } else if document.documentType == "video" || document.mimeType?.hasPrefix("video/") == true {
                             // Video playback
-                            if let decryptedData = decryptedData, let previewURL = previewURL {
+                            if let decryptedData = decryptedData {
                                 VideoPlayerPreviewView(document: document, videoData: decryptedData, videoURL: previewURL)
                                     .overlay(
                                         // Screenshot prevention overlay (monitors continuously)
@@ -375,8 +375,7 @@ struct DocumentPreviewView: View {
         printController.printingItem = previewURL
         
         // Present print dialog
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootViewController = windowScene.windows.first?.rootViewController {
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
             printController.present(animated: true) { controller, completed, error in
                 if let error = error {
                     print("❌ Print error: \(error.localizedDescription)")
@@ -421,8 +420,15 @@ struct DocumentPreviewView: View {
             return // Screen capture detection not available in extensions
         }
         
-        // Get screen capture status
-        let captured = UIScreen.main.isCaptured
+        // Get screen capture status using window scene (iOS 26+ compatible)
+        var captured = false
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let screen = windowScene.screen {
+            captured = screen.isCaptured
+        } else {
+            // Fallback for older iOS versions
+            captured = UIScreen.main.isCaptured
+        }
         
         if captured && !isScreenCaptured {
             // Screen capture just started - hide content immediately
