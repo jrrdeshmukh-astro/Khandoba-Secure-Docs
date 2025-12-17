@@ -70,7 +70,7 @@ final class ContactDiscoveryService: ObservableObject {
             // Get all contacts from the user's contact list
             // Move contact enumeration to background thread to avoid blocking main thread
             let contacts = try await Task.detached(priority: .userInitiated) {
-                await Self.enumerateContactsOnBackgroundThread()
+                try await Self.enumerateContactsOnBackgroundThread()
             }.value
             
             print("📱 ContactDiscoveryService: Found \(contacts.count) contacts to check")

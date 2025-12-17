@@ -40,6 +40,10 @@ final class User {
     @Relationship(deleteRule: .nullify, inverse: \DualKeyRequest.requester)
     var dualKeyRequests: [DualKeyRequest]?
     
+    // Anti-vaults owned by this user
+    @Relationship(deleteRule: .nullify, inverse: \AntiVault.owner)
+    var ownedAntiVaults: [AntiVault]?
+    
     // Subscription status
     var isPremiumSubscriber: Bool = false
     var subscriptionExpiryDate: Date?
@@ -67,6 +71,7 @@ final class User {
         self.sentMessages = []
         self.vaultSessions = []
         self.dualKeyRequests = []
+        self.ownedAntiVaults = []
     }
 }
 

@@ -61,6 +61,9 @@ final class Vault {
     @Relationship(deleteRule: .nullify, inverse: \AntiVault.monitoredVault)
     var antiVaults: [AntiVault]? // Anti-vaults monitoring this vault
     
+    @Relationship(deleteRule: .nullify, inverse: \AntiVault.vault)
+    var antiVaultReference: AntiVault? // Reference from AntiVault when this vault IS the anti-vault
+    
     init(
         id: UUID = UUID(),
         name: String = "",

@@ -31,12 +31,15 @@ final class AntiVault: Identifiable {
     var id: UUID = UUID()
     
     // The anti-vault itself (references a Vault with isAntiVault = true)
+    @Relationship(deleteRule: .nullify, inverse: \Vault.antiVaultReference)
     var vault: Vault?
     
     // The vault being monitored (many-to-one: multiple anti-vaults can monitor one vault)
+    @Relationship(deleteRule: .nullify, inverse: \Vault.antiVaults)
     var monitoredVault: Vault?
     
     // Owner (authorized department/user)
+    @Relationship(deleteRule: .nullify, inverse: \User.ownedAntiVaults)
     var owner: User?
     
     // Status
