@@ -97,27 +97,32 @@ struct ErrorAlertModifier: ViewModifier {
     @State private var showAlert = false
     @State private var errorMessage = ""
     @State private var currentError: Error?
-    @State private var errorHash: Int = 0
+    @State private var errorMessageString: String = ""
+    
+    // Computed property to convert error to a comparable string
+    private var errorString: String {
+        if let err = error {
+            return ErrorHandler.userFriendlyMessage(for: err)
+        }
+        return ""
+    }
     
     func body(content: Content) -> some View {
         content
-            .onChange(of: errorHash) { _ in
+            .onChange(of: errorString) { oldValue, newValue in
                 // Error changed - update UI
-                if let newError = error {
-                    currentError = newError
-                    errorMessage = ErrorHandler.userFriendlyMessage(for: newError)
-                    showAlert = true
-                } else {
+                if !newValue.isEmpty && oldValue != newValue {
+                    if let newError = error {
+                        currentError = newError
+                        errorMessage = newValue
+                        errorMessageString = newValue
+                        showAlert = true
+                    }
+                } else if newValue.isEmpty {
                     currentError = nil
+                    errorMessage = ""
+                    errorMessageString = ""
                     showAlert = false
-                }
-            }
-            .onChange(of: error) { _ in
-                // Update hash when error changes (using description as hash)
-                if let err = error {
-                    errorHash = ErrorHandler.userFriendlyMessage(for: err).hashValue
-                } else {
-                    errorHash = 0
                 }
             }
             .alert("Error", isPresented: $showAlert) {

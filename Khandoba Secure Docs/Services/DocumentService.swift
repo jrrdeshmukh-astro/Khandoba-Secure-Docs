@@ -78,7 +78,7 @@ final class DocumentService: ObservableObject {
         if let userID = userID {
             Task {
                 do {
-                    let supabaseUser: SupabaseUser = try await supabaseService.fetch(
+                    let _: SupabaseUser = try await supabaseService.fetch(
                         "users",
                         id: userID
                     )
@@ -118,7 +118,8 @@ final class DocumentService: ObservableObject {
             
             // Refresh documents cache when changes occur
             Task {
-                if let vault = await MainActor.run({ self.currentVault }) {
+                let vault = await MainActor.run { self.currentVault }
+                if let vault = vault {
                     do {
                         try await self.loadDocuments(for: vault)
                         print("✅ DocumentService: Cache refreshed after realtime \(event)")
@@ -509,7 +510,7 @@ final class DocumentService: ObservableObject {
         }
         
         // NOW encrypt the document (after LLaMA analysis on unencrypted data)
-        let (encryptedData, encryptionKey) = try EncryptionService.encryptDocument(data, documentID: documentID)
+        let (encryptedData, _) = try EncryptionService.encryptDocument(data, documentID: documentID)
         
         await MainActor.run {
             uploadProgress = 0.6
@@ -981,10 +982,7 @@ final class DocumentService: ObservableObject {
             
             // Decrypt the file
             // Note: EncryptionService.encryptDocument stores key in keychain
-            // We need to retrieve it using the document ID
-            let key = try EncryptionService.retrieveKey(identifier: "doc-\(document.id.uuidString)")
-            
-            // Use decryptDocument which handles the format correctly
+            // Use decryptDocument which handles the format correctly (it retrieves the key internally)
             let decryptedData = try EncryptionService.decryptDocument(encryptedData, documentID: document.id)
             
             // CONTENT FILTERING: Check downloaded content before returning

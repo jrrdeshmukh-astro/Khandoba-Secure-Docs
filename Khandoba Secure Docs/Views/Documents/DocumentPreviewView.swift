@@ -375,7 +375,7 @@ struct DocumentPreviewView: View {
         printController.printingItem = previewURL
         
         // Present print dialog
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+        if UIApplication.shared.connectedScenes.first is UIWindowScene {
             printController.present(animated: true) { controller, completed, error in
                 if let error = error {
                     print("❌ Print error: \(error.localizedDescription)")
@@ -422,12 +422,21 @@ struct DocumentPreviewView: View {
         
         // Get screen capture status using window scene (iOS 26+ compatible)
         var captured = false
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let screen = windowScene.screen {
-            captured = screen.isCaptured
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            // screen is not optional in UIWindowScene, so we can access it directly
+            captured = windowScene.screen.isCaptured
         } else {
-            // Fallback for older iOS versions
-            captured = UIScreen.main.isCaptured
+            // Fallback for older iOS versions (pre-iOS 13) or if window scene is unavailable
+            // Note: UIScreen.main is deprecated in iOS 26, but we need it for older versions
+            // Use availability check to suppress deprecation warning on older iOS versions
+            if #available(iOS 26.0, *) {
+                // In iOS 26+, we should have window scene, but if not, we can't detect capture
+                // This should rarely happen as window scenes are available in iOS 13+
+                captured = false
+            } else {
+                // Safe to use UIScreen.main on iOS < 26
+                captured = UIScreen.main.isCaptured
+            }
         }
         
         if captured && !isScreenCaptured {
