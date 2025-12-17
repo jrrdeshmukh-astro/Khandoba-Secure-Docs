@@ -135,10 +135,6 @@ struct WelcomeView: View {
                     errorMessage = "Sign in request could not be handled."
                 case .failed:
                     errorMessage = "Sign in failed. Please check your iCloud sign-in status."
-                case .credentialRevoked:
-                    errorMessage = "Your Apple ID credential has been revoked. Please sign in again."
-                case .credentialNotFound:
-                    errorMessage = "Apple ID credential not found. Please sign in again."
                 @unknown default:
                     errorMessage = "Apple Sign In error: \(authError.localizedDescription)\n\nTip: Ensure your device is signed into iCloud."
                 }

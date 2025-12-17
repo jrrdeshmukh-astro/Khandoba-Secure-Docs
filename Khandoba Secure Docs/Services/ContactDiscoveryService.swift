@@ -70,21 +70,7 @@ final class ContactDiscoveryService: ObservableObject {
             // Get all contacts from the user's contact list
             // Move contact enumeration to background thread to avoid blocking main thread
             let contacts = try await Task.detached(priority: .userInitiated) {
-                let store = CNContactStore()
-                let keysToFetch: [CNKeyDescriptor] = [
-                    CNContactPhoneNumbersKey,
-                    CNContactEmailAddressesKey
-                ] as [CNKeyDescriptor]
-                
-                let request = CNContactFetchRequest(keysToFetch: keysToFetch)
-                var fetchedContacts: [CNContact] = []
-                
-                try store.enumerateContacts(with: request) { contact, stop in
-                    fetchedContacts.append(contact)
-                    // Continue enumerating (don't stop)
-                }
-                
-                return fetchedContacts
+                await Self.enumerateContactsOnBackgroundThread()
             }.value
             
             print("📱 ContactDiscoveryService: Found \(contacts.count) contacts to check")
@@ -204,6 +190,25 @@ final class ContactDiscoveryService: ObservableObject {
         }
         
         return false
+    }
+    
+    // Nonisolated helper to enumerate contacts on background thread
+    nonisolated private static func enumerateContactsOnBackgroundThread() async throws -> [CNContact] {
+        let store = CNContactStore()
+        let keysToFetch: [CNKeyDescriptor] = [
+            CNContactPhoneNumbersKey,
+            CNContactEmailAddressesKey
+        ] as [CNKeyDescriptor]
+        
+        let request = CNContactFetchRequest(keysToFetch: keysToFetch)
+        var fetchedContacts: [CNContact] = []
+        
+        try store.enumerateContacts(with: request) { contact, stop in
+            fetchedContacts.append(contact)
+            // Continue enumerating (don't stop)
+        }
+        
+        return fetchedContacts
     }
 }
 

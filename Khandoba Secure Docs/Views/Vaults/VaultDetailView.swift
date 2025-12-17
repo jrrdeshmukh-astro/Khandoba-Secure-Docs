@@ -81,7 +81,7 @@ struct VaultDetailView: View {
         let colors = viewColors
         
         ZStack {
-            colors.background
+            themeColors.background
                 .ignoresSafeArea()
             
             ScrollView {
