@@ -362,9 +362,38 @@ struct AccessMapView: View {
                 }
             }
             
-            // 3. Load dual-key requests (if table exists)
-            // Note: Dual-key requests might not be migrated yet, so we'll skip for now
-            // TODO: Add dual-key requests loading when table is available
+            // 3. Load dual-key requests
+            do {
+                let supabaseRequests: [SupabaseDualKeyRequest] = try await supabaseService.fetchAll(
+                    "dual_key_requests",
+                    filters: ["vault_id": vault.id.uuidString]
+                )
+                
+                print("   Found \(supabaseRequests.count) dual-key request(s)")
+                
+                // Convert to DualKeyRequest models
+                await MainActor.run {
+                    loadedDualKeyRequests = supabaseRequests.map { supabaseRequest in
+                        let request = DualKeyRequest(
+                            id: supabaseRequest.id,
+                            requestedAt: supabaseRequest.requestedAt,
+                            status: supabaseRequest.status,
+                            reason: supabaseRequest.reason
+                        )
+                        request.approvedAt = supabaseRequest.approvedAt
+                        request.deniedAt = supabaseRequest.deniedAt
+                        request.approverID = supabaseRequest.approverID
+                        request.mlScore = supabaseRequest.mlScore
+                        request.logicalReasoning = supabaseRequest.logicalReasoning
+                        request.decisionMethod = supabaseRequest.decisionMethod
+                        request.vault = vault
+                        return request
+                    }
+                }
+            } catch {
+                print("⚠️ Failed to load dual-key requests: \(error.localizedDescription)")
+                // Continue without dual-key requests - not critical for map display
+            }
             
             print("✅ Loaded access map data from Supabase")
         } catch {

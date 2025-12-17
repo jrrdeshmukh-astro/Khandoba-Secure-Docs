@@ -27,8 +27,8 @@ struct AppConfig {
     static let cloudKitTeamID = "Q5Y8754WU4"
     static let cloudKitKeyPath = "AuthKey_PR62QK662L.p8" // Relative to project root
     
-    // Supabase Configuration (Migration in progress)
-    // TODO: Replace with actual Supabase project credentials
+    // Supabase Configuration
+    // Production Supabase project configured
     static let useSupabase = true // Feature flag to switch between CloudKit and Supabase
     static let supabaseURL = SupabaseConfig.currentEnvironment.supabaseURL
     static let supabaseAnonKey = SupabaseConfig.currentEnvironment.supabaseAnonKey

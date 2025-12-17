@@ -99,6 +99,11 @@ struct ContentView: View {
                             }
                         )
                     }
+                    .sheet(isPresented: $showBluetoothInvitation) {
+                        if let invitation = pendingBluetoothInvitation {
+                            AcceptBluetoothInvitationView(invitation: invitation)
+                        }
+                    }
                     .sheet(isPresented: $showTransferView) {
                         if let token = pendingTransferToken {
                             AcceptTransferView(transferToken: token)
@@ -364,16 +369,17 @@ struct ContentView: View {
     }
     
     /// Handle Bluetooth session invitation
+    @State private var pendingBluetoothInvitation: BluetoothSessionInvitation?
+    @State private var showBluetoothInvitation = false
+    
     private func handleBluetoothSessionInvitation(_ invitation: BluetoothSessionInvitation) {
         print("📥 Bluetooth session invitation received")
         print("   Vault ID: \(invitation.vaultID)")
         print("   Inviter: \(invitation.inviterUserID)")
         print("   Duration: \(Int(invitation.sessionDuration / 60)) minutes")
         
-        // Show alert to accept invitation
-        // In a real implementation, you'd navigate to accept the invitation
-        // For now, we'll just log it
-        // TODO: Create AcceptBluetoothInvitationView
+        pendingBluetoothInvitation = invitation
+        showBluetoothInvitation = true
     }
     
     private func acceptCloudKitShare(metadata: CKShare.Metadata) {

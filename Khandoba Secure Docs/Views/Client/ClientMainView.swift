@@ -17,6 +17,8 @@ struct ClientMainView: View {
     @StateObject private var vaultService = VaultService()
     @StateObject private var documentService = DocumentService()
     @StateObject private var chatService = ChatService()
+    @StateObject private var contentFilterService = ContentFilterService()
+    @StateObject private var subscriptionService = SubscriptionService()
     
     @State private var selectedTab = 0
     @AppStorage("hasCompletedClientOnboarding") private var hasCompletedOnboarding = false
@@ -102,13 +104,20 @@ struct ClientMainView: View {
         if AppConfig.useSupabase {
             // Supabase mode
             vaultService.configure(supabaseService: supabaseService, userID: userID)
-            documentService.configure(supabaseService: supabaseService, userID: userID)
+            documentService.configure(supabaseService: supabaseService, userID: userID, contentFilterService: contentFilterService, subscriptionService: subscriptionService)
             chatService.configure(supabaseService: supabaseService, userID: userID)
         } else {
             // SwiftData/CloudKit mode
-        vaultService.configure(modelContext: modelContext, userID: userID)
-        documentService.configure(modelContext: modelContext, userID: userID)
-        chatService.configure(modelContext: modelContext, userID: userID)
+            subscriptionService.configure(modelContext: modelContext)
+            vaultService.configure(modelContext: modelContext, userID: userID)
+            documentService.configure(modelContext: modelContext, userID: userID, contentFilterService: contentFilterService, subscriptionService: subscriptionService)
+            chatService.configure(modelContext: modelContext, userID: userID)
+        }
+        
+        // Load subscription status
+        Task {
+            await subscriptionService.loadProducts()
+            await subscriptionService.updatePurchasedProducts()
         }
     }
 }

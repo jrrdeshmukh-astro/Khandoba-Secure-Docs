@@ -26,6 +26,9 @@ struct DocumentUploadView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var capturedImage: UIImage?
+    @State private var showContentBlocked = false
+    @State private var blockedContentReason: String?
+    @State private var blockedContentCategories: [ContentCategory] = []
     
     // Computed property to avoid type-checking timeout
     private var allowedFileTypes: [UTType] {
@@ -182,6 +185,23 @@ struct DocumentUploadView: View {
             } message: {
                 Text(errorMessage)
             }
+            .alert("Content Blocked", isPresented: $showContentBlocked) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("This content cannot be uploaded due to inappropriate material.")
+                    
+                    if let reason = blockedContentReason {
+                        Text("\nReason: \(reason)")
+                            .font(.caption)
+                    }
+                    
+                    if !blockedContentCategories.isEmpty {
+                        Text("\nCategories: \(blockedContentCategories.map { $0.rawValue.replacingOccurrences(of: "_", with: " ").capitalized }.joined(separator: ", "))")
+                            .font(.caption)
+                    }
+                }
+            }
         }
     }
     
@@ -278,6 +298,16 @@ struct DocumentUploadView: View {
             )
             
             dismiss()
+        } catch let error as DocumentError {
+            switch error {
+            case .contentBlocked(let severity, let categories, let reason):
+                blockedContentReason = reason
+                blockedContentCategories = categories
+                showContentBlocked = true
+            default:
+                errorMessage = error.localizedDescription
+                showError = true
+            }
         } catch {
             errorMessage = error.localizedDescription
             showError = true

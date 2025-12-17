@@ -130,6 +130,23 @@ struct VoiceRecordingView: View {
         } message: {
             Text("Save this voice recording to the vault?")
         }
+        .alert("Content Blocked", isPresented: $showContentBlocked) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("This audio cannot be saved due to inappropriate content.")
+                
+                if let reason = blockedContentReason {
+                    Text("\nReason: \(reason)")
+                        .font(.caption)
+                }
+                
+                if !blockedContentCategories.isEmpty {
+                    Text("\nCategories: \(blockedContentCategories.map { $0.rawValue.replacingOccurrences(of: "_", with: " ").capitalized }.joined(separator: ", "))")
+                        .font(.caption)
+                }
+            }
+        }
     }
     
     private func toggleRecording() {
@@ -171,8 +188,19 @@ struct VoiceRecordingView: View {
                 )
                 
                 dismiss()
+            } catch let error as DocumentError {
+                switch error {
+                case .contentBlocked(let severity, let categories, let reason):
+                    await MainActor.run {
+                        blockedContentReason = reason
+                        blockedContentCategories = categories
+                        showContentBlocked = true
+                    }
+                default:
+                    print("Error saving recording: \(error.localizedDescription)")
+                }
             } catch {
-                print("Error saving recording: \(error)")
+                print("Error saving recording: \(error.localizedDescription)")
             }
         }
     }

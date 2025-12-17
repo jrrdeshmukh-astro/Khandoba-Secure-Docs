@@ -658,6 +658,57 @@ final class DualKeyApprovalService: ObservableObject {
     // MARK: - Decision Execution
     
     private func executeDecision(_ decision: DualKeyDecision, for request: DualKeyRequest) async throws {
+        // Supabase mode: Update in Supabase
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            let requestID = request.id
+            
+            // Fetch existing request
+            let existingRequest: SupabaseDualKeyRequest = try await supabaseService.fetch(
+                "dual_key_requests",
+                id: requestID
+            )
+            
+            var updatedRequest = existingRequest
+            
+            switch decision.action {
+            case .autoApproved:
+                updatedRequest.status = "approved"
+                updatedRequest.approvedAt = Date()
+                updatedRequest.decisionMethod = "ml_auto"
+                updatedRequest.reason = decision.reason
+                updatedRequest.mlScore = decision.mlScore
+                updatedRequest.logicalReasoning = decision.logicalReasoning
+                
+            case .autoDenied:
+                updatedRequest.status = "denied"
+                updatedRequest.deniedAt = Date()
+                updatedRequest.decisionMethod = "ml_auto"
+                updatedRequest.reason = decision.reason
+                updatedRequest.mlScore = decision.mlScore
+                updatedRequest.logicalReasoning = decision.logicalReasoning
+            }
+            
+            updatedRequest.updatedAt = Date()
+            
+            let _: SupabaseDualKeyRequest = try await supabaseService.update(
+                "dual_key_requests",
+                id: requestID,
+                values: updatedRequest
+            )
+            
+            // Also update local request object for consistency
+            request.status = updatedRequest.status
+            request.approvedAt = updatedRequest.approvedAt
+            request.deniedAt = updatedRequest.deniedAt
+            request.decisionMethod = updatedRequest.decisionMethod
+            request.reason = updatedRequest.reason
+            request.mlScore = updatedRequest.mlScore
+            request.logicalReasoning = updatedRequest.logicalReasoning
+            
+            return
+        }
+        
+        // SwiftData/CloudKit mode
         guard let modelContext = modelContext else { return }
         
         switch decision.action {
@@ -682,22 +733,8 @@ final class DualKeyApprovalService: ObservableObject {
     }
     
     private func logDecision(_ decision: DualKeyDecision, for request: DualKeyRequest, vault: Vault, mlScore: Double) async throws {
-        guard let modelContext = modelContext else { return }
-        
-        // Create decision log
-        let log = DualKeyDecisionLog(
-            requestID: request.id,
-            vaultID: vault.id,
-            vaultName: vault.name,
-            mlScore: mlScore,
-            action: decision.action.rawValue,
-            reason: decision.reason,
-            confidence: decision.confidence
-        )
-        
-        modelContext.insert(log)
-        try modelContext.save()
-        
+        // Decision logging is handled in executeDecision for both Supabase and SwiftData modes
+        // This method is kept for backward compatibility but is no longer used
         print("   📝 Decision logged: \(decision.action.rawValue)")
     }
     

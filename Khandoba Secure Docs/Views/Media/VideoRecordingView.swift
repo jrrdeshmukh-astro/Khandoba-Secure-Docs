@@ -23,6 +23,9 @@ struct VideoRecordingView: View {
     @State private var recordedVideoURL: URL?
     @State private var recordingDuration: TimeInterval = 0
     @State private var recordingTimer: Timer?
+    @State private var showContentBlocked = false
+    @State private var blockedContentReason: String?
+    @State private var blockedContentCategories: [ContentCategory] = []
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -125,17 +128,34 @@ struct VideoRecordingView: View {
         }
         .sheet(isPresented: $showPreview) {
             if let videoURL = recordedVideoURL {
-                VideoPreviewView(
-                    videoURL: videoURL,
-                    vault: vault,
-                    onSave: { url in
-                        await saveVideo(url)
-                    },
-                    onDiscard: {
-                        recordedVideoURL = nil
-                        showPreview = false
+                    VideoPreviewView(
+                        videoURL: videoURL,
+                        vault: vault,
+                        onSave: { url in
+                            await saveVideo(url)
+                        },
+                        onDiscard: {
+                            recordedVideoURL = nil
+                            showPreview = false
+                        }
+                    )
+                    .alert("Content Blocked", isPresented: $showContentBlocked) {
+                        Button("OK", role: .cancel) { }
+                    } message: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("This video cannot be saved due to inappropriate content.")
+                            
+                            if let reason = blockedContentReason {
+                                Text("\nReason: \(reason)")
+                                    .font(.caption)
+                            }
+                            
+                            if !blockedContentCategories.isEmpty {
+                                Text("\nCategories: \(blockedContentCategories.map { $0.rawValue.replacingOccurrences(of: "_", with: " ").capitalized }.joined(separator: ", "))")
+                                    .font(.caption)
+                            }
+                        }
                     }
-                )
             }
         }
     }
@@ -212,13 +232,24 @@ struct VideoRecordingView: View {
             // Add AI tags to document
             if !tags.isEmpty {
                 document.aiTags = tags
-                print("   📝 AI tags applied to document")
+                print("   ?? AI tags applied to document")
             }
             
             print("    Video saved successfully to vault: \(vault.name)")
             dismiss()
+        } catch let error as DocumentError {
+            switch error {
+            case .contentBlocked(let severity, let categories, let reason):
+                await MainActor.run {
+                    blockedContentReason = reason
+                    blockedContentCategories = categories
+                    showContentBlocked = true
+                }
+            default:
+                print(" Error saving video: \(error.localizedDescription)")
+            }
         } catch {
-            print(" Error saving video: \(error)")
+            print(" Error saving video: \(error.localizedDescription)")
         }
     }
 }

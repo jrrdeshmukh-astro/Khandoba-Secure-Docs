@@ -22,15 +22,19 @@ final class DocumentService: ObservableObject {
     private var currentUserID: UUID?
     private var currentUser: User?
     private var fidelityService: DocumentFidelityService?
+    private var contentFilterService: ContentFilterService?
+    private var subscriptionService: SubscriptionService?
     
     init() {}
     
     // SwiftData/CloudKit mode
-    func configure(modelContext: ModelContext, userID: UUID? = nil, fidelityService: DocumentFidelityService? = nil) {
+    func configure(modelContext: ModelContext, userID: UUID? = nil, fidelityService: DocumentFidelityService? = nil, contentFilterService: ContentFilterService? = nil, subscriptionService: SubscriptionService? = nil) {
         self.modelContext = modelContext
         self.supabaseService = nil
         self.currentUserID = userID
         self.fidelityService = fidelityService
+        self.contentFilterService = contentFilterService
+        self.subscriptionService = subscriptionService
         
         // Configure fidelity service if provided
         if let fidelityService = fidelityService, let userID = userID {
@@ -49,11 +53,13 @@ final class DocumentService: ObservableObject {
     }
     
     // Supabase mode
-    func configure(supabaseService: SupabaseService, userID: UUID? = nil, fidelityService: DocumentFidelityService? = nil) {
+    func configure(supabaseService: SupabaseService, userID: UUID? = nil, fidelityService: DocumentFidelityService? = nil, contentFilterService: ContentFilterService? = nil, subscriptionService: SubscriptionService? = nil) {
         self.supabaseService = supabaseService
         self.modelContext = nil
         self.currentUserID = userID
         self.fidelityService = fidelityService
+        self.contentFilterService = contentFilterService
+        self.subscriptionService = subscriptionService
         
         // Configure fidelity service if provided
         if let fidelityService = fidelityService, let userID = userID {
@@ -172,6 +178,36 @@ final class DocumentService: ObservableObject {
         
         uploadProgress = 0.1
         
+        // CONTENT FILTERING: Check for inappropriate content before processing
+        if let contentFilterService = contentFilterService {
+            do {
+                let filterResult = try await contentFilterService.filterContent(
+                    data: data,
+                    mimeType: mimeType,
+                    documentType: nil
+                )
+                
+                if filterResult.isBlocked {
+                    print("🚫 Content blocked: \(filterResult.reason ?? "Inappropriate content detected")")
+                    throw DocumentError.contentBlocked(
+                        severity: filterResult.severity,
+                        categories: filterResult.categories,
+                        reason: filterResult.reason
+                    )
+                } else if filterResult.severity != .safe {
+                    print("⚠️ Content warning: \(filterResult.reason ?? "Potentially inappropriate content")")
+                    // Log warning but allow upload
+                }
+            } catch let error as DocumentError where error == .contentBlocked {
+                throw error
+            } catch {
+                print("⚠️ Content filtering failed: \(error.localizedDescription)")
+                // Continue with upload if filtering fails (fail-open for availability)
+            }
+        }
+        
+        uploadProgress = 0.15
+        
         // Determine document type
         let documentType = determineDocumentType(from: mimeType)
         let fileExtension = (name as NSString).pathExtension
@@ -195,8 +231,8 @@ final class DocumentService: ObservableObject {
         var aiTags: [String] = []
         var extractedText: String?
         
-        // Check if LLaMA analysis is authorized
-        let useLlama = true // TODO: Check subscription/premium status
+        // Check if LLaMA analysis is authorized (premium subscription or feature enabled)
+        let useLlama = await checkLlamaAuthorization()
         
         if useLlama {
             // Generate intelligent document name using LLaMA (on unencrypted data)
@@ -306,6 +342,36 @@ final class DocumentService: ObservableObject {
     ) async throws -> Document {
         uploadProgress = 0.1
         
+        // CONTENT FILTERING: Check for inappropriate content before processing
+        if let contentFilterService = contentFilterService {
+            do {
+                let filterResult = try await contentFilterService.filterContent(
+                    data: data,
+                    mimeType: mimeType,
+                    documentType: nil
+                )
+                
+                if filterResult.isBlocked {
+                    print("🚫 Content blocked: \(filterResult.reason ?? "Inappropriate content detected")")
+                    throw DocumentError.contentBlocked(
+                        severity: filterResult.severity,
+                        categories: filterResult.categories,
+                        reason: filterResult.reason
+                    )
+                } else if filterResult.severity != .safe {
+                    print("⚠️ Content warning: \(filterResult.reason ?? "Potentially inappropriate content")")
+                    // Log warning but allow upload
+                }
+            } catch let error as DocumentError where error == .contentBlocked {
+                throw error
+            } catch {
+                print("⚠️ Content filtering failed: \(error.localizedDescription)")
+                // Continue with upload if filtering fails (fail-open for availability)
+            }
+        }
+        
+        uploadProgress = 0.15
+        
         // Determine document type
         let documentType = determineDocumentType(from: mimeType)
         let fileExtension = (name as NSString).pathExtension
@@ -319,9 +385,8 @@ final class DocumentService: ObservableObject {
         var aiTags: [String] = []
         var extractedText: String?
         
-        // Check if LLaMA analysis is authorized (user has premium or feature enabled)
-        // For now, we'll always run LLaMA if available
-        let useLlama = true // TODO: Check subscription/premium status
+        // Check if LLaMA analysis is authorized (premium subscription or feature enabled)
+        let useLlama = await checkLlamaAuthorization()
         
         if useLlama {
             // Generate intelligent document name using LLaMA (on unencrypted data)
@@ -819,6 +884,34 @@ final class DocumentService: ObservableObject {
             // Use decryptDocument which handles the format correctly
             let decryptedData = try EncryptionService.decryptDocument(encryptedData, documentID: document.id)
             
+            // CONTENT FILTERING: Check downloaded content before returning
+            if let contentFilterService = contentFilterService {
+                do {
+                    let filterResult = try await contentFilterService.filterContent(
+                        data: decryptedData,
+                        mimeType: document.mimeType,
+                        documentType: document.documentType
+                    )
+                    
+                    if filterResult.isBlocked {
+                        print("🚫 Downloaded content blocked: \(filterResult.reason ?? "Inappropriate content detected")")
+                        throw DocumentError.contentBlocked(
+                            severity: filterResult.severity,
+                            categories: filterResult.categories,
+                            reason: filterResult.reason
+                        )
+                    } else if filterResult.severity != .safe {
+                        print("⚠️ Downloaded content warning: \(filterResult.reason ?? "Potentially inappropriate content")")
+                        // Log warning but allow download
+                    }
+                } catch let error as DocumentError where error == .contentBlocked {
+                    throw error
+                } catch {
+                    print("⚠️ Content filtering failed during download: \(error.localizedDescription)")
+                    // Continue with download if filtering fails (fail-open for availability)
+                }
+            }
+            
             return decryptedData
         }
         
@@ -828,14 +921,44 @@ final class DocumentService: ObservableObject {
         }
         
         // Decrypt if needed
+        let decryptedData: Data
         if document.isEncrypted {
-            return try EncryptionService.decryptDocument(encryptedData, documentID: document.id)
+            decryptedData = try EncryptionService.decryptDocument(encryptedData, documentID: document.id)
+        } else {
+            decryptedData = encryptedData
         }
         
-        return encryptedData
+        // CONTENT FILTERING: Check downloaded content before returning
+        if let contentFilterService = contentFilterService {
+            do {
+                let filterResult = try await contentFilterService.filterContent(
+                    data: decryptedData,
+                    mimeType: document.mimeType,
+                    documentType: document.documentType
+                )
+                
+                if filterResult.isBlocked {
+                    print("🚫 Downloaded content blocked: \(filterResult.reason ?? "Inappropriate content detected")")
+                    throw DocumentError.contentBlocked(
+                        severity: filterResult.severity,
+                        categories: filterResult.categories,
+                        reason: filterResult.reason
+                    )
+                } else if filterResult.severity != .safe {
+                    print("⚠️ Downloaded content warning: \(filterResult.reason ?? "Potentially inappropriate content")")
+                    // Log warning but allow download
+                }
+            } catch let error as DocumentError where error == .contentBlocked {
+                throw error
+            } catch {
+                print("⚠️ Content filtering failed during download: \(error.localizedDescription)")
+                // Continue with download if filtering fails (fail-open for availability)
+            }
+        }
+        
+        return decryptedData
     }
-}
-
+    
     /// Move document to a different vault (tracks transfer in fidelity service)
     func moveDocument(_ document: Document, toVault: Vault) async throws {
         guard let fromVault = document.vault else {
@@ -946,6 +1069,42 @@ final class DocumentService: ObservableObject {
         
         return newVersion
     }
+    
+    // MARK: - Helper Methods
+    
+    /// Check if LLaMA analysis is authorized (premium subscription or feature enabled)
+    private func checkLlamaAuthorization() async -> Bool {
+        // Check subscription service if available
+        if let subscriptionService = subscriptionService {
+            // Check subscription status
+            if subscriptionService.subscriptionStatus == .active {
+                return true
+            }
+        }
+        
+        // Check user's premium status
+        if let currentUser = currentUser {
+            // In Supabase mode, check user's premium status from database
+            if AppConfig.useSupabase, let supabaseService = supabaseService, let userID = currentUserID {
+                do {
+                    let supabaseUser: SupabaseUser = try await supabaseService.fetch(
+                        "users",
+                        id: userID
+                    )
+                    return supabaseUser.isPremiumSubscriber
+                } catch {
+                    print("⚠️ Failed to check premium status: \(error.localizedDescription)")
+                }
+            } else {
+                // SwiftData/CloudKit mode - check user model
+                return currentUser.isPremiumSubscriber
+            }
+        }
+        
+        // Default: Allow LLaMA for all users (app is paid, not subscription-based)
+        // In production, you might want to restrict this to premium users only
+        return true
+    }
 }
 
 enum DocumentError: LocalizedError {
@@ -953,6 +1112,7 @@ enum DocumentError: LocalizedError {
     case uploadFailed
     case encryptionFailed
     case vaultNotFound
+    case contentBlocked(severity: ContentSeverity, categories: [ContentCategory], reason: String?)
     
     var errorDescription: String? {
         switch self {
@@ -964,6 +1124,15 @@ enum DocumentError: LocalizedError {
             return "Failed to encrypt document"
         case .vaultNotFound:
             return "Vault not found"
+        case .contentBlocked(let severity, let categories, let reason):
+            var message = "Content blocked due to \(severity.rawValue) severity"
+            if let reason = reason {
+                message += ": \(reason)"
+            }
+            if !categories.isEmpty {
+                message += " (Categories: \(categories.map { $0.rawValue }.joined(separator: ", ")))"
+            }
+            return message
         }
     }
 }

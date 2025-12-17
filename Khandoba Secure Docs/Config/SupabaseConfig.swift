@@ -9,10 +9,12 @@ import Foundation
 
 struct SupabaseConfig {
     // Supabase Project Configuration
-    // TODO: Update anon key and service role key for the new project
+    // Production credentials configured
     static let supabaseURL = "https://uremtyiorzlapwthjsko.supabase.co"
     static let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVyZW10eWlvcnpsYXB3dGhqc2tvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NjI3MDcsImV4cCI6MjA4MTUzODcwN30.P4Yg4Gl040Msv0TeRuHQ-_SuGfeNEHCV234W5TTSN7Y"
-    static let supabaseServiceRoleKey = "YOUR_NEW_SERVICE_ROLE_KEY_HERE" // TODO: Replace with service role key from new project
+    // Service role key is only used server-side for admin operations
+    // Not needed in client app - RLS policies handle access control
+    static let supabaseServiceRoleKey = "" // Not used in client app
     
     // Environment Configuration
     enum Environment {

@@ -91,21 +91,21 @@ struct DocumentFidelityView: View {
                             title: "Transfers",
                             value: "\(report.transferCount)",
                             icon: "arrow.triangle.2.circlepath",
-                            colors: colors
+                            color: colors.primary
                         )
                         
                         StatCard(
                             title: "Edits",
                             value: "\(report.editCount)",
                             icon: "pencil",
-                            colors: colors
+                            color: colors.secondary
                         )
                         
                         StatCard(
                             title: "Devices",
                             value: "\(report.uniqueDeviceCount)",
                             icon: "iphone",
-                            colors: colors
+                            color: colors.info
                         )
                     }
                     
@@ -337,33 +337,6 @@ struct DocumentFidelityView: View {
 }
 
 // MARK: - Supporting Views
-
-struct StatCard: View {
-    let title: String
-    let value: String
-    let icon: String
-    let colors: UnifiedTheme.Colors
-    @Environment(\.unifiedTheme) var theme
-    
-    var body: some View {
-        StandardCard {
-            VStack(spacing: UnifiedTheme.Spacing.xs) {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundColor(colors.primary)
-                
-                Text(value)
-                    .font(theme.typography.title2)
-                    .foregroundColor(colors.textPrimary)
-                
-                Text(title)
-                    .font(theme.typography.caption)
-                    .foregroundColor(colors.textSecondary)
-            }
-            .frame(maxWidth: .infinity)
-        }
-    }
-}
 
 struct ThreatIndicatorRow: View {
     let threat: ThreatIndicator

@@ -847,8 +847,203 @@ final class VaultService: ObservableObject {
     ) async throws {
         print("🔓 Opening vault in Supabase mode: \(vault.name)")
         
-        // TODO: Add dual-key approval support for Supabase mode
-        // For now, skip dual-key check and proceed directly
+        // Check if vault requires dual-key approval
+        if vault.keyType == "dual" {
+            // Check for existing pending requests in Supabase
+            do {
+                let existingRequests: [SupabaseDualKeyRequest] = try await supabaseService.fetchAll(
+                    "dual_key_requests",
+                    filters: [
+                        "vault_id": vault.id.uuidString,
+                        "requester_id": userID.uuidString,
+                        "status": "pending"
+                    ]
+                )
+                
+                if let existingRequest = existingRequests.first {
+                    print(" Pending request already exists for vault: \(vault.name)")
+                    print("   Request ID: \(existingRequest.id)")
+                    print("   Requested: \(existingRequest.requestedAt)")
+                    print("   → Processing existing request with ML")
+                    
+                    // Convert to DualKeyRequest for processing
+                    let request = DualKeyRequest(
+                        id: existingRequest.id,
+                        requestedAt: existingRequest.requestedAt,
+                        status: existingRequest.status,
+                        reason: existingRequest.reason
+                    )
+                    request.vault = vault
+                    
+                    // Configure approval service
+                    let approvalService = await Task { @MainActor in
+                        let service = DualKeyApprovalService()
+                        service.configure(
+                            modelContext: nil, // Supabase mode
+                            supabaseService: supabaseService,
+                            vaultService: self
+                        )
+                        return service
+                    }.value
+                    
+                    do {
+                        let decision = try await approvalService.processDualKeyRequest(request, vault: vault)
+                        
+                        switch decision.action {
+                        case .autoApproved:
+                            print(" ML AUTO-APPROVED: Access granted")
+                            // Update request status in Supabase
+                            var updatedRequest = existingRequest
+                            updatedRequest.status = "approved"
+                            updatedRequest.approvedAt = Date()
+                            updatedRequest.mlScore = decision.mlScore
+                            updatedRequest.logicalReasoning = decision.logicalReasoning
+                            updatedRequest.decisionMethod = "ml_auto"
+                            updatedRequest.reason = decision.reason
+                            updatedRequest.updatedAt = Date()
+                            
+                            let _: SupabaseDualKeyRequest = try await supabaseService.update(
+                                "dual_key_requests",
+                                id: existingRequest.id,
+                                values: updatedRequest
+                            )
+                            
+                            // Continue to session creation below
+                            
+                        case .autoDenied:
+                            print(" ML AUTO-DENIED: Access denied")
+                            // Update request status in Supabase
+                            var updatedRequest = existingRequest
+                            updatedRequest.status = "denied"
+                            updatedRequest.deniedAt = Date()
+                            updatedRequest.mlScore = decision.mlScore
+                            updatedRequest.logicalReasoning = decision.logicalReasoning
+                            updatedRequest.decisionMethod = "ml_auto"
+                            updatedRequest.reason = decision.reason
+                            updatedRequest.updatedAt = Date()
+                            
+                            let _: SupabaseDualKeyRequest = try await supabaseService.update(
+                                "dual_key_requests",
+                                id: existingRequest.id,
+                                values: updatedRequest
+                            )
+                            
+                            throw VaultError.accessDenied
+                        }
+                    } catch {
+                        print(" ML processing error: \(error)")
+                        throw VaultError.awaitingApproval
+                    }
+                } else {
+                    // No existing pending request - create new one
+                    let request = SupabaseDualKeyRequest(
+                        vaultID: vault.id,
+                        requesterID: userID,
+                        requestedAt: Date(),
+                        status: "pending",
+                        reason: "Requesting vault access"
+                    )
+                    
+                    print("📝 Creating dual-key request in Supabase...")
+                    let createdRequest: SupabaseDualKeyRequest = try await supabaseService.insert(
+                        "dual_key_requests",
+                        values: request
+                    )
+                    print("✅ Dual-key request created (ID: \(createdRequest.id))")
+                    
+                    // Convert to DualKeyRequest for processing
+                    let dualKeyRequest = DualKeyRequest(
+                        id: createdRequest.id,
+                        requestedAt: createdRequest.requestedAt,
+                        status: createdRequest.status,
+                        reason: createdRequest.reason
+                    )
+                    dualKeyRequest.vault = vault
+                    
+                    // AUTOMATIC ML-BASED APPROVAL/DENIAL
+                    print(" Dual-key request created - initiating ML analysis...")
+                    
+                    // Configure approval service
+                    let approvalService = await Task { @MainActor in
+                        let service = DualKeyApprovalService()
+                        service.configure(
+                            modelContext: nil, // Supabase mode
+                            supabaseService: supabaseService,
+                            vaultService: self
+                        )
+                        return service
+                    }.value
+                    
+                    do {
+                        // Process with ML
+                        let decision = try await approvalService.processDualKeyRequest(dualKeyRequest, vault: vault)
+                        
+                        // Check the automatic decision
+                        switch decision.action {
+                        case .autoApproved:
+                            print(" ML AUTO-APPROVED: Access granted automatically")
+                            print("   Confidence: \(Int(decision.confidence * 100))%")
+                            print("   Reasoning: \(decision.logicalReasoning?.prefix(200) ?? "N/A")...")
+                            
+                            // Update request status in Supabase
+                            var updatedRequest = createdRequest
+                            updatedRequest.status = "approved"
+                            updatedRequest.approvedAt = Date()
+                            updatedRequest.mlScore = decision.mlScore
+                            updatedRequest.logicalReasoning = decision.logicalReasoning
+                            updatedRequest.decisionMethod = "ml_auto"
+                            updatedRequest.reason = decision.reason
+                            updatedRequest.updatedAt = Date()
+                            
+                            let _: SupabaseDualKeyRequest = try await supabaseService.update(
+                                "dual_key_requests",
+                                id: createdRequest.id,
+                                values: updatedRequest
+                            )
+                            
+                            // Request is now approved - continue with session creation below
+                            
+                        case .autoDenied:
+                            print(" ML AUTO-DENIED: Access denied automatically")
+                            print("   Confidence: \(Int(decision.confidence * 100))%")
+                            print("   Reasoning: \(decision.logicalReasoning?.prefix(200) ?? "N/A")...")
+                            
+                            // Update request status in Supabase
+                            var updatedRequest = createdRequest
+                            updatedRequest.status = "denied"
+                            updatedRequest.deniedAt = Date()
+                            updatedRequest.mlScore = decision.mlScore
+                            updatedRequest.logicalReasoning = decision.logicalReasoning
+                            updatedRequest.decisionMethod = "ml_auto"
+                            updatedRequest.reason = decision.reason
+                            updatedRequest.updatedAt = Date()
+                            
+                            let _: SupabaseDualKeyRequest = try await supabaseService.update(
+                                "dual_key_requests",
+                                id: createdRequest.id,
+                                values: updatedRequest
+                            )
+                            
+                            throw VaultError.accessDenied
+                        }
+                        
+                        // If approved, continue to create session
+                        print("    Proceeding with vault access...")
+                        
+                    } catch {
+                        print(" ML processing error: \(error)")
+                        // Fallback: treat as denied for security
+                        throw VaultError.awaitingApproval
+                    }
+                }
+            } catch {
+                print("⚠️ Failed to check/create dual-key request: \(error.localizedDescription)")
+                // For security, deny access if we can't check dual-key status
+                if vault.keyType == "dual" {
+                    throw VaultError.awaitingApproval
+                }
+            }
+        }
         
         // Get location for access log
         let locationService = await MainActor.run { LocationService() }
