@@ -58,6 +58,11 @@ struct WelcomeView: View {
                     SignInWithAppleButton(
                         onRequest: { request in
                             request.requestedScopes = [.fullName, .email]
+                            // Generate nonce and set it in the request
+                            // The nonce must be hashed with SHA-256 for Apple
+                            let hashedNonce = authService.generateNonce()
+                            request.nonce = hashedNonce
+                            print("🔐 Apple Sign In request configured with nonce")
                         },
                         onCompletion: { result in
                             handleSignIn(result)
@@ -96,19 +101,46 @@ struct WelcomeView: View {
         switch result {
         case .success(let authorization):
             isLoading = true
+            print("🔄 Starting sign-in process...")
             Task {
                 do {
                     try await authService.signIn(with: authorization)
-                    isLoading = false
+                    print("✅ Sign-in completed successfully")
+                    print("   isAuthenticated: \(authService.isAuthenticated)")
+                    print("   currentUser: \(authService.currentUser?.fullName ?? "nil")")
+                    await MainActor.run {
+                        isLoading = false
+                    }
                 } catch {
-                    isLoading = false
-                    errorMessage = error.localizedDescription
-                    showError = true
+                    print("❌ Sign-in failed: \(error.localizedDescription)")
+                    await MainActor.run {
+                        isLoading = false
+                        errorMessage = error.localizedDescription
+                        showError = true
+                    }
                 }
             }
             
         case .failure(let error):
-            errorMessage = error.localizedDescription
+            // Provide more helpful error messages
+            if let authError = error as? ASAuthorizationError {
+                switch authError.code {
+                case .unknown:
+                    errorMessage = "Apple Sign In failed. Please ensure:\n• Your device is signed into iCloud\n• Two-factor authentication is enabled\n• Try testing on a real device (simulators have limitations)"
+                case .canceled:
+                    errorMessage = "Sign in was canceled."
+                case .invalidResponse:
+                    errorMessage = "Invalid response from Apple. Please try again."
+                case .notHandled:
+                    errorMessage = "Sign in request could not be handled."
+                case .failed:
+                    errorMessage = "Sign in failed. Please check your iCloud sign-in status."
+                @unknown default:
+                    errorMessage = "Apple Sign In error: \(authError.localizedDescription)\n\nTip: Ensure your device is signed into iCloud."
+                }
+            } else {
+                errorMessage = error.localizedDescription
+            }
             showError = true
         }
     }

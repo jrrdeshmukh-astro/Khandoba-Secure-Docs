@@ -19,6 +19,7 @@ struct SecureNomineeChatView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var chatService: ChatService
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var messageText = ""
     @State private var isLoading = false
@@ -93,7 +94,11 @@ struct SecureNomineeChatView: View {
         .onAppear {
             // Configure chat service
             if let userID = authService.currentUser?.id {
+                if AppConfig.useSupabase {
+                    chatService.configure(supabaseService: supabaseService, userID: userID)
+                } else {
                 chatService.configure(modelContext: modelContext, userID: userID)
+                }
             }
             
             startScreenCaptureMonitoring()

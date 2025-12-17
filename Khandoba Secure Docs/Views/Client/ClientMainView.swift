@@ -12,6 +12,7 @@ struct ClientMainView: View {
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var vaultService = VaultService()
     @StateObject private var documentService = DocumentService()
@@ -97,9 +98,18 @@ struct ClientMainView: View {
     private func configureServices() {
         guard let userID = authService.currentUser?.id else { return }
         
+        // Configure services based on backend mode
+        if AppConfig.useSupabase {
+            // Supabase mode
+            vaultService.configure(supabaseService: supabaseService, userID: userID)
+            documentService.configure(supabaseService: supabaseService, userID: userID)
+            chatService.configure(supabaseService: supabaseService, userID: userID)
+        } else {
+            // SwiftData/CloudKit mode
         vaultService.configure(modelContext: modelContext, userID: userID)
         documentService.configure(modelContext: modelContext, userID: userID)
         chatService.configure(modelContext: modelContext, userID: userID)
+        }
     }
 }
 

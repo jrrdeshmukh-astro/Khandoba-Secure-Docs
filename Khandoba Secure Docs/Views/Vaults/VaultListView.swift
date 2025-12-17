@@ -14,6 +14,7 @@ struct VaultListView: View {
     @EnvironmentObject var vaultService: VaultService
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var showCreateVault = false
     @State private var isLoading = false
@@ -343,10 +344,18 @@ struct VaultListView: View {
         Task {
             // Configure nominee service if not already configured
             if nomineeService.nominees.isEmpty || nomineeService.nominees.first?.vault?.id != vault.id {
+                if AppConfig.useSupabase {
+                    if let userID = authService.currentUser?.id {
+                        nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
+                    } else {
+                        nomineeService.configure(supabaseService: supabaseService)
+                    }
+                } else {
                 if let userID = authService.currentUser?.id {
                     nomineeService.configure(modelContext: modelContext, currentUserID: userID)
                 } else {
                     nomineeService.configure(modelContext: modelContext)
+                    }
                 }
             }
             

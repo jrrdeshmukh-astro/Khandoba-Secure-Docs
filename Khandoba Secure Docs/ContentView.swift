@@ -12,6 +12,7 @@ import CloudKit
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     // Use @AppStorage to observe permissions changes
     @AppStorage("permissions_setup_complete") private var permissionsComplete = false
@@ -36,20 +37,35 @@ struct ContentView: View {
         Group {
             if authService.isLoading {
                 LoadingView("Initializing...")
+                    .onAppear {
+                        print("📱 Showing LoadingView")
+                    }
             } else if !authService.isAuthenticated {
                 WelcomeView()
                     .onOpenURL { url in
                         handleDeepLink(url)
                     }
+                    .onAppear {
+                        print("📱 Showing WelcomeView (not authenticated)")
+                    }
             } else if needsPermissionsSetup {
                 // PERMISSIONS FIRST - right after signin
                 PermissionsSetupView()
+                    .onAppear {
+                        print("📱 Showing PermissionsSetupView")
+                    }
             } else if needsAccountSetup {
                 // Then profile setup
                 AccountSetupView()
+                    .onAppear {
+                        print("📱 Showing AccountSetupView")
+                    }
             } else {
                 // Main App - Single role, autopilot mode
                 ClientMainView()
+                    .onAppear {
+                        print("📱 Showing ClientMainView (authenticated)")
+                    }
                     .onOpenURL { url in
                         handleDeepLink(url)
                     }
@@ -104,6 +120,13 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            print("📱 ContentView appeared")
+            print("   isAuthenticated: \(authService.isAuthenticated)")
+            print("   isLoading: \(authService.isLoading)")
+            print("   currentUser: \(authService.currentUser?.fullName ?? "nil")")
+            print("   needsPermissionsSetup: \(needsPermissionsSetup)")
+            print("   needsAccountSetup: \(needsAccountSetup)")
+            
             // Check for pending invitation token from previous launch
             if let token = UserDefaults.standard.string(forKey: "pending_invite_token") {
                 pendingInviteToken = token
@@ -308,6 +331,14 @@ struct ContentView: View {
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
         
+        // Supabase mode - nominees are handled via RLS, no need to find shared vaults
+        if AppConfig.useSupabase {
+            // In Supabase, shared vaults are automatically visible via RLS policies
+            // Nominees can see vaults they're invited to
+            return nil
+        }
+        
+        // SwiftData/CloudKit mode
         do {
             let vaults = try modelContext.fetch(descriptor)
             // Find vaults that are not owned by current user (shared vaults)

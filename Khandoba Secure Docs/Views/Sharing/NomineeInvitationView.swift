@@ -20,6 +20,7 @@ struct NomineeInvitationView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var vaultService: VaultService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var nomineeService = NomineeService()
     @StateObject private var cloudKitSharing = CloudKitSharingService()
@@ -224,13 +225,20 @@ struct NomineeInvitationView: View {
         }
         .task {
             // Configure services
+            if AppConfig.useSupabase {
+                if let userID = authService.currentUser?.id {
+                    nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
+                } else {
+                    nomineeService.configure(supabaseService: supabaseService)
+                }
+            } else {
             if let userID = authService.currentUser?.id {
                 nomineeService.configure(modelContext: modelContext, currentUserID: userID)
             } else {
                 nomineeService.configure(modelContext: modelContext)
             }
-            
             cloudKitSharing.configure(modelContext: modelContext)
+            }
             
             // Set initial vault if provided
             if let vault = vault {

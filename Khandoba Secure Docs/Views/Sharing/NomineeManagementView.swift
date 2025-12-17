@@ -16,6 +16,7 @@ struct NomineeManagementView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var chatService: ChatService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var nomineeService = NomineeService()
     @State private var showError = false
@@ -80,15 +81,27 @@ struct NomineeManagementView: View {
         }
         .task {
             // Configure nominee service with current user ID
+            if AppConfig.useSupabase {
+                if let userID = authService.currentUser?.id {
+                    nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
+                } else {
+                    nomineeService.configure(supabaseService: supabaseService)
+                }
+            } else {
             if let userID = authService.currentUser?.id {
                 nomineeService.configure(modelContext: modelContext, currentUserID: userID)
             } else {
             nomineeService.configure(modelContext: modelContext)
+                }
             }
             
             // Configure chat service
             if let userID = authService.currentUser?.id {
+                if AppConfig.useSupabase {
+                    chatService.configure(supabaseService: supabaseService, userID: userID)
+                } else {
                 chatService.configure(modelContext: modelContext, userID: userID)
+                }
             }
             
             do {

@@ -14,6 +14,7 @@ struct VaultRequestView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var requestService = VaultRequestService()
     @StateObject private var nomineeService = NomineeService()
@@ -325,13 +326,22 @@ struct VaultRequestView: View {
     // MARK: - Actions
     
     private func configureServices() async {
-        let cloudKitSharing = CloudKitSharingService()
-        cloudKitSharing.configure(modelContext: modelContext)
+        var cloudKitSharing: CloudKitSharingService? = nil
         
-        nomineeService.configure(
-            modelContext: modelContext,
-            currentUserID: authService.currentUser?.id
-        )
+        if AppConfig.useSupabase {
+            nomineeService.configure(
+                supabaseService: supabaseService,
+                currentUserID: authService.currentUser?.id
+            )
+        } else {
+            cloudKitSharing = CloudKitSharingService()
+            cloudKitSharing?.configure(modelContext: modelContext)
+
+            nomineeService.configure(
+                modelContext: modelContext,
+                currentUserID: authService.currentUser?.id
+            )
+        }
         
         requestService.configure(
             modelContext: modelContext,

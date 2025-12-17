@@ -200,7 +200,9 @@ struct AccountDeletionView: View {
                 
                 // Sign out after successful deletion
                 await MainActor.run {
-                    authService.signOut()
+                    Task {
+                        try? await authService.signOut()
+                    }
                     dismiss()
                 }
             } catch {

@@ -18,6 +18,7 @@ struct AddNomineeView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var nomineeService = NomineeService()
     
@@ -83,7 +84,15 @@ struct AddNomineeView: View {
                 )
             }
             .onAppear {
+                if AppConfig.useSupabase {
+                    if let userID = authService.currentUser?.id {
+                        nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
+                    } else {
+                        nomineeService.configure(supabaseService: supabaseService)
+                    }
+                } else {
                 nomineeService.configure(modelContext: modelContext)
+                }
             }
         }
     }

@@ -17,6 +17,7 @@ struct UnifiedNomineeManagementView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var chatService: ChatService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var nomineeService = NomineeService()
     @StateObject private var cloudKitSharing = CloudKitSharingService()
@@ -271,13 +272,20 @@ struct UnifiedNomineeManagementView: View {
         }
         .task {
             // Configure services
+            if AppConfig.useSupabase {
+                if let userID = authService.currentUser?.id {
+                    nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
+                } else {
+                    nomineeService.configure(supabaseService: supabaseService)
+                }
+            } else {
             if let userID = authService.currentUser?.id {
                 nomineeService.configure(modelContext: modelContext, currentUserID: userID)
             } else {
                 nomineeService.configure(modelContext: modelContext)
             }
-            
             cloudKitSharing.configure(modelContext: modelContext)
+            }
             
             if let userID = authService.currentUser?.id {
                 chatService.configure(modelContext: modelContext, userID: userID)

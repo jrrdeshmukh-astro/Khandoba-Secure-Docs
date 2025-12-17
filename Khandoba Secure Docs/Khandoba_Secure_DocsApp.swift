@@ -16,10 +16,16 @@ import UIKit
 struct Khandoba_Secure_DocsApp: App {
     @StateObject private var authService = AuthenticationService()
     @StateObject private var pushNotificationService = PushNotificationService.shared
+    @StateObject private var supabaseService = SupabaseService()
     
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
-    var sharedModelContainer: ModelContainer = {
+    // SwiftData ModelContainer - only used when useSupabase = false
+    var sharedModelContainer: ModelContainer? {
+        // Skip SwiftData initialization if using Supabase
+        guard !AppConfig.useSupabase else { return nil }
+        
+        return {
         let schema = Schema([
             User.self,
             UserRole.self,
@@ -95,21 +101,56 @@ struct Khandoba_Secure_DocsApp: App {
             }
         }
     }()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(authService)
                 .environmentObject(pushNotificationService)
+                .environmentObject(supabaseService)
                 .environment(\.unifiedTheme, UnifiedTheme())
                 .onAppear {
-                    authService.configure(modelContext: sharedModelContainer.mainContext)
+                    // Initialize Supabase if enabled
+                    if AppConfig.useSupabase {
+                        Task {
+                            do {
+                                try await supabaseService.configure()
+                                print("✅ Supabase initialized successfully")
+                                
+                                // Configure authentication service AFTER Supabase is initialized
+                                await MainActor.run {
+                                    authService.configure(supabaseService: supabaseService)
+                                }
+                            } catch {
+                                print("⚠️ Supabase initialization failed: \(error.localizedDescription)")
+                                print("   Falling back to SwiftData/CloudKit")
+                            }
+                        }
+                    } else {
+                        // SwiftData/CloudKit mode
+                        if let modelContext = sharedModelContainer?.mainContext {
+                            authService.configure(modelContext: modelContext)
+                        }
+                    }
+                    
                     setupPushNotifications()
+                    
+                    // Only verify CloudKit if not using Supabase
+                    if !AppConfig.useSupabase {
                     verifyCloudKitSetup()
-                }
-                .preferredColorScheme(.dark) // Force dark theme
+                    }
         }
-        .modelContainer(sharedModelContainer)
+        .preferredColorScheme(.dark) // Force dark theme
+        }
+        .modelContainer(sharedModelContainer ?? createMinimalModelContainer())
+    }
+    
+    // Create a minimal ModelContainer for Supabase mode (when SwiftData is not used)
+    private func createMinimalModelContainer() -> ModelContainer {
+        let schema = Schema([User.self, UserRole.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        return try! ModelContainer(for: schema, configurations: [config])
     }
     
     private func setupPushNotifications() {

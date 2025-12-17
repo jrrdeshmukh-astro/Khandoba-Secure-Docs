@@ -14,6 +14,7 @@ struct ManualInviteTokenView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var nomineeService = NomineeService()
     @State private var tokenInput = ""
@@ -149,7 +150,11 @@ struct ManualInviteTokenView: View {
                 }
             }
             .onAppear {
-                nomineeService.configure(modelContext: modelContext)
+                if AppConfig.useSupabase {
+                    nomineeService.configure(supabaseService: supabaseService)
+                } else {
+                    nomineeService.configure(modelContext: modelContext)
+                }
             }
         }
     }

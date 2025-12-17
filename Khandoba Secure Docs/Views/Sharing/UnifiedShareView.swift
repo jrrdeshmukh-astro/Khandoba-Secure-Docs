@@ -25,6 +25,7 @@ struct UnifiedShareView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var nomineeService = NomineeService()
     @State private var selectedContacts: [CNContact] = []
@@ -261,7 +262,15 @@ struct UnifiedShareView: View {
             .interactiveDismissDisabled(true) // Prevent UnifiedShareView from being dismissed accidentally
             .onAppear {
                 // Configure nominee service
+                if AppConfig.useSupabase {
+                    if let userID = authService.currentUser?.id {
+                        nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
+                    } else {
+                        nomineeService.configure(supabaseService: supabaseService)
+                    }
+                } else {
                 nomineeService.configure(modelContext: modelContext)
+                }
             }
             .sheet(isPresented: $showNomineeInvitation) {
                 NomineeInvitationView(vault: vault)

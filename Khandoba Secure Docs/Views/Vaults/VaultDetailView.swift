@@ -20,6 +20,7 @@ struct VaultDetailView: View {
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var documentService: DocumentService
     @EnvironmentObject var chatService: ChatService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var isLoading = false
     @State private var showError = false
@@ -531,7 +532,14 @@ struct VaultDetailView: View {
         if let session = vaultService.activeSessions[vault.id] {
             session.expiresAt = Date().addingTimeInterval(15 * 60)
             session.wasExtended = true
+            
+            // Update session in backend
+            if AppConfig.useSupabase {
+                // Session updates handled by VaultService in Supabase mode
+                // No need to manually save
+            } else {
             try? modelContext.save()
+            }
         }
     }
     

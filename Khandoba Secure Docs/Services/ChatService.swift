@@ -17,12 +17,22 @@ final class ChatService: ObservableObject {
     @Published var isLoading = false
     
     private var modelContext: ModelContext?
+    private var supabaseService: SupabaseService?
     private var currentUserID: UUID?
     
     init() {}
     
+    // SwiftData/CloudKit mode
     func configure(modelContext: ModelContext, userID: UUID) {
         self.modelContext = modelContext
+        self.supabaseService = nil
+        self.currentUserID = userID
+    }
+    
+    // Supabase mode
+    func configure(supabaseService: SupabaseService, userID: UUID) {
+        self.supabaseService = supabaseService
+        self.modelContext = nil
         self.currentUserID = userID
     }
     
@@ -30,6 +40,13 @@ final class ChatService: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService, let userID = currentUserID {
+            try await loadConversationsFromSupabase(supabaseService: supabaseService, userID: userID)
+            return
+        }
+        
+        // SwiftData/CloudKit mode
         guard let modelContext = modelContext else { return }
         
         let descriptor = FetchDescriptor<ChatMessage>(
@@ -58,11 +75,67 @@ final class ChatService: ObservableObject {
         updateUnreadCounts()
     }
     
+    /// Load conversations from Supabase
+    private func loadConversationsFromSupabase(supabaseService: SupabaseService, userID: UUID) async throws {
+        // RLS automatically filters messages for current user
+        let supabaseMessages: [SupabaseChatMessage] = try await supabaseService.fetchAll(
+            "chat_messages",
+            filters: nil // RLS handles filtering
+        )
+        
+        // Convert to ChatMessage models
+        var grouped: [String: [ChatMessage]] = [:]
+        
+        for supabaseMessage in supabaseMessages {
+            // Create conversation ID (simplified - would need proper conversation logic)
+            let conversationID = "user-\(supabaseMessage.senderID.uuidString)"
+            
+            let message = ChatMessage(
+                content: supabaseMessage.messageText,
+                senderID: supabaseMessage.senderID,
+                receiverID: userID, // Would need proper receiver logic
+                conversationID: conversationID
+            )
+            message.id = supabaseMessage.id
+            message.timestamp = supabaseMessage.createdAt
+            // Note: ChatMessage doesn't have isFromSystem property
+            // SupabaseChatMessage has it, but we can't store it in ChatMessage
+            
+            if grouped[conversationID] == nil {
+                grouped[conversationID] = []
+            }
+            grouped[conversationID]?.append(message)
+        }
+        
+        // Sort each conversation by timestamp
+        for (conversationID, messages) in grouped {
+            grouped[conversationID] = messages.sorted { $0.timestamp < $1.timestamp }
+        }
+        
+        await MainActor.run {
+            self.conversations = grouped
+            updateUnreadCounts()
+        }
+    }
+    
     func sendMessage(
         content: String,
         to receiverID: UUID,
         conversationID: String
     ) async throws {
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService, let currentUserID = currentUserID {
+            try await sendMessageToSupabase(
+                content: content,
+                receiverID: receiverID,
+                conversationID: conversationID,
+                supabaseService: supabaseService,
+                userID: currentUserID
+            )
+            return
+        }
+        
+        // SwiftData/CloudKit mode
         guard let modelContext = modelContext, let currentUserID = currentUserID else {
             throw ChatError.contextNotAvailable
         }
@@ -94,6 +167,49 @@ final class ChatService: ObservableObject {
             conversations[conversationID] = []
         }
         conversations[conversationID]?.append(message)
+    }
+    
+    /// Send message via Supabase
+    private func sendMessageToSupabase(
+        content: String,
+        receiverID: UUID,
+        conversationID: String,
+        supabaseService: SupabaseService,
+        userID: UUID
+    ) async throws {
+        // Encrypt message content
+        let encryptedContent = try encryptMessage(content: content, conversationID: conversationID)
+        
+        // Create message in Supabase
+        let supabaseMessage = SupabaseChatMessage(
+            senderID: userID,
+            messageText: encryptedContent,
+            isFromSystem: false
+        )
+        
+        let created: SupabaseChatMessage = try await supabaseService.insert(
+            "chat_messages",
+            values: supabaseMessage
+        )
+        
+        // Convert to ChatMessage model for local storage
+        let message = ChatMessage(
+            content: encryptedContent,
+            senderID: userID,
+            receiverID: receiverID,
+            conversationID: conversationID
+        )
+        message.id = created.id
+        message.timestamp = created.createdAt
+        message.isEncrypted = true
+        
+        // Update local conversations
+        await MainActor.run {
+            if conversations[conversationID] == nil {
+                conversations[conversationID] = []
+            }
+            conversations[conversationID]?.append(message)
+        }
     }
     
     // MARK: - Encryption

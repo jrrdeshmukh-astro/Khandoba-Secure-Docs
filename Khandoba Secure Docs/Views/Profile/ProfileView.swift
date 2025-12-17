@@ -220,7 +220,9 @@ struct ProfileView: View {
         }
         .confirmationDialog("Sign Out", isPresented: $showSignOutConfirmation) {
             Button("Sign Out", role: .destructive) {
-                authService.signOut()
+                Task {
+                    try? await authService.signOut()
+                }
             }
             Button("Cancel", role: .cancel) { }
         } message: {

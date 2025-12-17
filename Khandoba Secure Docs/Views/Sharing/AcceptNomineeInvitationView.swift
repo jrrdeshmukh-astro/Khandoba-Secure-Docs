@@ -16,6 +16,7 @@ struct AcceptNomineeInvitationView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var nomineeService = NomineeService()
     @State private var isLoading = false
@@ -244,7 +245,11 @@ struct AcceptNomineeInvitationView: View {
                 }
             }
             .onAppear {
+                if AppConfig.useSupabase {
+                    nomineeService.configure(supabaseService: supabaseService)
+                } else {
                 nomineeService.configure(modelContext: modelContext)
+                }
                 loadInvitation()
             }
         }

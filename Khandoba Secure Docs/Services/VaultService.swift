@@ -17,6 +17,7 @@ final class VaultService: ObservableObject {
     @Published var activeSessions: [UUID: VaultSession] = [:]
     
     var modelContext: ModelContext? // Made public for Intel vault access
+    private var supabaseService: SupabaseService?
     private var currentUserID: UUID?
     var currentUser: User? // Added for Intel report access
     
@@ -27,8 +28,10 @@ final class VaultService: ObservableObject {
     
     init() {}
     
+    // SwiftData/CloudKit mode
     func configure(modelContext: ModelContext, userID: UUID) {
         self.modelContext = modelContext
+        self.supabaseService = nil
         self.currentUserID = userID
         
         // Load current user
@@ -40,10 +43,41 @@ final class VaultService: ObservableObject {
         }
     }
     
+    // Supabase mode
+    func configure(supabaseService: SupabaseService, userID: UUID) {
+        self.supabaseService = supabaseService
+        self.modelContext = nil
+        self.currentUserID = userID
+        
+        // Load current user from Supabase
+        Task {
+            do {
+                let supabaseUser: SupabaseUser = try await supabaseService.fetch(
+                    "users",
+                    id: userID
+                )
+                // Convert to User model for compatibility
+                await MainActor.run {
+                    // Note: We'll need to create a User from SupabaseUser
+                    // For now, we'll store the SupabaseUser data
+                }
+            } catch {
+                print("⚠️ Failed to load user from Supabase: \(error)")
+            }
+        }
+    }
+    
     func loadVaults() async throws {
         isLoading = true
         defer { isLoading = false }
         
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService, let userID = currentUserID {
+            try await loadVaultsFromSupabase(supabaseService: supabaseService, userID: userID)
+            return
+        }
+        
+        // SwiftData/CloudKit mode
         guard let modelContext = modelContext else { return }
         
         // ONE-TIME CLEANUP: Delete Intel Reports vault
@@ -103,6 +137,69 @@ final class VaultService: ObservableObject {
         
         // Load active sessions
         await loadActiveSessions()
+    }
+    
+    /// Load vaults from Supabase
+    private func loadVaultsFromSupabase(supabaseService: SupabaseService, userID: UUID) async throws {
+        // RLS automatically filters vaults user has access to
+        let supabaseVaults: [SupabaseVault] = try await supabaseService.fetchAll("vaults", filters: nil)
+        
+        // Convert to Vault models for compatibility
+        await MainActor.run {
+            self.vaults = supabaseVaults.map { supabaseVault in
+                let vault = Vault(
+                    name: supabaseVault.name,
+                    vaultDescription: supabaseVault.vaultDescription,
+                    keyType: supabaseVault.keyType
+                )
+                vault.id = supabaseVault.id
+                vault.createdAt = supabaseVault.createdAt
+                vault.lastAccessedAt = supabaseVault.lastAccessedAt
+                vault.status = supabaseVault.status
+                vault.vaultType = supabaseVault.vaultType
+                vault.isSystemVault = supabaseVault.isSystemVault
+                vault.encryptionKeyData = supabaseVault.encryptionKeyData
+                vault.isEncrypted = supabaseVault.isEncrypted
+                vault.isZeroKnowledge = supabaseVault.isZeroKnowledge
+                vault.relationshipOfficerID = supabaseVault.relationshipOfficerID
+                return vault
+            }
+        }
+        
+        // Load active sessions
+        await loadActiveSessionsFromSupabase(supabaseService: supabaseService, userID: userID)
+    }
+    
+    /// Load active sessions from Supabase
+    private func loadActiveSessionsFromSupabase(supabaseService: SupabaseService, userID: UUID) async {
+        do {
+            let sessions: [SupabaseVaultSession] = try await supabaseService.fetchAll(
+                "vault_sessions",
+                filters: ["user_id": userID, "is_active": true]
+            )
+            
+            await MainActor.run {
+                for session in sessions {
+                    if session.expiresAt > Date() {
+                        let vaultSession = VaultSession(
+                            startedAt: session.startedAt,
+                            expiresAt: session.expiresAt,
+                            isActive: session.isActive,
+                            wasExtended: session.wasExtended
+                        )
+                        vaultSession.id = session.id
+                        
+                        // Find vault by ID
+                        if let vault = vaults.first(where: { $0.id == session.vaultID }) {
+                            vaultSession.vault = vault
+                            activeSessions[session.vaultID] = vaultSession
+                        }
+                    }
+                }
+            }
+        } catch {
+            print("⚠️ Failed to load sessions from Supabase: \(error)")
+        }
     }
     
     /// Clean up orphaned vaults (vaults with no owner or deleted owner)
@@ -196,6 +293,19 @@ final class VaultService: ObservableObject {
     }
     
     func createVault(name: String, description: String?, keyType: String, vaultType: String = "both") async throws -> Vault {
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService, let currentUserID = currentUserID {
+            return try await createVaultInSupabase(
+                name: name,
+                description: description,
+                keyType: keyType,
+                vaultType: vaultType,
+                supabaseService: supabaseService,
+                userID: currentUserID
+            )
+        }
+        
+        // SwiftData/CloudKit mode
         guard let modelContext = modelContext, let currentUserID = currentUserID else {
             throw VaultError.contextNotAvailable
         }
@@ -256,7 +366,81 @@ final class VaultService: ObservableObject {
         return vault
     }
     
+    /// Create vault in Supabase
+    private func createVaultInSupabase(
+        name: String,
+        description: String?,
+        keyType: String,
+        vaultType: String,
+        supabaseService: SupabaseService,
+        userID: UUID
+    ) async throws -> Vault {
+        let supabaseVault = SupabaseVault(
+            name: name,
+            vaultDescription: description,
+            ownerID: userID,
+            status: "locked",
+            keyType: keyType,
+            vaultType: vaultType,
+            isSystemVault: false,
+            isEncrypted: true,
+            isZeroKnowledge: true
+        )
+        
+        let created: SupabaseVault = try await supabaseService.insert(
+            "vaults",
+            values: supabaseVault
+        )
+        
+        // Create access log
+        var accessLog = SupabaseVaultAccessLog(
+            vaultID: created.id,
+            accessType: "created",
+            userID: userID
+        )
+        
+        // Add location if available
+        let locationService = await MainActor.run { LocationService() }
+        let location = await MainActor.run { locationService.currentLocation }
+        if let location = location {
+            accessLog.locationLatitude = location.coordinate.latitude
+            accessLog.locationLongitude = location.coordinate.longitude
+        }
+        
+        let _: SupabaseVaultAccessLog = try await supabaseService.insert(
+            "vault_access_logs",
+            values: accessLog
+        )
+        
+        // Convert to Vault model for compatibility
+        let vault = Vault(
+            name: created.name,
+            vaultDescription: created.vaultDescription,
+            keyType: created.keyType
+        )
+        vault.id = created.id
+        vault.createdAt = created.createdAt
+        vault.status = created.status
+        vault.vaultType = created.vaultType
+        vault.isSystemVault = created.isSystemVault
+        vault.encryptionKeyData = created.encryptionKeyData
+        vault.isEncrypted = created.isEncrypted
+        vault.isZeroKnowledge = created.isZeroKnowledge
+        
+        try await loadVaults()
+        
+        return vault
+    }
+    
     func deleteVault(_ vault: Vault) async throws {
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            try await supabaseService.delete("vaults", id: vault.id)
+            try await loadVaults()
+            return
+        }
+        
+        // SwiftData/CloudKit mode
         guard let modelContext = modelContext else { return }
         
         modelContext.delete(vault)
@@ -681,6 +865,13 @@ final class VaultService: ObservableObject {
     }
     
     func ensureIntelVaultExists(for user: User) async throws {
+        // Supabase mode - use user ID directly
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            try await ensureIntelVaultExistsInSupabase(userID: user.id, supabaseService: supabaseService)
+            return
+        }
+        
+        // SwiftData/CloudKit mode
         guard let modelContext = modelContext else {
             throw VaultError.contextNotAvailable
         }
@@ -707,6 +898,45 @@ final class VaultService: ObservableObject {
             
             modelContext.insert(intelVault)
             try modelContext.save()
+            
+            // Reload vaults to include new Intel Vault
+            try await loadVaults()
+        }
+    }
+    
+    /// Ensure Intel Vault exists in Supabase (overload for UUID)
+    func ensureIntelVaultExists(for userID: UUID) async throws {
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            try await ensureIntelVaultExistsInSupabase(userID: userID, supabaseService: supabaseService)
+            return
+        }
+        throw VaultError.contextNotAvailable
+    }
+    
+    /// Ensure Intel Vault exists in Supabase
+    private func ensureIntelVaultExistsInSupabase(userID: UUID, supabaseService: SupabaseService) async throws {
+        // Check if Intel Reports vault already exists
+        let allVaults: [SupabaseVault] = try await supabaseService.fetchAll("vaults", filters: nil)
+        let existing = allVaults.first { $0.name == "Intel Reports" && $0.ownerID == userID }
+        
+        if existing == nil {
+            // Create Intel Reports vault (dual-key, system vault)
+            let intelVault = SupabaseVault(
+                name: "Intel Reports",
+                vaultDescription: "AI-generated voice memo intelligence reports from cross-document analysis. Listen to compiled insights about your documents.",
+                ownerID: userID,
+                status: "locked",
+                keyType: "dual", // Always dual-key for security
+                vaultType: "both",
+                isSystemVault: true, // Mark as system vault - read-only for users
+                isEncrypted: true,
+                isZeroKnowledge: true
+            )
+            
+            let _: SupabaseVault = try await supabaseService.insert(
+                "vaults",
+                values: intelVault
+            )
             
             // Reload vaults to include new Intel Vault
             try await loadVaults()
