@@ -98,30 +98,33 @@ ALTER TABLE IF EXISTS anti_vaults DISABLE ROW LEVEL SECURITY;
 -- Remove tables from realtime publication (ignore errors if tables don't exist in publication)
 DO $$ 
 BEGIN
-    BEGIN
-        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS vaults;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
-    
-    BEGIN
-        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS documents;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
-    
-    BEGIN
-        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS nominees;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
-    
-    BEGIN
-        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS chat_messages;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
-    
-    BEGIN
-        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS vault_sessions;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
+    -- Only try to drop if publication exists and table is in it
+    IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        BEGIN
+            ALTER PUBLICATION supabase_realtime DROP TABLE vaults;
+        EXCEPTION WHEN undefined_table OR undefined_object THEN NULL;
+        END;
+        
+        BEGIN
+            ALTER PUBLICATION supabase_realtime DROP TABLE documents;
+        EXCEPTION WHEN undefined_table OR undefined_object THEN NULL;
+        END;
+        
+        BEGIN
+            ALTER PUBLICATION supabase_realtime DROP TABLE nominees;
+        EXCEPTION WHEN undefined_table OR undefined_object THEN NULL;
+        END;
+        
+        BEGIN
+            ALTER PUBLICATION supabase_realtime DROP TABLE chat_messages;
+        EXCEPTION WHEN undefined_table OR undefined_object THEN NULL;
+        END;
+        
+        BEGIN
+            ALTER PUBLICATION supabase_realtime DROP TABLE vault_sessions;
+        EXCEPTION WHEN undefined_table OR undefined_object THEN NULL;
+        END;
+    END IF;
 END $$;
 
 -- ============================================================================

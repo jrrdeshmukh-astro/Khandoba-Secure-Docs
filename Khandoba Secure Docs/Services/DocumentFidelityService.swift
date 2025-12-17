@@ -458,8 +458,11 @@ final class DocumentFidelityService: ObservableObject {
     // MARK: - Helper Methods
     
     private func getOrCreateFidelity(for document: Document, modelContext: ModelContext) async throws -> DocumentFidelity {
+        let documentID = document.id
         let descriptor = FetchDescriptor<DocumentFidelity>(
-            predicate: #Predicate { $0.document?.id == document.id }
+            predicate: #Predicate { fidelity in
+                fidelity.document?.id == documentID
+            }
         )
         
         if let existing = try? modelContext.fetch(descriptor).first {

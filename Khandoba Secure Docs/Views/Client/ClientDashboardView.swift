@@ -259,7 +259,7 @@ struct ClientDashboardView: View {
     /// Load access logs from SwiftData
     private func loadAccessLogsFromSwiftData() async {
         do {
-            let descriptor = FetchDescriptor<VaultAccessLog>(
+            var descriptor = FetchDescriptor<VaultAccessLog>(
                 sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
             )
             descriptor.fetchLimit = 50

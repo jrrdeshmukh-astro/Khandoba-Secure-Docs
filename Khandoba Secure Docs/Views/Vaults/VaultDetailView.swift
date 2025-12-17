@@ -31,6 +31,7 @@ struct VaultDetailView: View {
     @State private var showUploadSheet = false
     @State private var showDocumentPicker = false
     @State private var showNomineeInvitation = false
+    @State private var showTransferOwnership = false
     
     @EnvironmentObject var authService: AuthenticationService
     
@@ -224,6 +225,32 @@ struct VaultDetailView: View {
                             }
                         }
                         .padding(.horizontal)
+                    }
+                    
+                    // Vault Management - only show for owners
+                    if isOwner && !vault.isSystemVault {
+                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                            Text("Vault Management")
+                                .font(theme.typography.headline)
+                                .foregroundColor(colors.textPrimary)
+                                .padding(.horizontal)
+                            
+                            StandardCard {
+                                VStack(spacing: 0) {
+                                    Button {
+                                        showTransferOwnership = true
+                                    } label: {
+                                        SecurityActionRow(
+                                            icon: "arrow.triangle.2.circlepath",
+                                            title: "Transfer Ownership",
+                                            subtitle: "Transfer vault to another user",
+                                            color: colors.warning
+                                        )
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
                     }
                     
                     // Media Actions - only show for active vaults with active session
@@ -502,6 +529,9 @@ struct VaultDetailView: View {
         .sheet(isPresented: $showNomineeInvitation) {
             NomineeInvitationView(vault: vault)
         }
+        .sheet(isPresented: $showTransferOwnership) {
+            UnifiedShareView(vault: vault, mode: .transfer)
+        }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -511,9 +541,9 @@ struct VaultDetailView: View {
             // Configure nominee service
             if let userID = authService.currentUser?.id {
                 if AppConfig.useSupabase {
-                    nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
+                    nomineeService.configure(supabaseService: supabaseService, currentUserID: userID, vaultService: vaultService)
                 } else if let modelContext = modelContext {
-                    nomineeService.configure(modelContext: modelContext, currentUserID: userID)
+                    nomineeService.configure(modelContext: modelContext, currentUserID: userID, vaultService: vaultService)
                 }
             }
             

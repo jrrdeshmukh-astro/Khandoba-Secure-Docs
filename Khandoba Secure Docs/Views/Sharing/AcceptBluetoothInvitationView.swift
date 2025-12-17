@@ -58,7 +58,7 @@ struct AcceptBluetoothInvitationView: View {
                         // Invitation Details
                         StandardCard {
                             VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
-                                DetailRow(
+                                BluetoothDetailRow(
                                     icon: "person.fill",
                                     label: "Inviter",
                                     value: inviterName,
@@ -67,7 +67,7 @@ struct AcceptBluetoothInvitationView: View {
                                 
                                 Divider()
                                 
-                                DetailRow(
+                                BluetoothDetailRow(
                                     icon: "lock.shield.fill",
                                     label: "Vault",
                                     value: vaultName,
@@ -76,7 +76,7 @@ struct AcceptBluetoothInvitationView: View {
                                 
                                 Divider()
                                 
-                                DetailRow(
+                                BluetoothDetailRow(
                                     icon: "clock.fill",
                                     label: "Session Duration",
                                     value: formatDuration(invitation.sessionDuration),
@@ -86,7 +86,7 @@ struct AcceptBluetoothInvitationView: View {
                                 if let selectedDocumentIDs = invitation.selectedDocumentIDs, !selectedDocumentIDs.isEmpty {
                                     Divider()
                                     
-                                    DetailRow(
+                                    BluetoothDetailRow(
                                         icon: "doc.fill",
                                         label: "Documents",
                                         value: "\(selectedDocumentIDs.count) selected",
@@ -285,7 +285,7 @@ struct AcceptBluetoothInvitationView: View {
 
 // MARK: - Supporting Views
 
-private struct DetailRow: View {
+private struct BluetoothDetailRow: View {
     let icon: String
     let label: String
     let value: String

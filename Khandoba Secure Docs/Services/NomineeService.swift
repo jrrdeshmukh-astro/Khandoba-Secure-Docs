@@ -22,6 +22,7 @@ final class NomineeService: ObservableObject {
     private var cloudKitSharing: CloudKitSharingService?
     private var currentUserID: UUID?
     private var antiVaultService: AntiVaultService?
+    private var vaultService: VaultService?
     private let container: CKContainer
     
     nonisolated init() {
@@ -32,21 +33,23 @@ final class NomineeService: ObservableObject {
     }
     
     // SwiftData/CloudKit mode
-    func configure(modelContext: ModelContext, currentUserID: UUID? = nil, antiVaultService: AntiVaultService? = nil) {
+    func configure(modelContext: ModelContext, currentUserID: UUID? = nil, antiVaultService: AntiVaultService? = nil, vaultService: VaultService? = nil) {
         self.modelContext = modelContext
         self.supabaseService = nil
         self.currentUserID = currentUserID
         self.antiVaultService = antiVaultService
+        self.vaultService = vaultService
         self.cloudKitSharing = CloudKitSharingService()
         cloudKitSharing?.configure(modelContext: modelContext)
     }
     
     // Supabase mode
-    func configure(supabaseService: SupabaseService, currentUserID: UUID? = nil, antiVaultService: AntiVaultService? = nil) {
+    func configure(supabaseService: SupabaseService, currentUserID: UUID? = nil, antiVaultService: AntiVaultService? = nil, vaultService: VaultService? = nil) {
         self.supabaseService = supabaseService
         self.modelContext = nil
         self.currentUserID = currentUserID
         self.antiVaultService = antiVaultService
+        self.vaultService = vaultService
         self.cloudKitSharing = nil
     }
     
@@ -712,6 +715,91 @@ final class NomineeService: ObservableObject {
         }
     }
     
+    /// Accept a nominee invitation by nominee ID (for Supabase mode)
+    func acceptNominee(nomineeID: UUID) async throws -> Nominee? {
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService, let currentUserID = currentUserID {
+            // Fetch nominee from Supabase
+            let supabaseNominee: SupabaseNominee = try await supabaseService.fetch("nominees", id: nomineeID)
+            
+            // Verify this nominee is for the current user
+            guard supabaseNominee.userID == currentUserID else {
+                throw NomineeError.invalidToken
+            }
+            
+            // Update nominee status to accepted
+            var updated = supabaseNominee
+            updated.status = "accepted"
+            updated.acceptedAt = Date()
+            
+            let _: SupabaseNominee = try await supabaseService.update(
+                "nominees",
+                id: nomineeID,
+                values: updated
+            )
+            
+            // Convert to Nominee model
+            let nominee = Nominee(
+                name: "", // Will be fetched from user
+                email: nil,
+                status: .accepted,
+                invitedAt: supabaseNominee.invitedAt
+            )
+            nominee.id = supabaseNominee.id
+            nominee.acceptedAt = Date()
+            nominee.selectedDocumentIDs = supabaseNominee.selectedDocumentIDs
+            nominee.sessionExpiresAt = supabaseNominee.sessionExpiresAt
+            nominee.isSubsetAccess = supabaseNominee.isSubsetAccess
+            
+            // Fetch vault and user info
+            let vault: SupabaseVault = try await supabaseService.fetch("vaults", id: supabaseNominee.vaultID)
+            let user: SupabaseUser = try await supabaseService.fetch("users", id: supabaseNominee.userID)
+            let owner: SupabaseUser = try await supabaseService.fetch("users", id: vault.ownerID)
+            
+            // Create Vault model for nominee
+            let vaultModel = Vault(
+                name: vault.name,
+                vaultDescription: vault.vaultDescription,
+                keyType: vault.keyType
+            )
+            vaultModel.id = vault.id
+            nominee.vault = vaultModel
+            
+            nominee.name = user.fullName
+            nominee.email = user.email
+            
+            print("✅ Nominee accepted in Supabase: \(nominee.name)")
+            print("   Vault: \(vault.name)")
+            
+            // Check if this is a transfer ownership request
+            // Transfer ownership: If nominee was invited by vault owner and this is the only nominee
+            if supabaseNominee.invitedByUserID == vault.ownerID {
+                // Check if this is the only nominee for this vault
+                let allNominees: [SupabaseNominee] = try await supabaseService.fetchAll(
+                    "nominees",
+                    filters: ["vault_id": vault.id.uuidString]
+                )
+                let pendingNominees = allNominees.filter { $0.status == "pending" || $0.status == "accepted" }
+                
+                // If this is the only nominee and they're accepting, it's likely a transfer
+                if pendingNominees.count == 1 && pendingNominees.first?.id == nomineeID {
+                    print("🔄 Transfer ownership detected - transferring vault to new owner")
+                    // Transfer ownership to the accepting user
+                    if let vaultService = vaultService {
+                        try await vaultService.transferOwnership(vault: vaultModel, to: currentUserID)
+                        print("✅ Vault ownership transferred in Supabase: \(vault.name) → User ID: \(currentUserID)")
+                    } else {
+                        print("⚠️ VaultService not available - ownership transfer skipped")
+                    }
+                }
+            }
+            
+            return nominee
+        }
+        
+        throw NomineeError.contextNotAvailable
+    }
+    
     func acceptInvite(token: String) async throws -> Nominee? {
         // Supabase mode - token-based invites not used, use direct database access
         if AppConfig.useSupabase, let supabaseService = supabaseService {
@@ -741,6 +829,44 @@ final class NomineeService: ObservableObject {
         print("✅ Invitation accepted: \(nominee.name)")
         print("   Vault: \(nominee.vault?.name ?? "Unknown")")
         print("   📤 CloudKit sync: Status update will sync to owner's device")
+        
+        // Check if this is a transfer ownership request
+        // Transfer ownership: If nominee is the only nominee and vault owner invited them, transfer ownership
+        if let vault = nominee.vault,
+           let owner = vault.owner,
+           let currentUserID = currentUserID,
+           nominee.invitedByUserID == owner.id {
+            // Check if this is a transfer (only one nominee, and nominee is accepting)
+            let allNominees = vault.nomineeList ?? []
+            let pendingNominees = allNominees.filter { $0.status == .pending || $0.status == .accepted }
+            
+            // If this is the only nominee and they're accepting, it's likely a transfer
+            if pendingNominees.count == 1 && pendingNominees.first?.id == nominee.id {
+                print("🔄 Transfer ownership detected - transferring vault to new owner")
+                // Transfer ownership to the accepting user
+                if let vaultService = vaultService {
+                    try await vaultService.transferOwnership(vault: vault, to: currentUserID)
+                    print("✅ Vault ownership transferred: \(vault.name) → User ID: \(currentUserID)")
+                } else {
+                    // Fallback: Update vault owner directly
+                    let userDescriptor = FetchDescriptor<User>(
+                        predicate: #Predicate { $0.id == currentUserID }
+                    )
+                    if let newOwner = try modelContext.fetch(userDescriptor).first {
+                        vault.owner = newOwner
+                        if newOwner.ownedVaults == nil {
+                            newOwner.ownedVaults = []
+                        }
+                        if !(newOwner.ownedVaults?.contains(where: { $0.id == vault.id }) ?? false) {
+                            newOwner.ownedVaults?.append(vault)
+                        }
+                        owner.ownedVaults?.removeAll { $0.id == vault.id }
+                        try modelContext.save()
+                        print("✅ Vault ownership transferred: \(vault.name) → \(newOwner.fullName)")
+                    }
+                }
+            }
+        }
         
         // Send local notification to vault owner when nominee accepts
         // CloudKit will also sync the status change, but local notification provides immediate awareness

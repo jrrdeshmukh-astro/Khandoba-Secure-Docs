@@ -26,6 +26,7 @@ struct UnifiedShareView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
+    @EnvironmentObject var vaultService: VaultService
     
     @StateObject private var nomineeService = NomineeService()
     @State private var selectedContacts: [CNContact] = []
@@ -264,12 +265,12 @@ struct UnifiedShareView: View {
                 // Configure nominee service
                 if AppConfig.useSupabase {
                     if let userID = authService.currentUser?.id {
-                        nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
+                        nomineeService.configure(supabaseService: supabaseService, currentUserID: userID, vaultService: vaultService)
                     } else {
-                        nomineeService.configure(supabaseService: supabaseService)
+                        nomineeService.configure(supabaseService: supabaseService, vaultService: vaultService)
                     }
                 } else {
-                nomineeService.configure(modelContext: modelContext)
+                    nomineeService.configure(modelContext: modelContext, vaultService: vaultService)
                 }
             }
             .sheet(isPresented: $showNomineeInvitation) {
@@ -299,30 +300,51 @@ struct UnifiedShareView: View {
                 
                 let contact = selectedContacts[0]
                 let fullName = "\(contact.givenName) \(contact.familyName)"
+                let phoneNumber = contact.phoneNumbers.first?.value.stringValue
+                let email = contact.emailAddresses.first?.value as String?
                 
                 // Create transfer request (nominee with special transfer flag)
-                let transferNominee = Nominee(
-                    name: fullName,
-                    phoneNumber: contact.phoneNumbers.first?.value.stringValue,
-                    email: contact.emailAddresses.first?.value as String?,
-                    status: .pending
-                )
-                transferNominee.vault = vault
-                transferNominee.invitedByUserID = currentUser.id
+                // Use NomineeService to create nominee (supports both SwiftData and Supabase)
+                if AppConfig.useSupabase {
+                    // Supabase mode - use NomineeService
+                    try await nomineeService.inviteNominee(
+                        name: fullName,
+                        phoneNumber: phoneNumber,
+                        email: email,
+                        vault: vault,
+                        invitedByUserID: currentUser.id
+                    )
+                } else {
+                    // SwiftData mode
+                    guard let modelContext = modelContext else {
+                        throw AppError.authenticationFailed("ModelContext not available")
+                    }
+                    
+                    let transferNominee = Nominee(
+                        name: fullName,
+                        phoneNumber: phoneNumber,
+                        email: email,
+                        status: .pending
+                    )
+                    transferNominee.vault = vault
+                    transferNominee.invitedByUserID = currentUser.id
+                    
+                    modelContext.insert(transferNominee)
+                    try modelContext.save()
+                }
                 
-                modelContext.insert(transferNominee)
-                try modelContext.save()
-                
-                // Transfer ownership completed
+                // Transfer ownership request created
                 await MainActor.run {
-                                dismiss()
+                    dismiss()
                 }
                 
             } catch {
-                errorMessage = error.localizedDescription
-                showError = true
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                    isProcessing = false
+                }
             }
-            isProcessing = false
         }
     }
     

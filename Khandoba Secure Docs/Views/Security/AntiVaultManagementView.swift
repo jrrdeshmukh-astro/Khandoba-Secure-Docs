@@ -329,7 +329,7 @@ struct CreateAntiVaultView: View {
             antiVault.autoUnlockPolicy = autoUnlockPolicy
             
             // Save policy updates
-            if AppConfig.useSupabase, let supabaseService = supabaseService {
+            if AppConfig.useSupabase {
                 // Convert and update in Supabase
                 guard let vaultID = antiVault.vault?.id,
                       let monitoredVaultID = antiVault.monitoredVault?.id,
@@ -354,7 +354,6 @@ struct CreateAntiVaultView: View {
                 )
                 try await supabaseService.update("anti_vaults", id: antiVault.id, values: supabaseAntiVault)
             } else {
-                guard let modelContext = modelContext else { return }
                 try modelContext.save()
             }
             
@@ -440,7 +439,7 @@ struct AntiVaultDetailView: View {
                             }
                             
                             ForEach(detectedThreats.prefix(3), id: \.detectedAt) { threat in
-                                ThreatRow(threat: threat, colors: colors, theme: theme)
+                                AntiVaultThreatRow(threat: threat, colors: colors, theme: theme)
                             }
                             
                             if detectedThreats.count > 3 {
@@ -478,7 +477,7 @@ struct AntiVaultDetailView: View {
     }
 }
 
-struct ThreatRow: View {
+private struct AntiVaultThreatRow: View {
     let threat: ThreatDetection
     let colors: UnifiedTheme.Colors
     let theme: UnifiedTheme

@@ -57,9 +57,9 @@ final class EmergencyApprovalService: ObservableObject {
         }
         
         // Get ML threat analysis - combine multiple metrics
-        let geoMetrics = mlThreatService.analyzeGeoClassification(for: vault)
+        let geoMetrics = await mlThreatService.analyzeGeoClassification(for: vault)
         let tagMetrics = mlThreatService.analyzeTagPatterns(for: vault)
-        let accessMetrics = mlThreatService.analyzeAccessPatterns(for: vault)
+        let accessMetrics = await mlThreatService.analyzeAccessPatterns(for: vault)
         
         // Calculate overall risk score (0.0 to 1.0)
         let overallRiskScore = (geoMetrics.riskScore + tagMetrics.riskScore + accessMetrics.riskScore) / 3.0

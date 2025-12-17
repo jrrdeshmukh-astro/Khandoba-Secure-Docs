@@ -1011,7 +1011,8 @@ final class VaultService: ObservableObject {
                         case .autoApproved:
                             print(" ML AUTO-APPROVED: Access granted automatically")
                             print("   Confidence: \(Int(decision.confidence * 100))%")
-                            print("   Reasoning: \(decision.logicalReasoning?.prefix(200) ?? "N/A")...")
+                            let reasoningPreview = decision.logicalReasoning.isEmpty ? "N/A" : String(decision.logicalReasoning.prefix(200))
+                            print("   Reasoning: \(reasoningPreview)...")
                             
                             // Update request status in Supabase
                             var updatedRequest = createdRequest
@@ -1034,7 +1035,8 @@ final class VaultService: ObservableObject {
                         case .autoDenied:
                             print(" ML AUTO-DENIED: Access denied automatically")
                             print("   Confidence: \(Int(decision.confidence * 100))%")
-                            print("   Reasoning: \(decision.logicalReasoning?.prefix(200) ?? "N/A")...")
+                            let reasoningPreview = decision.logicalReasoning.isEmpty ? "N/A" : String(decision.logicalReasoning.prefix(200))
+                            print("   Reasoning: \(reasoningPreview)...")
                             
                             // Update request status in Supabase
                             var updatedRequest = createdRequest
@@ -1712,6 +1714,113 @@ final class VaultService: ObservableObject {
             // Reload vaults to include new Intel Vault
             try await loadVaults()
         }
+    }
+    
+    // MARK: - Transfer Ownership
+    
+    /// Transfer vault ownership to a new owner
+    /// This is called when a nominee accepts a transfer invitation
+    func transferOwnership(vault: Vault, to newOwnerID: UUID) async throws {
+        // Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            try await transferOwnershipInSupabase(
+                vault: vault,
+                newOwnerID: newOwnerID,
+                supabaseService: supabaseService
+            )
+            return
+        }
+        
+        // SwiftData/CloudKit mode
+        guard let modelContext = modelContext else {
+            throw VaultError.contextNotAvailable
+        }
+        
+        // Find new owner
+        let userDescriptor = FetchDescriptor<User>(
+            predicate: #Predicate { $0.id == newOwnerID }
+        )
+        
+        guard let newOwner = try modelContext.fetch(userDescriptor).first else {
+            throw VaultError.userNotFound
+        }
+        
+        // Get previous owner
+        let previousOwner = vault.owner
+        
+        // Update vault owner
+        vault.owner = newOwner
+        
+        // Update owned vaults lists
+        if newOwner.ownedVaults == nil {
+            newOwner.ownedVaults = []
+        }
+        if !(newOwner.ownedVaults?.contains(where: { $0.id == vault.id }) ?? false) {
+            newOwner.ownedVaults?.append(vault)
+        }
+        
+        // Remove from previous owner's list
+        if let previousOwner = previousOwner {
+            previousOwner.ownedVaults?.removeAll { $0.id == vault.id }
+        }
+        
+        try modelContext.save()
+        
+        // Reload vaults to reflect ownership change
+        try await loadVaults()
+        
+        print("✅ Vault ownership transferred: \(vault.name) → \(newOwner.fullName)")
+    }
+    
+    /// Transfer vault ownership in Supabase
+    private func transferOwnershipInSupabase(
+        vault: Vault,
+        newOwnerID: UUID,
+        supabaseService: SupabaseService
+    ) async throws {
+        print("🔄 Transferring vault ownership in Supabase: \(vault.name)")
+        
+        // Fetch existing vault to get all required fields
+        let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: vault.id)
+        
+        // Create updated vault with new owner
+        let updatedVault = SupabaseVault(
+            id: existingVault.id,
+            name: existingVault.name,
+            vaultDescription: existingVault.vaultDescription,
+            ownerID: newOwnerID, // New owner
+            createdAt: existingVault.createdAt,
+            lastAccessedAt: existingVault.lastAccessedAt,
+            status: existingVault.status,
+            keyType: existingVault.keyType,
+            vaultType: existingVault.vaultType,
+            isSystemVault: existingVault.isSystemVault,
+            encryptionKeyData: existingVault.encryptionKeyData,
+            isEncrypted: existingVault.isEncrypted,
+            isZeroKnowledge: existingVault.isZeroKnowledge,
+            relationshipOfficerID: existingVault.relationshipOfficerID,
+            updatedAt: Date()
+        )
+        
+        // Update vault in Supabase
+        let _: SupabaseVault = try await supabaseService.update(
+            "vaults",
+            id: vault.id,
+            values: updatedVault
+        )
+        
+        // Update local vault model
+        await MainActor.run {
+            // Note: In Supabase mode, vault.owner is not directly used
+            // The ownership is tracked in the database via owner_id
+            // We update the local vault for UI consistency
+            vault.lastAccessedAt = Date()
+        }
+        
+        // Reload vaults to reflect ownership change
+        try await loadVaults()
+        
+        print("✅ Vault ownership transferred in Supabase: \(vault.name) → User ID: \(newOwnerID)")
     }
 }
 

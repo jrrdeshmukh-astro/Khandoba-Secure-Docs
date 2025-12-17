@@ -11,6 +11,8 @@ import CoreLocation
 import QuickLook
 import UniformTypeIdentifiers
 import UIKit
+import AVFoundation
+import AVKit
 
 struct DocumentPreviewView: View {
     let document: Document
@@ -400,6 +402,29 @@ struct DocumentPreviewView: View {
         }
         
         isScreenCaptured = captured
+    }
+    
+    /// Check if document format supports HIPAA-compliant redaction
+    private func isRedactionSupported(document: Document) -> Bool {
+        // Only PDF and image formats support proper redaction
+        guard let mimeType = document.mimeType?.lowercased() else {
+            // Fallback to document type
+            return document.documentType == "pdf" || document.documentType == "image"
+        }
+        
+        // Supported MIME types for redaction
+        let supportedMimeTypes = [
+            "application/pdf",
+            "image/png",
+            "image/jpeg",
+            "image/jpg",
+            "image/heic",
+            "image/heif"
+        ]
+        
+        return supportedMimeTypes.contains(mimeType) || 
+               document.documentType == "pdf" || 
+               document.documentType == "image"
     }
 }
 

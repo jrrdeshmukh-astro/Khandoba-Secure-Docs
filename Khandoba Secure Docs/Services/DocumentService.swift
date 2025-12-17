@@ -198,8 +198,10 @@ final class DocumentService: ObservableObject {
                     print("⚠️ Content warning: \(filterResult.reason ?? "Potentially inappropriate content")")
                     // Log warning but allow upload
                 }
-            } catch let error as DocumentError where error == .contentBlocked {
-                throw error
+            } catch let error as DocumentError {
+                if case .contentBlocked = error {
+                    throw error
+                }
             } catch {
                 print("⚠️ Content filtering failed: \(error.localizedDescription)")
                 // Continue with upload if filtering fails (fail-open for availability)
@@ -362,8 +364,10 @@ final class DocumentService: ObservableObject {
                     print("⚠️ Content warning: \(filterResult.reason ?? "Potentially inappropriate content")")
                     // Log warning but allow upload
                 }
-            } catch let error as DocumentError where error == .contentBlocked {
-                throw error
+            } catch let error as DocumentError {
+                if case .contentBlocked = error {
+                    throw error
+                }
             } catch {
                 print("⚠️ Content filtering failed: \(error.localizedDescription)")
                 // Continue with upload if filtering fails (fail-open for availability)
@@ -904,8 +908,10 @@ final class DocumentService: ObservableObject {
                         print("⚠️ Downloaded content warning: \(filterResult.reason ?? "Potentially inappropriate content")")
                         // Log warning but allow download
                     }
-                } catch let error as DocumentError where error == .contentBlocked {
-                    throw error
+                } catch let error as DocumentError {
+                    if case .contentBlocked = error {
+                        throw error
+                    }
                 } catch {
                     print("⚠️ Content filtering failed during download: \(error.localizedDescription)")
                     // Continue with download if filtering fails (fail-open for availability)
@@ -948,8 +954,10 @@ final class DocumentService: ObservableObject {
                     print("⚠️ Downloaded content warning: \(filterResult.reason ?? "Potentially inappropriate content")")
                     // Log warning but allow download
                 }
-            } catch let error as DocumentError where error == .contentBlocked {
-                throw error
+            } catch let error as DocumentError {
+                if case .contentBlocked = error {
+                    throw error
+                }
             } catch {
                 print("⚠️ Content filtering failed during download: \(error.localizedDescription)")
                 // Continue with download if filtering fails (fail-open for availability)
@@ -971,9 +979,35 @@ final class DocumentService: ObservableObject {
         if AppConfig.useSupabase, let supabaseService = supabaseService {
             // Update in Supabase
             let supabaseDoc: SupabaseDocument = try await supabaseService.fetch("documents", id: document.id)
-            var updated = supabaseDoc
-            updated.vaultID = toVault.id
-            updated.lastModifiedAt = Date()
+            // Create new instance with updated vaultID (vaultID is let constant)
+            let updated = SupabaseDocument(
+                id: supabaseDoc.id,
+                vaultID: toVault.id,
+                name: supabaseDoc.name,
+                fileExtension: supabaseDoc.fileExtension,
+                mimeType: supabaseDoc.mimeType,
+                fileSize: supabaseDoc.fileSize,
+                storagePath: supabaseDoc.storagePath,
+                createdAt: supabaseDoc.createdAt,
+                uploadedAt: supabaseDoc.uploadedAt,
+                lastModifiedAt: Date(),
+                encryptionKeyData: supabaseDoc.encryptionKeyData,
+                isEncrypted: supabaseDoc.isEncrypted,
+                documentType: supabaseDoc.documentType,
+                sourceSinkType: supabaseDoc.sourceSinkType,
+                isArchived: supabaseDoc.isArchived,
+                isRedacted: supabaseDoc.isRedacted,
+                status: supabaseDoc.status,
+                extractedText: supabaseDoc.extractedText,
+                aiTags: supabaseDoc.aiTags,
+                fileHash: supabaseDoc.fileHash,
+                metadata: supabaseDoc.metadata,
+                author: supabaseDoc.author,
+                cameraInfo: supabaseDoc.cameraInfo,
+                deviceID: supabaseDoc.deviceID,
+                uploadedByUserID: supabaseDoc.uploadedByUserID,
+                updatedAt: Date()
+            )
             
             let _: SupabaseDocument = try await supabaseService.update("documents", id: document.id, values: updated)
             

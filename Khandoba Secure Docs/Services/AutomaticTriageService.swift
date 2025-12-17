@@ -395,8 +395,8 @@ final class AutomaticTriageService: ObservableObject {
         }
         
         // 4. Data Leak Indicators
-        let geoMetrics = mlService.analyzeGeoClassification(for: vault)
-        let accessMetrics = mlService.analyzeAccessPatterns(for: vault)
+        let geoMetrics = await mlService.analyzeGeoClassification(for: vault)
+        let accessMetrics = await mlService.analyzeAccessPatterns(for: vault)
         let tagMetrics = mlService.analyzeTagPatterns(for: vault)
         
         if geoMetrics.riskScore > 0.7 || accessMetrics.riskScore > 0.7 || tagMetrics.exfiltrationRisk > 0.6 {
@@ -429,7 +429,7 @@ final class AutomaticTriageService: ObservableObject {
         
         // 5. Rapid Access Pattern (Brute Force)
         let threatLevel = await threatService.analyzeThreatLevel(for: vault)
-        let threats = threatService.detectThreats(for: vault)
+        let threats = await threatService.detectThreats(for: vault)
         
         if threatLevel == .high || threatLevel == .critical {
             let rapidAccessThreats = threats.filter {
@@ -483,7 +483,7 @@ final class AutomaticTriageService: ObservableObject {
                 
                 // Check for suspicious patterns
                 if nomineeLogs.count > 0 {
-                    let geoMetrics = mlService.analyzeGeoClassification(for: vault)
+                    let geoMetrics = await mlService.analyzeGeoClassification(for: vault)
                     
                     // If nominee has many unique locations, might be compromised
                     if geoMetrics.uniqueLocations > 3 {

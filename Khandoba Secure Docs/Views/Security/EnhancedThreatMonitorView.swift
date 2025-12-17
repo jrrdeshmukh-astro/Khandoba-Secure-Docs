@@ -502,8 +502,6 @@ struct ThreatTimelineCard: View {
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var supabaseService: SupabaseService
-    @EnvironmentObject var vaultService: VaultService
-    @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
     @State private var metrics: [ThreatMetric] = []
     

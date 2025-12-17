@@ -328,7 +328,7 @@ final class DualKeyApprovalService: ObservableObject {
         let requestLon = currentLocation.coordinate.longitude
         
         // Get user's typical locations (home/office)
-        let userLocations = getUserTypicalLocations(vault: vault)
+        let userLocations = await getUserTypicalLocations(vault: vault)
         
         if userLocations.isEmpty {
             print("    No baseline locations established")
@@ -762,7 +762,7 @@ final class DualKeyApprovalService: ObservableObject {
         return earthRadius * c
     }
     
-    private func getUserTypicalLocations(vault: Vault) -> [(latitude: Double, longitude: Double)] {
+    private func getUserTypicalLocations(vault: Vault) async -> [(latitude: Double, longitude: Double)] {
         // Load access logs (from Supabase or SwiftData)
         let logs: [VaultAccessLog]
         if AppConfig.useSupabase, let vaultService = vaultService {
