@@ -199,37 +199,44 @@ class ContactStore: ObservableObject {
     @Published var contacts: [CNContact] = []
     
     func fetchContacts() async {
-        let store = CNContactStore()
-        let keysToFetch: [CNKeyDescriptor] = [
-            CNContactGivenNameKey,
-            CNContactFamilyNameKey,
-            CNContactPhoneNumbersKey,
-            CNContactEmailAddressesKey,
-            CNContactImageDataKey,
-            CNContactThumbnailImageDataKey
-        ] as [CNKeyDescriptor]
-        
-        let request = CNContactFetchRequest(keysToFetch: keysToFetch)
-        request.sortOrder = .givenName
-        
-        var fetchedContacts: [CNContact] = []
-        
         do {
-            try store.enumerateContacts(with: request) { (contact, _) in
-                // Only include contacts with phone or email
-                if !contact.phoneNumbers.isEmpty || !contact.emailAddresses.isEmpty {
-                    fetchedContacts.append(contact)
+            // Move contact enumeration to background thread to avoid blocking main thread
+            let fetchedContacts = try await Task.detached(priority: .userInitiated) {
+                let store = CNContactStore()
+                let keysToFetch: [CNKeyDescriptor] = [
+                    CNContactGivenNameKey,
+                    CNContactFamilyNameKey,
+                    CNContactPhoneNumbersKey,
+                    CNContactEmailAddressesKey,
+                    CNContactImageDataKey,
+                    CNContactThumbnailImageDataKey
+                ] as [CNKeyDescriptor]
+                
+                let request = CNContactFetchRequest(keysToFetch: keysToFetch)
+                request.sortOrder = .givenName
+                
+                var contacts: [CNContact] = []
+                
+                try store.enumerateContacts(with: request) { (contact, _) in
+                    // Only include contacts with phone or email
+                    if !contact.phoneNumbers.isEmpty || !contact.emailAddresses.isEmpty {
+                        contacts.append(contact)
+                    }
                 }
-            }
+                
+                // Sort by full name
+                contacts.sort { contact1, contact2 in
+                    let name1 = "\(contact1.givenName) \(contact1.familyName)".trimmingCharacters(in: .whitespaces)
+                    let name2 = "\(contact2.givenName) \(contact2.familyName)".trimmingCharacters(in: .whitespaces)
+                    return name1 < name2
+                }
+                
+                return contacts
+            }.value
             
-            // Sort by full name
-            fetchedContacts.sort { contact1, contact2 in
-                let name1 = "\(contact1.givenName) \(contact1.familyName)".trimmingCharacters(in: .whitespaces)
-                let name2 = "\(contact2.givenName) \(contact2.familyName)".trimmingCharacters(in: .whitespaces)
-                return name1 < name2
+            await MainActor.run {
+                contacts = fetchedContacts
             }
-            
-            contacts = fetchedContacts
         } catch {
             print("⚠️ Error fetching contacts: \(error.localizedDescription)")
             contacts = []

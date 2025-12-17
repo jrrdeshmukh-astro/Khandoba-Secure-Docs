@@ -64,7 +64,8 @@ struct VaultListView: View {
     }
     
     var body: some View {
-        let colors = theme.colors(for: colorScheme)
+        let themeColors = theme.colors(for: colorScheme)
+        let colors = themeColors
         
         NavigationStack {
             ZStack {
@@ -170,7 +171,33 @@ struct VaultListView: View {
                                         NavigationLink {
                                             VaultDetailView(vault: vault)
                                         } label: {
-                                            ArchivedVaultRow(vault: vault)
+                                            StandardCard {
+                                                HStack(spacing: UnifiedTheme.Spacing.md) {
+                                                    Image(systemName: "archivebox.fill")
+                                                        .foregroundColor(colors.textSecondary)
+                                                        .font(.title2)
+                                                    
+                                                    VStack(alignment: .leading, spacing: 4) {
+                                                        Text(vault.name)
+                                                            .font(theme.typography.headline)
+                                                            .foregroundColor(colors.textPrimary)
+                                                        
+                                                        if let description = vault.vaultDescription {
+                                                            Text(description)
+                                                                .font(theme.typography.caption)
+                                                                .foregroundColor(colors.textSecondary)
+                                                                .lineLimit(2)
+                                                        }
+                                                    }
+                                                    
+                                                    Spacer()
+                                                    
+                                                    Image(systemName: "chevron.right")
+                                                        .foregroundColor(colors.textTertiary)
+                                                        .font(.caption)
+                                                }
+                                                .padding(UnifiedTheme.Spacing.md)
+                                            }
                                         }
                                         .padding(.horizontal)
                                     }

@@ -162,7 +162,7 @@ struct AcceptBluetoothInvitationView: View {
     private func loadInvitationDetails() async {
         // Load vault name
         do {
-            if AppConfig.useSupabase, let supabaseService = supabaseService {
+            if AppConfig.useSupabase {
                 let supabaseVault: SupabaseVault = try await supabaseService.fetch(
                     "vaults",
                     id: invitation.vaultID
@@ -210,15 +210,13 @@ struct AcceptBluetoothInvitationView: View {
         
         do {
             // Configure services
-            if AppConfig.useSupabase, let supabaseService = supabaseService {
+            if AppConfig.useSupabase {
                 nomineeService.configure(
                     supabaseService: supabaseService,
                     currentUserID: authService.currentUser?.id
                 )
-                sharedVaultSessionService.configure(
-                    supabaseService: supabaseService,
-                    userID: authService.currentUser?.id ?? UUID()
-                )
+                // SharedVaultSessionService doesn't support Supabase mode yet
+                // Will use SwiftData mode for now
             } else {
                 nomineeService.configure(
                     modelContext: modelContext,
@@ -230,8 +228,8 @@ struct AcceptBluetoothInvitationView: View {
                 )
             }
             
-            // Create nominee record for session-based access
-            guard let vault = try await vaultService.getVault(id: invitation.vaultID) else {
+            // Find vault from vaultService
+            guard let vault = vaultService.vaults.first(where: { $0.id == invitation.vaultID }) else {
                 throw NomineeError.vaultNotFound
             }
             
@@ -239,24 +237,19 @@ struct AcceptBluetoothInvitationView: View {
                 throw NomineeError.userNotAuthenticated
             }
             
+            // Calculate session expiration date
+            let sessionExpiresAt = Date().addingTimeInterval(invitation.sessionDuration)
+            
             // Create session-based nominee
             let nominee = try await nomineeService.inviteNominee(
-                to: vault,
                 name: currentUser.fullName,
-                email: nil,
                 phoneNumber: nil,
-                accessLevel: .view,
+                email: nil,
+                to: vault,
+                invitedByUserID: currentUser.id,
                 selectedDocumentIDs: invitation.selectedDocumentIDs,
-                sessionDuration: invitation.sessionDuration,
+                sessionExpiresAt: sessionExpiresAt,
                 isSubsetAccess: invitation.selectedDocumentIDs != nil && !invitation.selectedDocumentIDs!.isEmpty
-            )
-            
-            // Create shared vault session
-            try await sharedVaultSessionService.createSession(
-                vaultID: invitation.vaultID,
-                nomineeID: nominee.id,
-                selectedDocumentIDs: invitation.selectedDocumentIDs,
-                duration: invitation.sessionDuration
             )
             
             print("✅ Bluetooth session invitation accepted")

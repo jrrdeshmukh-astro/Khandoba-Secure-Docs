@@ -59,28 +59,35 @@ final class AntiVault: Identifiable {
     // Computed properties
     var autoUnlockPolicy: AutoUnlockPolicy {
         get {
-            guard let data = autoUnlockPolicyData,
-                  let decoded = try? JSONDecoder().decode(AutoUnlockPolicy.self, from: data) else {
+            guard let data = autoUnlockPolicyData else {
                 return AutoUnlockPolicy()
             }
-            return decoded
+            return nonisolatedDecode(data: data) ?? AutoUnlockPolicy()
         }
         set {
-            autoUnlockPolicyData = try? JSONEncoder().encode(newValue)
+            autoUnlockPolicyData = nonisolatedEncode(value: newValue)
         }
     }
     
     var threatDetectionSettings: ThreatDetectionSettings {
         get {
-            guard let data = threatDetectionSettingsData,
-                  let decoded = try? JSONDecoder().decode(ThreatDetectionSettings.self, from: data) else {
+            guard let data = threatDetectionSettingsData else {
                 return ThreatDetectionSettings()
             }
-            return decoded
+            return nonisolatedDecode(data: data) ?? ThreatDetectionSettings()
         }
         set {
-            threatDetectionSettingsData = try? JSONEncoder().encode(newValue)
+            threatDetectionSettingsData = nonisolatedEncode(value: newValue)
         }
+    }
+    
+    // Nonisolated helpers to avoid main actor isolation issues
+    nonisolated private func nonisolatedDecode<T: Decodable>(data: Data) -> T? {
+        return try? JSONDecoder().decode(T.self, from: data)
+    }
+    
+    nonisolated private func nonisolatedEncode<T: Encodable>(value: T) -> Data? {
+        return try? JSONEncoder().encode(value)
     }
     
     init(

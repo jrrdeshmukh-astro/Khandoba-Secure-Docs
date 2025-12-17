@@ -21,6 +21,9 @@ struct VoiceRecordingView: View {
     @State private var recordingDuration: TimeInterval = 0
     @State private var timer: Timer?
     @State private var showSaveConfirm = false
+    @State private var showContentBlocked = false
+    @State private var blockedContentReason: String?
+    @State private var blockedContentCategories: [ContentCategory] = []
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

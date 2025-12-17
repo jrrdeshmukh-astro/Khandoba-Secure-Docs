@@ -220,8 +220,8 @@ struct TriageView: View {
             }
             
             // ML-based analysis
-            let geoMetrics = mlService.analyzeGeoClassification(for: vault)
-            let accessMetrics = mlService.analyzeAccessPatterns(for: vault)
+            let geoMetrics = await mlService.analyzeGeoClassification(for: vault)
+            let accessMetrics = await mlService.analyzeAccessPatterns(for: vault)
             let tagMetrics = mlService.analyzeTagPatterns(for: vault)
             
             // Detect data leaks

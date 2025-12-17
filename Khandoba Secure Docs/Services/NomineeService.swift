@@ -941,6 +941,8 @@ enum NomineeError: LocalizedError {
     case sendFailed
     case shareCreationFailed
     case participantNotFound
+    case vaultNotFound
+    case userNotAuthenticated
     
     var errorDescription: String? {
         switch self {
@@ -954,6 +956,10 @@ enum NomineeError: LocalizedError {
             return "Failed to create CloudKit share"
         case .participantNotFound:
             return "Participant not found in CloudKit share"
+        case .vaultNotFound:
+            return "Vault not found"
+        case .userNotAuthenticated:
+            return "User not authenticated"
         }
     }
 }

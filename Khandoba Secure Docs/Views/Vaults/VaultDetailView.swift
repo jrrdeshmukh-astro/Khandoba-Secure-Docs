@@ -39,6 +39,7 @@ struct VaultDetailView: View {
     @State private var isBiometricallyUnlocked = false
     @State private var attemptedAutoUnlock = false
     @State private var authInProgress = false
+    @State private var localHasActiveSession = false
     
     private var isIntelVault: Bool {
         vault.name == "Intel Vault"
@@ -72,6 +73,11 @@ struct VaultDetailView: View {
     }
     
     var body: some View {
+        bodyContent
+    }
+    
+    @ViewBuilder
+    private var bodyContent: some View {
         let colors = viewColors
         
         ZStack {
@@ -756,7 +762,7 @@ struct VaultDetailView: View {
                 // Update local state
                 await MainActor.run {
                     vault.status = "locked"
-                    hasActiveSession = false
+                    localHasActiveSession = false
                 }
                 
                 print("✅ Vault locked successfully")
@@ -797,11 +803,10 @@ struct VaultDetailView: View {
     
     /// Start monitoring session expiration for subset nominations
     private func startSessionExpirationMonitoring(nominee: Nominee) {
-        guard let expiresAt = nominee.sessionExpiresAt else { return }
+        guard nominee.sessionExpiresAt != nil else { return }
         
         // Check every minute
-        sessionExpirationTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+        sessionExpirationTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
             Task { @MainActor in
                 if let currentNominee = self.currentNominee, currentNominee.id == nominee.id {
                     self.checkAndRevokeExpiredSession(nominee: currentNominee)
