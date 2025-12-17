@@ -311,15 +311,11 @@ struct UnifiedShareView: View {
                         name: fullName,
                         phoneNumber: phoneNumber,
                         email: email,
-                        vault: vault,
+                        to: vault,
                         invitedByUserID: currentUser.id
                     )
                 } else {
                     // SwiftData mode
-                    guard let modelContext = modelContext else {
-                        throw AppError.authenticationFailed("ModelContext not available")
-                    }
-                    
                     let transferNominee = Nominee(
                         name: fullName,
                         phoneNumber: phoneNumber,
