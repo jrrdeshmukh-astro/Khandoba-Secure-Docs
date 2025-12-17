@@ -487,5 +487,4 @@ struct VaultPickerView: View {
             }
         }
     }
-    }
 }

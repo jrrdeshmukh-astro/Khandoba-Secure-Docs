@@ -15,6 +15,7 @@ struct DocumentVersionHistoryView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var documentService: DocumentService
     
     @State private var showRestoreConfirm = false
     @State private var selectedVersion: DocumentVersion?
@@ -90,22 +91,28 @@ struct DocumentVersionHistoryView: View {
     private func restoreVersion() {
         guard let version = selectedVersion else { return }
         
-        // Create new version from current
-        let newVersion = DocumentVersion(
-            versionNumber: (document.versions ?? []).count + 1,
-            fileSize: document.fileSize,
-            changes: "Restored from version \(version.versionNumber)"
-        )
-        newVersion.encryptedFileData = document.encryptedFileData
-        newVersion.document = document
-        
-        // Restore old version data to current
-        document.encryptedFileData = version.encryptedFileData
-        document.fileSize = version.fileSize
-        document.lastModifiedAt = Date()
-        
-        modelContext.insert(newVersion)
-        try? modelContext.save()
+        Task {
+            // Create new version from current using DocumentService (tracks fidelity)
+            do {
+                let newVersion = try await documentService.createDocumentVersion(
+                    document,
+                    changeDescription: "Restored from version \(version.versionNumber)"
+                )
+                
+                // Restore old version data to current
+                await MainActor.run {
+                    document.encryptedFileData = version.encryptedFileData
+                    document.fileSize = version.fileSize
+                    document.lastModifiedAt = Date()
+                }
+                
+                // Save changes
+                try modelContext.save()
+                print("✅ Version restored: v\(version.versionNumber) → v\(newVersion.versionNumber)")
+            } catch {
+                print("❌ Failed to restore version: \(error.localizedDescription)")
+            }
+        }
     }
 }
 

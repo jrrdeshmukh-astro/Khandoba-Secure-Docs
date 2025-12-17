@@ -427,15 +427,25 @@ struct RedactionView: View {
                 }
                 
                 // Create version before redaction (HIPAA requirement - maintain audit trail)
-                if !AppConfig.useSupabase {
-                    let version = DocumentVersion(
-                        versionNumber: (document.versions ?? []).count + 1,
-                        fileSize: document.fileSize,
-                        changes: "Pre-redaction version (HIPAA audit trail)"
+                // Use DocumentService to create version (tracks fidelity automatically)
+                do {
+                    _ = try await documentService.createDocumentVersion(
+                        document,
+                        changeDescription: "Pre-redaction version (HIPAA audit trail)"
                     )
-                    version.encryptedFileData = originalData
-                    version.document = document
-                    modelContext.insert(version)
+                } catch {
+                    print("⚠️ Failed to track redaction version in fidelity service: \(error.localizedDescription)")
+                    // Fallback: create version manually if DocumentService fails
+                    if !AppConfig.useSupabase {
+                        let version = DocumentVersion(
+                            versionNumber: (document.versions ?? []).count + 1,
+                            fileSize: document.fileSize,
+                            changes: "Pre-redaction version (HIPAA audit trail)"
+                        )
+                        version.encryptedFileData = originalData
+                        version.document = document
+                        modelContext.insert(version)
+                    }
                 }
                 
                 // Actually redact the content (on decrypted data)

@@ -21,6 +21,7 @@ final class NomineeService: ObservableObject {
     private var supabaseService: SupabaseService?
     private var cloudKitSharing: CloudKitSharingService?
     private var currentUserID: UUID?
+    private var antiVaultService: AntiVaultService?
     private let container: CKContainer
     
     nonisolated init() {
@@ -31,19 +32,21 @@ final class NomineeService: ObservableObject {
     }
     
     // SwiftData/CloudKit mode
-    func configure(modelContext: ModelContext, currentUserID: UUID? = nil) {
+    func configure(modelContext: ModelContext, currentUserID: UUID? = nil, antiVaultService: AntiVaultService? = nil) {
         self.modelContext = modelContext
         self.supabaseService = nil
         self.currentUserID = currentUserID
+        self.antiVaultService = antiVaultService
         self.cloudKitSharing = CloudKitSharingService()
         cloudKitSharing?.configure(modelContext: modelContext)
     }
     
     // Supabase mode
-    func configure(supabaseService: SupabaseService, currentUserID: UUID? = nil) {
+    func configure(supabaseService: SupabaseService, currentUserID: UUID? = nil, antiVaultService: AntiVaultService? = nil) {
         self.supabaseService = supabaseService
         self.modelContext = nil
         self.currentUserID = currentUserID
+        self.antiVaultService = antiVaultService
         self.cloudKitSharing = nil
     }
     
@@ -459,6 +462,21 @@ final class NomineeService: ObservableObject {
         print("🔄 Reloading nominees list...")
         try await loadNominees(for: vault)
         
+        // Trigger anti-vault monitoring if enabled
+        if let antiVaultService = antiVaultService {
+            do {
+                try await antiVaultService.monitorSessionNomination(
+                    vaultID: vault.id,
+                    nomineeID: nominee.id,
+                    selectedDocumentIDs: selectedDocumentIDs
+                )
+                print("✅ Anti-vault monitoring triggered for vault: \(vault.name)")
+            } catch {
+                print("⚠️ Failed to trigger anti-vault monitoring: \(error.localizedDescription)")
+                // Don't fail the nomination if anti-vault monitoring fails
+            }
+        }
+        
         // Force a refresh on the main thread
         await MainActor.run {
             print(" Nominees list updated: \(nominees.count) nominee(s)")
@@ -552,6 +570,21 @@ final class NomineeService: ObservableObject {
         
         // Reload nominees
         try await loadNominees(for: vault)
+        
+        // Trigger anti-vault monitoring if enabled
+        if let antiVaultService = antiVaultService {
+            do {
+                try await antiVaultService.monitorSessionNomination(
+                    vaultID: vault.id,
+                    nomineeID: nominee.id,
+                    selectedDocumentIDs: selectedDocumentIDs
+                )
+                print("✅ Anti-vault monitoring triggered for vault: \(vault.name)")
+            } catch {
+                print("⚠️ Failed to trigger anti-vault monitoring: \(error.localizedDescription)")
+                // Don't fail the nomination if anti-vault monitoring fails
+            }
+        }
         
         return nominee
     }

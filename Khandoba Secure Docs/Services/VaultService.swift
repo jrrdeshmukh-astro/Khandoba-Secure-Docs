@@ -181,6 +181,7 @@ final class VaultService: ObservableObject {
             await MainActor.run {
                 for session in sessions {
                     if session.expiresAt > Date() {
+                        // Session is still active - load it
                         let vaultSession = VaultSession(
                             startedAt: session.startedAt,
                             expiresAt: session.expiresAt,
@@ -193,6 +194,17 @@ final class VaultService: ObservableObject {
                         if let vault = vaults.first(where: { $0.id == session.vaultID }) {
                             vaultSession.vault = vault
                             activeSessions[session.vaultID] = vaultSession
+                            
+                            // Restart timeout timer for this session
+                            startSessionTimeout(for: vault)
+                            
+                            print("✅ Loaded active session for vault '\(vault.name)' (expires in \(Int(session.expiresAt.timeIntervalSinceNow / 60)) minutes)")
+                        }
+                    } else {
+                        // Session has expired - close it in Supabase
+                        print("⚠️ Found expired session for vault ID \(session.vaultID), closing in Supabase...")
+                        Task {
+                            await closeExpiredSessionInSupabase(session: session, supabaseService: supabaseService)
                         }
                     }
                 }
@@ -1018,17 +1030,47 @@ final class VaultService: ObservableObject {
     }
     
     /// Start or restart session timeout timer
+    /// Uses the actual session's expiresAt time, not a fixed duration
     private func startSessionTimeout(for vault: Vault) {
         // Cancel existing timer if any
         sessionTimeoutTasks[vault.id]?.cancel()
         
-        // Create new timer task
+        // Get the session's actual expiration time
+        guard let session = activeSessions[vault.id],
+              session.isActive,
+              session.expiresAt > Date() else {
+            print("⚠️ Cannot start timeout: No active session for vault \(vault.name)")
+            return
+        }
+        
+        // Calculate time until expiration
+        let timeUntilExpiration = session.expiresAt.timeIntervalSinceNow
+        guard timeUntilExpiration > 0 else {
+            // Session already expired - close vault immediately
+            print("⚠️ Session already expired for vault \(vault.name), closing immediately")
+            Task {
+                try? await closeVault(vault)
+            }
+            return
+        }
+        
+        print("⏱️ Starting session timeout for vault '\(vault.name)': expires in \(Int(timeUntilExpiration / 60)) minutes")
+        
+        // Create new timer task that waits until the actual expiration time
         let task = Task {
-            try? await Task.sleep(nanoseconds: UInt64(sessionTimeout * 1_000_000_000))
+            // Sleep until expiration time
+            try? await Task.sleep(nanoseconds: UInt64(timeUntilExpiration * 1_000_000_000))
             
             // Check if task was cancelled
             if !Task.isCancelled {
-                await closeVault(vault)
+                // Double-check session is still expired
+                if let currentSession = activeSessions[vault.id],
+                   currentSession.expiresAt <= Date() {
+                    print("🔒 Session expired for vault '\(vault.name)', auto-locking...")
+                    try? await closeVault(vault)
+                } else {
+                    print("⚠️ Session timeout fired but session was extended - ignoring")
+                }
             }
         }
         
@@ -1042,10 +1084,38 @@ final class VaultService: ObservableObject {
         
         print("🔄 Extending vault session for: \(vault.name)")
         
-        // Update session expiry time
-        session.expiresAt = Date().addingTimeInterval(activityExtension)
+        // Calculate new expiration time (extend from now, not from old expiration)
+        let newExpiresAt = Date().addingTimeInterval(activityExtension)
+        session.expiresAt = newExpiresAt
         
-        // Restart timeout timer
+        // Update session in Supabase if in Supabase mode
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            do {
+                let existingSession: SupabaseVaultSession = try await supabaseService.fetch("vault_sessions", id: session.id)
+                let updatedSession = SupabaseVaultSession(
+                    id: existingSession.id,
+                    vaultID: existingSession.vaultID,
+                    userID: existingSession.userID,
+                    startedAt: existingSession.startedAt,
+                    expiresAt: newExpiresAt,
+                    isActive: existingSession.isActive,
+                    wasExtended: true,
+                    createdAt: existingSession.createdAt,
+                    updatedAt: Date()
+                )
+                try await supabaseService.update("vault_sessions", id: session.id, values: updatedSession)
+                print("✅ Session extended in Supabase (new expiration: \(newExpiresAt))")
+            } catch {
+                print("⚠️ Failed to update session expiration in Supabase: \(error.localizedDescription)")
+            }
+        } else {
+            // SwiftData mode - save to model context
+            if let modelContext = modelContext {
+                try? modelContext.save()
+            }
+        }
+        
+        // Restart timeout timer with new expiration time
         startSessionTimeout(for: vault)
         
         // Log activity
@@ -1252,10 +1322,19 @@ final class VaultService: ObservableObject {
         
         if let sessions = try? modelContext.fetch(descriptor) {
             for session in sessions {
-                if session.expiresAt > Date(), let vaultID = session.vault?.id {
+                if session.expiresAt > Date(), let vaultID = session.vault?.id, let vault = vaults.first(where: { $0.id == vaultID }) {
                     activeSessions[vaultID] = session
+                    // Restart timeout timer for active session
+                    startSessionTimeout(for: vault)
                 } else {
+                    // Session expired - mark as inactive
                     session.isActive = false
+                    if let vaultID = session.vault?.id {
+                        activeSessions.removeValue(forKey: vaultID)
+                        sessionTimeoutTasks[vaultID]?.cancel()
+                        sessionTimeoutTasks.removeValue(forKey: vaultID)
+                    }
+                    try? modelContext.save()
                 }
             }
         }

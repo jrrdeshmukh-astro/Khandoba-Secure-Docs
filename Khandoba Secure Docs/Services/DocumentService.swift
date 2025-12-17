@@ -21,14 +21,21 @@ final class DocumentService: ObservableObject {
     private var supabaseService: SupabaseService?
     private var currentUserID: UUID?
     private var currentUser: User?
+    private var fidelityService: DocumentFidelityService?
     
     init() {}
     
     // SwiftData/CloudKit mode
-    func configure(modelContext: ModelContext, userID: UUID? = nil) {
+    func configure(modelContext: ModelContext, userID: UUID? = nil, fidelityService: DocumentFidelityService? = nil) {
         self.modelContext = modelContext
         self.supabaseService = nil
         self.currentUserID = userID
+        self.fidelityService = fidelityService
+        
+        // Configure fidelity service if provided
+        if let fidelityService = fidelityService, let userID = userID {
+            fidelityService.configure(modelContext: modelContext, userID: userID)
+        }
         
         // Load current user if userID provided
         if let userID = userID {
@@ -42,10 +49,16 @@ final class DocumentService: ObservableObject {
     }
     
     // Supabase mode
-    func configure(supabaseService: SupabaseService, userID: UUID? = nil) {
+    func configure(supabaseService: SupabaseService, userID: UUID? = nil, fidelityService: DocumentFidelityService? = nil) {
         self.supabaseService = supabaseService
         self.modelContext = nil
         self.currentUserID = userID
+        self.fidelityService = fidelityService
+        
+        // Configure fidelity service if provided
+        if let fidelityService = fidelityService, let userID = userID {
+            fidelityService.configure(supabaseService: supabaseService, userID: userID)
+        }
         
         // Load current user from Supabase if userID provided
         if let userID = userID {
@@ -646,6 +659,25 @@ final class DocumentService: ObservableObject {
             }
             
             print("✅ Document renamed in Supabase: \(oldName) → \(newName)")
+            
+            // Track edit in fidelity service
+            if let fidelityService = fidelityService, let userID = currentUserID {
+                do {
+                    let versionCount = (document.versions ?? []).count
+                    try await fidelityService.trackEdit(
+                        document: document,
+                        userID: userID,
+                        versionNumber: versionCount + 1,
+                        changeDescription: "Renamed from '\(oldName)' to '\(newName)'",
+                        location: location,
+                        deviceInfo: UIDevice.current.model,
+                        ipAddress: nil
+                    )
+                } catch {
+                    print("⚠️ Failed to track edit in fidelity service: \(error.localizedDescription)")
+                }
+            }
+            
             return
         }
         
@@ -682,6 +714,27 @@ final class DocumentService: ObservableObject {
         
         try modelContext.save()
         print(" Document rename logged: \(oldName) → \(newName)")
+        
+        // Track edit in fidelity service
+        if let fidelityService = fidelityService, let userID = currentUserID {
+            let locationService = await MainActor.run { LocationService() }
+            await locationService.requestLocationPermission()
+            let location = await locationService.getCurrentLocation()
+            
+            do {
+                try await fidelityService.trackEdit(
+                    document: document,
+                    userID: userID,
+                    versionNumber: (document.versions ?? []).count + 1,
+                    changeDescription: "Renamed from '\(oldName)' to '\(newName)'",
+                    location: location,
+                    deviceInfo: UIDevice.current.model,
+                    ipAddress: nil
+                )
+            } catch {
+                print("⚠️ Failed to track edit in fidelity service: \(error.localizedDescription)")
+            }
+        }
     }
     
     func searchDocuments(query: String, in vaults: [Vault]) -> [Document] {
@@ -783,10 +836,123 @@ final class DocumentService: ObservableObject {
     }
 }
 
+    /// Move document to a different vault (tracks transfer in fidelity service)
+    func moveDocument(_ document: Document, toVault: Vault) async throws {
+        guard let fromVault = document.vault else {
+            throw DocumentError.vaultNotFound
+        }
+        
+        // Update vault
+        document.vault = toVault
+        
+        if AppConfig.useSupabase, let supabaseService = supabaseService {
+            // Update in Supabase
+            let supabaseDoc: SupabaseDocument = try await supabaseService.fetch("documents", id: document.id)
+            var updated = supabaseDoc
+            updated.vaultID = toVault.id
+            updated.lastModifiedAt = Date()
+            
+            let _: SupabaseDocument = try await supabaseService.update("documents", id: document.id, values: updated)
+            
+            // Update local vault relationship
+            await MainActor.run {
+                if toVault.documents == nil {
+                    toVault.documents = []
+                }
+                toVault.documents?.append(document)
+                fromVault.documents?.removeAll { $0.id == document.id }
+            }
+        } else {
+            // SwiftData/CloudKit mode
+            guard let modelContext = modelContext else { return }
+            
+            // Update vault relationship
+            if toVault.documents == nil {
+                toVault.documents = []
+            }
+            toVault.documents?.append(document)
+            fromVault.documents?.removeAll { $0.id == document.id }
+            
+            try modelContext.save()
+        }
+        
+        // Track transfer in fidelity service
+        if let fidelityService = fidelityService, let userID = currentUserID {
+            let locationService = await MainActor.run { LocationService() }
+            await locationService.requestLocationPermission()
+            let location = await locationService.getCurrentLocation()
+            
+            do {
+                try await fidelityService.trackTransfer(
+                    document: document,
+                    toVault: toVault,
+                    fromVault: fromVault,
+                    userID: userID,
+                    location: location,
+                    deviceInfo: UIDevice.current.model,
+                    ipAddress: nil,
+                    reason: "Document moved between vaults"
+                )
+            } catch {
+                print("⚠️ Failed to track transfer in fidelity service: \(error.localizedDescription)")
+            }
+        }
+        
+        print("✅ Document moved: \(document.name) from '\(fromVault.name)' to '\(toVault.name)'")
+    }
+    
+    /// Create a new document version (tracks edit in fidelity service)
+    func createDocumentVersion(_ document: Document, changeDescription: String? = nil) async throws -> DocumentVersion {
+        let versionCount = (document.versions ?? []).count
+        let newVersion = DocumentVersion(
+            versionNumber: versionCount + 1,
+            fileSize: document.fileSize,
+            changes: changeDescription
+        )
+        newVersion.encryptedFileData = document.encryptedFileData
+        newVersion.document = document
+        
+        if AppConfig.useSupabase {
+            // In Supabase mode, versions might be stored differently
+            // For now, we'll track the edit
+        } else {
+            guard let modelContext = modelContext else {
+                throw DocumentError.contextNotAvailable
+            }
+            modelContext.insert(newVersion)
+            try modelContext.save()
+        }
+        
+        // Track edit in fidelity service
+        if let fidelityService = fidelityService, let userID = currentUserID {
+            let locationService = await MainActor.run { LocationService() }
+            await locationService.requestLocationPermission()
+            let location = await locationService.getCurrentLocation()
+            
+            do {
+                try await fidelityService.trackEdit(
+                    document: document,
+                    userID: userID,
+                    versionNumber: newVersion.versionNumber,
+                    changeDescription: changeDescription,
+                    location: location,
+                    deviceInfo: UIDevice.current.model,
+                    ipAddress: nil
+                )
+            } catch {
+                print("⚠️ Failed to track edit in fidelity service: \(error.localizedDescription)")
+            }
+        }
+        
+        return newVersion
+    }
+}
+
 enum DocumentError: LocalizedError {
     case contextNotAvailable
     case uploadFailed
     case encryptionFailed
+    case vaultNotFound
     
     var errorDescription: String? {
         switch self {
@@ -796,6 +962,8 @@ enum DocumentError: LocalizedError {
             return "Failed to upload document"
         case .encryptionFailed:
             return "Failed to encrypt document"
+        case .vaultNotFound:
+            return "Vault not found"
         }
     }
 }

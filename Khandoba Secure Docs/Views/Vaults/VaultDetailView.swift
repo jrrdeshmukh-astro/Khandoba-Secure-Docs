@@ -585,6 +585,30 @@ struct VaultDetailView: View {
                     }
                 }
             }
+            
+            // Handle session expiration - vault was auto-locked
+            if !newValue && oldValue {
+                print("🔒 Vault session expired - vault auto-locked")
+                // Update UI state
+                isBiometricallyUnlocked = false
+            }
+        }
+        .task {
+            // Periodic check for expired sessions (every 30 seconds)
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
+                
+                // Check if current session has expired
+                if hasActiveSession {
+                    // Verify session is still valid
+                    if !vaultService.hasActiveSession(for: vault.id) {
+                        // Session expired - update UI
+                        await MainActor.run {
+                            isBiometricallyUnlocked = false
+                        }
+                    }
+                }
+            }
         }
     }
     

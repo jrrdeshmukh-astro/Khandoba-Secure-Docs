@@ -20,6 +20,8 @@ final class Vault {
     var keyType: String = "single" // "single", "dual"
     var vaultType: String = "both" // "source", "sink", "both" - DEFAULT VALUE FOR MIGRATION
     var isSystemVault: Bool = false // System vaults (like Intel Reports) are read-only for users
+    var isAntiVault: Bool = false // Anti-vaults are special vaults for fraud detection
+    var monitoredVaultID: UUID? // For anti-vaults: the vault being monitored
     
     // Encryption
     var encryptionKeyData: Data?
@@ -55,6 +57,9 @@ final class Vault {
     
     @Relationship(deleteRule: .cascade, inverse: \VaultAccessRequest.vault)
     var accessRequests: [VaultAccessRequest]?
+    
+    @Relationship(deleteRule: .nullify, inverse: \AntiVault.monitoredVault)
+    var antiVaults: [AntiVault]? // Anti-vaults monitoring this vault
     
     init(
         id: UUID = UUID(),

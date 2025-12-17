@@ -72,6 +72,8 @@ CREATE INDEX idx_vaults_owner_id ON vaults(owner_id);
 CREATE INDEX idx_vaults_status ON vaults(status);
 CREATE INDEX idx_vaults_key_type ON vaults(key_type);
 CREATE INDEX idx_vaults_is_system_vault ON vaults(is_system_vault);
+CREATE INDEX idx_vaults_is_anti_vault ON vaults(is_anti_vault);
+CREATE INDEX idx_vaults_monitored_vault_id ON vaults(monitored_vault_id) WHERE monitored_vault_id IS NOT NULL;
 CREATE INDEX idx_vaults_created_at ON vaults(created_at);
 
 -- ============================================================================
@@ -98,6 +100,7 @@ CREATE TABLE documents (
     status TEXT DEFAULT 'active', -- 'active', 'archived', 'deleted'
     extracted_text TEXT,
     ai_tags TEXT[] DEFAULT '{}', -- Array of AI-generated tags
+    fidelity_tracked BOOLEAN DEFAULT FALSE, -- Whether fidelity tracking is enabled
     file_hash TEXT,
     metadata JSONB, -- Flexible JSON metadata
     author TEXT,
