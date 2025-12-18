@@ -384,7 +384,7 @@ struct ContentView: View {
         // Fallback to deprecated rootRecordID for iOS < 16 or when hierarchical is nil
         // This deprecation warning is intentional - API still functional, no replacement available
         // swiftlint:disable:next deprecated_member_use
-        return metadata.rootRecordID  // Deprecated in iOS 16.0, but needed for compatibility
+        return metadata.rootRecordID
     }
     
     private func acceptCloudKitShare(metadata: CKShare.Metadata) {

@@ -20,7 +20,6 @@ struct UnifiedNomineeManagementView: View {
     @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var nomineeService = NomineeService()
-    // CloudKitSharingService - only used when NOT using Supabase
     @StateObject private var cloudKitSharing = CloudKitSharingService()
     
     @State private var showAddNominee = false
@@ -280,15 +279,12 @@ struct UnifiedNomineeManagementView: View {
                     nomineeService.configure(supabaseService: supabaseService)
                 }
             } else {
-                if let userID = authService.currentUser?.id {
-                    nomineeService.configure(modelContext: modelContext, currentUserID: userID)
-                } else {
-                    nomineeService.configure(modelContext: modelContext)
-                }
-                // Only configure CloudKit when NOT using Supabase
-                if !AppConfig.useSupabase, let cloudKitSharing = cloudKitSharing {
-                    cloudKitSharing.configure(modelContext: modelContext)
-                }
+            if let userID = authService.currentUser?.id {
+                nomineeService.configure(modelContext: modelContext, currentUserID: userID)
+            } else {
+                nomineeService.configure(modelContext: modelContext)
+            }
+            cloudKitSharing.configure(modelContext: modelContext)
             }
             
             if let userID = authService.currentUser?.id {
@@ -312,38 +308,6 @@ struct UnifiedNomineeManagementView: View {
     }
     
     private func presentCloudKitSharing() async {
-        // #region agent log
-        let logData: [String: Any] = [
-            "location": "UnifiedNomineeManagementView.swift:310",
-            "message": "presentCloudKitSharing called",
-            "useSupabase": AppConfig.useSupabase,
-            "hasCloudKitSharing": cloudKitSharing != nil,
-            "vaultName": vault.name,
-            "timestamp": Date().timeIntervalSince1970
-        ]
-        if let jsonData = try? JSONSerialization.data(withJSONObject: logData),
-           let jsonString = String(data: jsonData, encoding: .utf8) {
-            let logPath = "/Users/jaideshmukh/Desktop/Khandoba Secure Docs/.cursor/debug.log"
-            if let fileHandle = FileHandle(forWritingAtPath: logPath) {
-                fileHandle.seekToEndOfFile()
-                fileHandle.write((jsonString + "\n").data(using: .utf8) ?? Data())
-                try? fileHandle.close()
-            } else {
-                try? (jsonString + "\n").write(toFile: logPath, atomically: true, encoding: .utf8)
-            }
-        }
-        // #endregion
-        
-        // Skip CloudKit when using Supabase
-        guard !AppConfig.useSupabase else {
-            print("📤 Skipping CloudKit sharing - Supabase mode enabled")
-            // In Supabase mode, just show add nominee view
-            await MainActor.run {
-                showAddNominee = true
-            }
-            return
-        }
-        
         print("📤 Presenting CloudKit sharing for vault: \(vault.name)")
         
         do {

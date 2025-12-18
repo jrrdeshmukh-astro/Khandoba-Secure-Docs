@@ -324,8 +324,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             }
         }
         // Fallback to deprecated rootRecordID for iOS < 16 or when hierarchical is nil
-        // swiftlint:disable:next deprecated_member_use
-        return metadata.rootRecordID  // Deprecated in iOS 16.0, but needed for compatibility
+        return metadata.rootRecordID
     }
     
     /// Helper to get root record name from CloudKit share metadata

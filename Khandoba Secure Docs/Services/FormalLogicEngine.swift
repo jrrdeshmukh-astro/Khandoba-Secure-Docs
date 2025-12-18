@@ -356,8 +356,8 @@ final class FormalLogicEngine: ObservableObject {
                                   (likelihoodIfNoBreach * (1 - priorBreach)))
             
             // Determine actionable message based on probability
-            // With given constants, posteriorBreach will be ~0.32, so use a threshold that makes both branches reachable
-            let actionableMessage = posteriorBreach > 0.25
+            // With given constants, posteriorBreach will be ~0.32, so use a lower threshold
+            let actionableMessage = posteriorBreach > 0.3
                 ? "Elevated breach probability detected. Monitor closely and consider additional security measures."
                 : "Monitor closely for additional indicators."
             

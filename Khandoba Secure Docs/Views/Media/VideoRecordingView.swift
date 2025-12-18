@@ -239,7 +239,7 @@ struct VideoRecordingView: View {
             dismiss()
         } catch let error as DocumentError {
             switch error {
-            case .contentBlocked(_, let categories, let reason):
+            case .contentBlocked(let _, let categories, let reason):
                 await MainActor.run {
                     blockedContentReason = reason
                     blockedContentCategories = categories
