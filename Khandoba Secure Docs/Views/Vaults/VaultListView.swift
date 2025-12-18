@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import Contacts
 
 struct VaultListView: View {
     @Environment(\.unifiedTheme) var theme
@@ -41,8 +42,10 @@ struct VaultListView: View {
     @State private var selectedVault: Vault?
     @State private var showNomineeList = false
     @State private var frontVaultIndex: Int = 0
-    @State private var showSimplifiedContactSelection = false
+    @State private var showContactPicker = false
     @State private var vaultForInvite: Vault?
+    @State private var selectedContacts: [CNContact] = []
+    @State private var showInvitationConfirmation = false
     
     // Filter out system vaults
     private var activeVaults: [Vault] {
@@ -129,7 +132,8 @@ struct VaultListView: View {
                                         cardsAppeared: cardsAppeared,
                                         onFrontCardTap: { vault in
                                             vaultForInvite = vault
-                                            showSimplifiedContactSelection = true
+                                            // Directly open contact picker - no intermediate view
+                                            showContactPicker = true
                                         },
                                         onLongPress: { vault in
                                             selectedVaultID = vault.id
@@ -200,9 +204,29 @@ struct VaultListView: View {
             .sheet(isPresented: $showCreateVault) {
                 CreateVaultView()
             }
-            .sheet(isPresented: $showSimplifiedContactSelection) {
+            .sheet(isPresented: $showContactPicker) {
                 if let vault = vaultForInvite {
-                    SimplifiedContactSelectionView(vault: vault)
+                    ContactPickerView(
+                        vault: vault,
+                        onContactsSelected: { contacts in
+                            selectedContacts = contacts
+                            showContactPicker = false
+                            // After contact selection, show simplified view to confirm and send
+                            showInvitationConfirmation = true
+                        },
+                        onDismiss: {
+                            showContactPicker = false
+                            vaultForInvite = nil
+                        }
+                    )
+                }
+            }
+            .sheet(isPresented: $showInvitationConfirmation) {
+                if let vault = vaultForInvite, !selectedContacts.isEmpty {
+                    SimplifiedContactSelectionView(
+                        vault: vault,
+                        preselectedContacts: selectedContacts
+                    )
                 }
             }
             .refreshable {
@@ -661,6 +685,8 @@ struct NomineeListSection: View {
     
     @State private var revokingNomineeID: UUID?
     @State private var showInviteSheet = false
+    @State private var selectedContactsForInvite: [CNContact] = []
+    @State private var showInvitationConfirmation = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -786,7 +812,27 @@ struct NomineeListSection: View {
                 }
             }
         }) {
-            NomineeInvitationView(vault: vault)
+            // Directly open contact picker - no intermediate view with vault card
+            ContactPickerView(
+                vault: vault,
+                onContactsSelected: { contacts in
+                    selectedContactsForInvite = contacts
+                    showInviteSheet = false
+                    // Show confirmation view with selected contacts
+                    showInvitationConfirmation = true
+                },
+                onDismiss: {
+                    showInviteSheet = false
+                }
+            )
+        }
+        .sheet(isPresented: $showInvitationConfirmation) {
+            if !selectedContactsForInvite.isEmpty {
+                SimplifiedContactSelectionView(
+                    vault: vault,
+                    preselectedContacts: selectedContactsForInvite
+                )
+            }
         }
     }
     

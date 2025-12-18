@@ -39,6 +39,11 @@ final class CloudKitSharingService: ObservableObject {
     /// Create a CKShare for a vault to share with nominees
     /// Returns the share metadata URL that can be sent to the nominee
     func createShare(for vault: Vault) async throws -> URL {
+        // Skip CloudKit operations when Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            throw CloudKitSharingError.vaultRecordNotFound
+        }
+        
         print("🔗 Creating CloudKit share for vault: \(vault.name)")
         
         // Ensure vault is synced to CloudKit first
@@ -90,6 +95,11 @@ final class CloudKitSharingService: ObservableObject {
     /// Ensure vault is synced to CloudKit before sharing
     /// This forces SwiftData to sync the vault to CloudKit
     private func ensureVaultSynced(_ vault: Vault) async throws {
+        // Skip CloudKit operations when Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            return
+        }
+        
         guard let modelContext = modelContext else {
             return
         }
@@ -361,6 +371,7 @@ final class CloudKitSharingService: ObservableObject {
         // 2. hierarchicalRootRecordID is nil on iOS 16+ (can happen in some cases)
         // This deprecation warning is intentional and necessary for backward compatibility
         // The warning appears on line 369 but is isolated to this helper function
+        // swiftlint:disable:next deprecated_member_use
         return metadata.rootRecordID  // Deprecated in iOS 16.0, but needed for compatibility
     }
     
@@ -415,6 +426,12 @@ final class CloudKitSharingService: ObservableObject {
     /// Get all participants from a CloudKit share for a vault
     /// Returns an array of participant information
     func getShareParticipants(for vault: Vault) async throws -> [CKShare.Participant] {
+        // Skip CloudKit operations when Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            print("⚠️ CloudKit operation skipped - Supabase mode enabled")
+            return []
+        }
+        
         print("👥 Getting CloudKit share participants for vault: \(vault.name)")
         
         // Ensure vault is synced to CloudKit first
@@ -444,6 +461,33 @@ final class CloudKitSharingService: ObservableObject {
     /// Get both the share and its participants for a vault
     /// Returns a tuple of (share, participants) for convenience
     func getShareAndParticipants(for vault: Vault) async throws -> (CKShare?, [CKShare.Participant]) {
+        // #region agent log
+        let logData: [String: Any] = [
+            "location": "CloudKitSharingService.swift:447",
+            "message": "getShareAndParticipants called",
+            "useSupabase": AppConfig.useSupabase,
+            "vaultName": vault.name,
+            "timestamp": Date().timeIntervalSince1970
+        ]
+        if let jsonData = try? JSONSerialization.data(withJSONObject: logData),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            let logPath = "/Users/jaideshmukh/Desktop/Khandoba Secure Docs/.cursor/debug.log"
+            if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+                fileHandle.seekToEndOfFile()
+                fileHandle.write((jsonString + "\n").data(using: .utf8) ?? Data())
+                try? fileHandle.close()
+            } else {
+                try? (jsonString + "\n").write(toFile: logPath, atomically: true, encoding: .utf8)
+            }
+        }
+        // #endregion
+        
+        // Skip CloudKit operations when Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            print("⚠️ CloudKit operation skipped - Supabase mode enabled")
+            return (nil, [])
+        }
+        
         print("👥 Getting CloudKit share and participants for vault: \(vault.name)")
         
         // Ensure vault is synced to CloudKit first
@@ -471,9 +515,15 @@ final class CloudKitSharingService: ObservableObject {
     /// 
     /// NOTE: No server deployment needed - CloudKit is Apple's backend service
     func getOrCreateShare(for vault: Vault) async throws -> CKShare? {
+        // Skip CloudKit operations when Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            print("⚠️ CloudKit operation skipped - Supabase mode enabled")
+            return nil
+        }
+        
         print("🔗 Getting or creating CloudKit share for vault: \(vault.name)")
         print("   ℹ️ Using SwiftData + CloudKit integration (no server needed)")
-        
+
         // Ensure vault is saved to SwiftData
         // CloudKit sync happens automatically in the background
         guard let modelContext = modelContext else {
