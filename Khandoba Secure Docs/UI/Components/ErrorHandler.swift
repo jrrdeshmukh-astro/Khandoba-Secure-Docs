@@ -201,9 +201,9 @@ struct ErrorHandler {
             if shouldRetry(error) {
                 return .retry
             }
-            return .none
+            return RecoveryAction.none
         case .validation:
-            return .none
+            return RecoveryAction.none
         case .general:
             if shouldRetry(error) {
                 return .retry

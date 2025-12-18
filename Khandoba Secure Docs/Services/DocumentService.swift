@@ -123,13 +123,20 @@ final class DocumentService: ObservableObject {
             Task {
                 // Use vault ID to avoid Sendable conformance issue with Swift 6
                 let vaultID = await MainActor.run { self.currentVaultID }
-                let vault = await MainActor.run { self.currentVault }
-                if let vaultID = vaultID, let vault = vault {
-                    do {
-                        try await self.loadDocuments(for: vault)
-                        print("✅ DocumentService: Cache refreshed after realtime \(event)")
-                    } catch {
-                        print("⚠️ DocumentService: Failed to refresh cache: \(error.localizedDescription)")
+                let vaultIDString = vaultID?.uuidString
+                if let vaultIDString = vaultIDString {
+                    // Use vaultID string instead of vault object to avoid Sendable issue
+                    await MainActor.run {
+                        if let vault = self.currentVault, vault.id.uuidString == vaultIDString {
+                            Task {
+                                do {
+                                    try await self.loadDocuments(for: vault)
+                                    print("✅ DocumentService: Cache refreshed after realtime \(event)")
+                                } catch {
+                                    print("⚠️ DocumentService: Failed to refresh cache: \(error.localizedDescription)")
+                                }
+                            }
+                        }
                     }
                 }
             }

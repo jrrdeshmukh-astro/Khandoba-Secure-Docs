@@ -52,6 +52,20 @@ final class DataOptimizationService: ObservableObject {
             )
         }
         
+        // Subscript support for cleaner syntax
+        subscript(key: UUID) -> T? {
+            get {
+                return get(key)
+            }
+            set {
+                if let value = newValue {
+                    set(key, value: value)
+                } else {
+                    remove(key)
+                }
+            }
+        }
+        
         func remove(_ key: UUID) {
             cache.removeValue(forKey: key)
         }

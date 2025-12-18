@@ -16,8 +16,12 @@ final class SupabaseService: ObservableObject {
     @Published var error: Error?
     
     private var supabaseClient: SupabaseClient?
-    // Migrated to RealtimeChannelV2
-    private var realtimeChannels: [RealtimeChannelV2] = []
+    // Using old RealtimeChannel API for compatibility (RealtimeChannelV2 API not fully stable)
+    private var realtimeChannels: [RealtimeChannel] = []
+    
+    // Request deduplication cache
+    private static var requestCache: [String: (data: Any, timestamp: Date)] = [:]
+    private static let cacheTimeout: TimeInterval = 5.0 // 5 seconds
     
     nonisolated init() {}
     
@@ -99,7 +103,7 @@ final class SupabaseService: ObservableObject {
             
             // Setup real-time subscriptions after successful authentication
             if SupabaseConfig.enableRealtime {
-                setupRealtimeSubscriptions()
+                await setupRealtimeSubscriptions()
             }
             
             return session
@@ -119,7 +123,7 @@ final class SupabaseService: ObservableObject {
         self.isConnected = false
         
         // Unsubscribe from realtime when signing out
-        unsubscribeAll()
+        await unsubscribeAll()
     }
     
     func getCurrentUser() async throws -> Supabase.User? {
@@ -146,15 +150,16 @@ final class SupabaseService: ObservableObject {
             throw SupabaseError.clientNotInitialized
         }
         
-        // Migrated to new API: client.from()
-        let response: T = try await client.from(table)
-            .insert(values)
-            .select()
-            .single()
-            .execute()
-            .value
-        
-        return response
+        // Migrated to new API: client.from() with timeout
+        return try await AsyncTimeout.withTimeout(10.0) {
+            let response: T = try await client.from(table)
+                .insert(values)
+                .select()
+                .single()
+                .execute()
+                .value
+            return response
+        }
     }
     
     func update<T: Codable>(_ table: String, id: UUID, values: T) async throws -> T {
@@ -225,51 +230,63 @@ final class SupabaseService: ObservableObject {
         
         // Build query with filters
         // Migrated to new API: client.from() with timeout
-        return try await AsyncTimeout.withTimeout(10.0) {
+        let response: [T] = try await AsyncTimeout.withTimeout(10.0) {
             var filterQuery = client.from(table).select()
-        
-        // Apply filters
-        if let filters = filters {
-            for (key, value) in filters {
-                // Convert value to PostgrestFilterValue-compatible type
-                if let stringValue = value as? String {
-                    filterQuery = filterQuery.eq(key, value: stringValue)
-                } else if let uuidValue = value as? UUID {
-                    filterQuery = filterQuery.eq(key, value: uuidValue.uuidString)
-                } else if let intValue = value as? Int {
-                    filterQuery = filterQuery.eq(key, value: intValue)
-                } else if let boolValue = value as? Bool {
-                    filterQuery = filterQuery.eq(key, value: boolValue)
-                } else {
-                    // Fallback: convert to string
-                    filterQuery = filterQuery.eq(key, value: String(describing: value))
+            
+            // Apply filters
+            if let filters = filters {
+                for (key, value) in filters {
+                    // Convert value to PostgrestFilterValue-compatible type
+                    if let stringValue = value as? String {
+                        filterQuery = filterQuery.eq(key, value: stringValue)
+                    } else if let uuidValue = value as? UUID {
+                        filterQuery = filterQuery.eq(key, value: uuidValue.uuidString)
+                    } else if let intValue = value as? Int {
+                        filterQuery = filterQuery.eq(key, value: intValue)
+                    } else if let boolValue = value as? Bool {
+                        filterQuery = filterQuery.eq(key, value: boolValue)
+                    } else {
+                        // Fallback: convert to string
+                        filterQuery = filterQuery.eq(key, value: String(describing: value))
+                    }
                 }
             }
+            
+            // Build final query with ordering and limit
+            // Note: order() and limit() return PostgrestTransformBuilder
+            // We need to apply order() first to get a transform builder, then we can apply limit()
+            let result: [T]
+            if let orderBy = orderBy {
+                // Apply order first to get PostgrestTransformBuilder
+                let transformQuery = filterQuery.order(orderBy, ascending: ascending)
+                if let limit = limit {
+                    // Both order and limit
+                    result = try await transformQuery.limit(limit).execute().value
+                } else {
+                    // Only order
+                    result = try await transformQuery.execute().value
+                }
+            } else if let limit = limit {
+                // Only limit - apply a default order first to get transform builder
+                // Using a common column that should exist in most tables
+                let transformQuery = filterQuery.order("created_at", ascending: false)
+                result = try await transformQuery.limit(limit).execute().value
+            } else {
+                // No order or limit - execute filter query directly
+                result = try await filterQuery.execute().value
+            }
+            
+            // Cache the result
+            Self.requestCache[cacheKey] = (data: result, timestamp: Date())
+            
+            // Clean up old cache entries
+            Self.requestCache = Self.requestCache.filter {
+                Date().timeIntervalSince($0.value.timestamp) < Self.cacheTimeout
+            }
+            
+            return result
         }
         
-        // Build final query with ordering and limit
-        // Note: order() and limit() return PostgrestTransformBuilder
-        // We need to apply order() first to get a transform builder, then we can apply limit()
-        let response: [T]
-        if let orderBy = orderBy {
-            // Apply order first to get PostgrestTransformBuilder
-            let transformQuery = filterQuery.order(orderBy, ascending: ascending)
-            if let limit = limit {
-                // Both order and limit
-                response = try await transformQuery.limit(limit).execute().value
-            } else {
-                // Only order
-                response = try await transformQuery.execute().value
-            }
-        } else if let limit = limit {
-            // Only limit - apply a default order first to get transform builder
-            // Using a common column that should exist in most tables
-            let transformQuery = filterQuery.order("created_at", ascending: false)
-            response = try await transformQuery.limit(limit).execute().value
-        } else {
-            // No order or limit - execute filter query directly
-            response = try await filterQuery.execute().value
-        }
         return response
     }
     
@@ -295,7 +312,7 @@ final class SupabaseService: ObservableObject {
         // Note: upload(path:file:) is deprecated, renamed to upload(_:data:options:)
         // New API signature: upload(_ path: String, data: Data, options: FileOptions?)
         // Upload with timeout (30 seconds for large files)
-        try await AsyncTimeout.withTimeout(30.0) {
+        _ = try await AsyncTimeout.withTimeout(30.0) {
             try await client.storage.from(bucket).upload(
                 path,
                 data: data,
@@ -325,7 +342,7 @@ final class SupabaseService: ObservableObject {
     
     // MARK: - Real-time
     
-    private func setupRealtimeSubscriptions() {
+    private func setupRealtimeSubscriptions() async {
         guard let client = supabaseClient else {
             print("⚠️ Cannot setup realtime: Supabase client not initialized")
             return
@@ -338,98 +355,88 @@ final class SupabaseService: ObservableObject {
         }
         
         Task {
-            do {
-                for channelName in SupabaseConfig.realtimeChannels {
-                    // Migrated to RealtimeChannelV2
-                    let channel = await client.realtimeV2.channel("\(channelName)-changes")
-                    realtimeChannels.append(channel)
-                    
-                    // Subscribe to INSERT events using RealtimeChannelV2
-                    channel.onPostgresChange(
-                        event: .insert,
-                        schema: "public",
-                        table: channelName
-                    ) { payload in
-                        Task { @MainActor in
-                            print("📡 Real-time INSERT on \(channelName)")
-                            NotificationCenter.default.post(
-                                name: .supabaseRealtimeUpdate,
-                                object: nil,
-                                userInfo: [
-                                    "channel": channelName,
-                                    "event": "INSERT",
-                                    "payload": payload.newRecord ?? [:]
-                                ]
-                            )
-                        }
+            for channelName in SupabaseConfig.realtimeChannels {
+                // Using old RealtimeChannel API for compatibility (RealtimeChannelV2 API not fully stable)
+                let channel = client.realtime.channel("\(channelName)-changes")
+                realtimeChannels.append(channel)
+                
+                // Subscribe to INSERT events
+                channel.on("postgres_changes", filter: ChannelFilter(
+                    event: "INSERT",
+                    schema: "public",
+                    table: channelName
+                )) { message in
+                    Task { @MainActor in
+                        print("📡 Real-time INSERT on \(channelName)")
+                        NotificationCenter.default.post(
+                            name: .supabaseRealtimeUpdate,
+                            object: nil,
+                            userInfo: [
+                                "channel": channelName,
+                                "event": "INSERT",
+                                "payload": message.payload
+                            ]
+                        )
                     }
-                    
-                    // Subscribe to UPDATE events
-                    channel.onPostgresChange(
-                        event: .update,
-                        schema: "public",
-                        table: channelName
-                    ) { payload in
-                        Task { @MainActor in
-                            print("📡 Real-time UPDATE on \(channelName)")
-                            NotificationCenter.default.post(
-                                name: .supabaseRealtimeUpdate,
-                                object: nil,
-                                userInfo: [
-                                    "channel": channelName,
-                                    "event": "UPDATE",
-                                    "payload": payload.newRecord ?? [:]
-                                ]
-                            )
-                        }
-                    }
-                    
-                    // Subscribe to DELETE events
-                    channel.onPostgresChange(
-                        event: .delete,
-                        schema: "public",
-                        table: channelName
-                    ) { payload in
-                        Task { @MainActor in
-                            print("📡 Real-time DELETE on \(channelName)")
-                            NotificationCenter.default.post(
-                                name: .supabaseRealtimeUpdate,
-                                object: nil,
-                                userInfo: [
-                                    "channel": channelName,
-                                    "event": "DELETE",
-                                    "payload": payload.oldRecord ?? [:]
-                                ]
-                            )
-                        }
-                    }
-                    
-                    // Subscribe to the channel after setting up all listeners
-                    try await channel.subscribe()
-                    print("✅ Subscribed to realtime channel: \(channelName)")
                 }
                 
-                await MainActor.run {
-                    print("✅ Real-time subscriptions setup for \(SupabaseConfig.realtimeChannels.count) channels")
+                // Subscribe to UPDATE events
+                channel.on("postgres_changes", filter: ChannelFilter(
+                    event: "UPDATE",
+                    schema: "public",
+                    table: channelName
+                )) { message in
+                    Task { @MainActor in
+                        print("📡 Real-time UPDATE on \(channelName)")
+                        NotificationCenter.default.post(
+                            name: .supabaseRealtimeUpdate,
+                            object: nil,
+                            userInfo: [
+                                "channel": channelName,
+                                "event": "UPDATE",
+                                "payload": message.payload
+                            ]
+                        )
+                    }
                 }
-            } catch {
-                // Error handling for Task setup (though unlikely to throw)
-                await MainActor.run {
-                    print("⚠️ Error setting up realtime subscriptions: \(error.localizedDescription)")
-                    print("   This is normal if Realtime isn't enabled in Supabase or tables aren't in publication")
+                
+                // Subscribe to DELETE events
+                channel.on("postgres_changes", filter: ChannelFilter(
+                    event: "DELETE",
+                    schema: "public",
+                    table: channelName
+                )) { message in
+                    Task { @MainActor in
+                        print("📡 Real-time DELETE on \(channelName)")
+                        NotificationCenter.default.post(
+                            name: .supabaseRealtimeUpdate,
+                            object: nil,
+                            userInfo: [
+                                "channel": channelName,
+                                "event": "DELETE",
+                                "payload": message.payload
+                            ]
+                        )
+                    }
                 }
+                
+                // Subscribe to the channel after setting up all listeners
+                channel.subscribe()
+                print("✅ Subscribed to realtime channel: \(channelName)")
+            }
+            
+            await MainActor.run {
+                print("✅ Real-time subscriptions setup for \(SupabaseConfig.realtimeChannels.count) channels")
             }
         }
     }
     
-    func unsubscribeAll() {
-        Task {
-            for channel in realtimeChannels {
-                try? await channel.unsubscribe()
-            }
-            await MainActor.run {
-                realtimeChannels.removeAll()
-            }
+    func unsubscribeAll() async {
+        for channel in realtimeChannels {
+            channel.unsubscribe()
+        }
+        await MainActor.run {
+            realtimeChannels.removeAll()
         }
     }
 }

@@ -61,7 +61,7 @@ enum AsyncTimeout {
                 // Check for cancellation periodically
                 if let token = cancellationToken {
                     try Task.checkCancellation()
-                    if token.isCancelled {
+                    if token.isCancelledValue {
                         throw CancellationError()
                     }
                 }
@@ -98,7 +98,7 @@ enum TimeoutError: LocalizedError {
 }
 
 /// Cancellation token for async operations
-class CancellationToken {
+class CancellationToken: @unchecked Sendable {
     @Published private(set) var isCancelled = false
     
     func cancel() {
@@ -107,5 +107,12 @@ class CancellationToken {
     
     func reset() {
         isCancelled = false
+    }
+    
+    // Nonisolated accessor for Swift 6 concurrency
+    nonisolated var isCancelledValue: Bool {
+        MainActor.assumeIsolated {
+            isCancelled
+        }
     }
 }

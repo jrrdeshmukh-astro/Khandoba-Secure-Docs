@@ -687,11 +687,12 @@ struct VaultDetailView: View {
                         updateVaultDocumentsFromService()
                     }
                 }
-            } catch {
+            } catch let loadError {
                 await MainActor.run {
-                    error = error
+                    error = loadError
+                    errorMessage = loadError.localizedDescription
                 }
-                print("❌ Error loading documents: \(error.localizedDescription)")
+                print("❌ Error loading documents: \(loadError.localizedDescription)")
             }
         }
     }

@@ -22,24 +22,29 @@ final class OfflineQueueService: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     nonisolated init() {
-        setupNetworkMonitoring()
+        // Setup network monitoring on a background queue
+        Task { @MainActor in
+            await setupNetworkMonitoring()
+        }
     }
     
     /// Setup network monitoring to detect online/offline status
-    private func setupNetworkMonitoring() {
+    private func setupNetworkMonitoring() async {
         networkMonitor = NWPathMonitor()
         monitorQueue = DispatchQueue(label: "com.khandoba.networkmonitor")
         
         networkMonitor?.pathUpdateHandler = { [weak self] path in
-            Task { @MainActor in
-                let wasOnline = self?.isOnline ?? true
-                self?.isOnline = path.status == .satisfied
+            let isSatisfied = path.status == .satisfied
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                let wasOnline = self.isOnline
+                self.isOnline = isSatisfied
                 
                 // If we just came online, process queued operations
-                if !wasOnline && self?.isOnline == true {
+                if !wasOnline && self.isOnline {
                     print("🌐 Network connection restored - processing queued operations")
-                    self?.processQueue()
-                } else if wasOnline && self?.isOnline == false {
+                    self.processQueue()
+                } else if wasOnline && !self.isOnline {
                     print("📴 Network connection lost - operations will be queued")
                 }
             }

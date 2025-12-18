@@ -348,29 +348,27 @@ final class CloudKitSharingService: ObservableObject {
         }
     }
     
-    /// Process a CloudKit share invitation from metadata (called by AppDelegate)
-    /// Note: iOS has already accepted the share when this is called
-    /// We just need to process the metadata and let SwiftData sync
+    /// Helper to get root record ID from metadata, handling iOS 16+ deprecation
+    /// Uses hierarchicalRootRecordID when available, falls back to rootRecordID for compatibility
+    private func getRootRecordID(from metadata: CKShare.Metadata) -> CKRecord.ID {
+        // Try to use the new API first (iOS 16+)
+        if #available(iOS 16.0, *), let hierarchicalID = metadata.hierarchicalRootRecordID {
+            return hierarchicalID
+        }
+        
+        // Fallback to deprecated API when:
+        // 1. iOS < 16.0 (API not deprecated yet)
+        // 2. hierarchicalRootRecordID is nil on iOS 16+ (can happen in some cases)
+        // This deprecation warning is intentional and necessary for backward compatibility
+        // The warning appears on line 369 but is isolated to this helper function
+        return metadata.rootRecordID  // Deprecated in iOS 16.0, but needed for compatibility
+    }
+    
     func processShareInvitation(from metadata: CKShare.Metadata) async throws {
         print("📥 Processing CloudKit share invitation from metadata")
         // Use hierarchicalRootRecordID (replacement for deprecated rootRecordID in iOS 16+)
         // hierarchicalRootRecordID is optional, so we fallback to deprecated rootRecordID if nil
-        let rootRecordID: CKRecord.ID
-        if #available(iOS 16.0, *) {
-            // Use new API if available
-            if let hierarchicalID = metadata.hierarchicalRootRecordID {
-                rootRecordID = hierarchicalID
-            } else {
-                // Fallback to deprecated API only if hierarchical is nil
-                // Note: rootRecordID deprecated in iOS 16.0+ but needed for backward compatibility
-                // This is intentional - we need to support older iOS versions
-                // swiftlint:disable:next deprecated_api
-                rootRecordID = metadata.rootRecordID
-            }
-        } else {
-            // Fallback for older iOS versions
-            rootRecordID = metadata.rootRecordID
-        }
+        let rootRecordID = getRootRecordID(from: metadata)
         print("   Root record: \(rootRecordID.recordName)")
         print("   Share record: \(metadata.share.recordID.recordName)")
         

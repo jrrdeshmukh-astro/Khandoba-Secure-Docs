@@ -6,12 +6,16 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct CreateVaultView: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var vaultService: VaultService
+    @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var name = ""
     @State private var description = ""

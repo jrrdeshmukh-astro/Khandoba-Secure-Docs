@@ -82,7 +82,7 @@ final class VaultService: ObservableObject {
         // Supabase mode with timeout
         if AppConfig.useSupabase, let supabaseService = supabaseService, let userID = currentUserID {
             try await AsyncTimeout.withTimeout(10.0) {
-                try await loadVaultsFromSupabase(supabaseService: supabaseService, userID: userID)
+                try await self.loadVaultsFromSupabase(supabaseService: supabaseService, userID: userID)
             }
             return
         }
@@ -1383,7 +1383,7 @@ final class VaultService: ObservableObject {
             
             // Update vault status to locked
             let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: session.vaultID)
-            var updatedVault = SupabaseVault(
+            let updatedVault = SupabaseVault(
                 id: existingVault.id,
                 name: existingVault.name,
                 vaultDescription: existingVault.vaultDescription,

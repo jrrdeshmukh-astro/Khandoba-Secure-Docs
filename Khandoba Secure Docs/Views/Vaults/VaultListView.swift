@@ -156,32 +156,15 @@ struct VaultListView: View {
                         .padding(.vertical, UnifiedTheme.Spacing.lg)
                         .padding(.top, UnifiedTheme.Spacing.md)
                     }
-                    .background(
-                        // Hidden NavigationLink for programmatic navigation
-                        ForEach(activeVaults) { vault in
-                            NavigationLink(
-                                destination: VaultDetailView(vault: vault),
-                                tag: vault.id,
-                                selection: $selectedVaultID
-                            ) {
-                                EmptyView()
-                            }
-                            .opacity(0)
+                    .navigationDestination(isPresented: Binding(
+                        get: { selectedVaultID != nil },
+                        set: { if !$0 { selectedVaultID = nil } }
+                    )) {
+                        if let vaultID = selectedVaultID,
+                           let vault = activeVaults.first(where: { $0.id == vaultID }) {
+                            VaultDetailView(vault: vault)
                         }
-                    )
-                        .background(
-                            // Hidden NavigationLink for programmatic navigation
-                            ForEach(userVaults) { vault in
-                                NavigationLink(
-                                    destination: VaultDetailView(vault: vault),
-                                    tag: vault.id,
-                                    selection: $selectedVaultID
-                                ) {
-                                    EmptyView()
-                                }
-                                .opacity(0)
-                            }
-                        )
+                    }
                         .onChange(of: pendingVaultID) { oldValue, newValue in
                             // Intercept vault selection - require Face ID first
                             if let vaultID = newValue {
@@ -310,11 +293,11 @@ struct VaultListView: View {
         }
         do {
             try await vaultService.loadVaults()
-        } catch {
+        } catch let loadError {
             await MainActor.run {
-                error = error
+                error = loadError
             }
-            print("❌ Error loading vaults: \(error.localizedDescription)")
+            print("❌ Error loading vaults: \(loadError.localizedDescription)")
         }
     }
     

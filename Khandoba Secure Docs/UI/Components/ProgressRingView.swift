@@ -52,7 +52,7 @@ struct ProgressRingView: View {
                 
                 // Percentage text
                 Text("\(Int(animatedProgress * 100))%")
-                    .font(theme.typography.title3)
+                    .font(theme.typography.title2)
                     .fontWeight(.bold)
                     .foregroundColor(colors.textPrimary)
             }

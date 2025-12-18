@@ -55,7 +55,7 @@ final class AuthenticationService: ObservableObject {
                     // If no session in memory, try to get it from Supabase (checks local storage)
                     if session == nil {
                         print("   No session in memory, checking Supabase for stored session...")
-                        if try? await supabaseService.getCurrentUser() != nil {
+                        if (try? await supabaseService.getCurrentUser()) != nil {
                             // User exists - get the session
                             session = supabaseService.currentSession
                             if session != nil {

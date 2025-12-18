@@ -9,7 +9,6 @@ import Foundation
 import Combine
 
 /// Service for retrying failed operations with exponential backoff
-@MainActor
 final class RetryService {
     
     /// Retry configuration
@@ -20,7 +19,7 @@ final class RetryService {
         let multiplier: Double
         let retryableErrors: (Error) -> Bool
         
-        static let `default` = RetryConfig(
+        nonisolated static let `default` = RetryConfig(
             maxAttempts: 3,
             initialDelay: 1.0,
             maxDelay: 30.0,
