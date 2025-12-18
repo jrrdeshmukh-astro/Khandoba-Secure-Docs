@@ -121,7 +121,8 @@ final class DocumentService: ObservableObject {
             Task {
                 // Use vault ID to avoid Sendable conformance issue with Swift 6
                 let vaultID = await MainActor.run { self.currentVaultID }
-                if let vaultID = vaultID, let vault = await MainActor.run({ self.currentVault }) {
+                let vault = await MainActor.run { self.currentVault }
+                if let vaultID = vaultID, let vault = vault {
                     do {
                         try await self.loadDocuments(for: vault)
                         print("✅ DocumentService: Cache refreshed after realtime \(event)")

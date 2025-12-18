@@ -320,7 +320,7 @@ final class ContentFilterService: ObservableObject {
         }
         
         // Check audio track for profanity (track existence check only)
-        if try? await asset.loadTracks(withMediaType: .audio).first != nil {
+        if (try? await asset.loadTracks(withMediaType: .audio).first) != nil {
             // In a real implementation, extract audio and use speech recognition
             // For now, we'll rely on frame analysis
         }

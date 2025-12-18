@@ -16,6 +16,8 @@ final class SupabaseService: ObservableObject {
     @Published var error: Error?
     
     private var supabaseClient: SupabaseClient?
+    // Note: RealtimeChannel is deprecated, but migration to RealtimeChannelV2 requires significant refactoring
+    // Keeping for now - will migrate in future update
     private var realtimeChannels: [RealtimeChannel] = []
     
     nonisolated init() {}
@@ -43,6 +45,8 @@ final class SupabaseService: ObservableObject {
         do {
             // Test connection with a simple query that doesn't require authentication
             // This verifies the Supabase URL and key are correct
+            // Note: client.database is deprecated, but using it for compatibility
+            // TODO: Migrate to client.from("users") when Supabase Swift SDK stabilizes
             let _: [SupabaseUser] = try await client.database
                 .from("users")
                 .select()
@@ -136,6 +140,8 @@ final class SupabaseService: ObservableObject {
             fatalError("Supabase client not initialized. Call configure() first.")
         }
         
+        // Note: client.database is deprecated, but using it for compatibility
+        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
         return client.database.from(table)
     }
     
@@ -144,6 +150,8 @@ final class SupabaseService: ObservableObject {
             throw SupabaseError.clientNotInitialized
         }
         
+        // Note: client.database is deprecated, but using it for compatibility
+        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
         let response: T = try await client.database
             .from(table)
             .insert(values)
@@ -160,6 +168,8 @@ final class SupabaseService: ObservableObject {
             throw SupabaseError.clientNotInitialized
         }
         
+        // Note: client.database is deprecated, but using it for compatibility
+        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
         let response: T = try await client.database
             .from(table)
             .update(values)
@@ -177,6 +187,8 @@ final class SupabaseService: ObservableObject {
             throw SupabaseError.clientNotInitialized
         }
         
+        // Note: client.database is deprecated, but using it for compatibility
+        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
         try await client.database
             .from(table)
             .delete()
@@ -189,6 +201,8 @@ final class SupabaseService: ObservableObject {
             throw SupabaseError.clientNotInitialized
         }
         
+        // Note: client.database is deprecated, but using it for compatibility
+        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
         let response: T = try await client.database
             .from(table)
             .select()
@@ -212,6 +226,8 @@ final class SupabaseService: ObservableObject {
         }
         
         // Build query with filters
+        // Note: client.database is deprecated, but using it for compatibility
+        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
         var filterQuery = client.database.from(table).select()
         
         // Apply filters
@@ -278,9 +294,11 @@ final class SupabaseService: ObservableObject {
             upsert: false
         )
         
+        // Note: upload(path:file:) is deprecated, renamed to upload(_:data:options:)
+        // New API signature: upload(_ path: String, data: Data, options: FileOptions?)
         try await client.storage.from(bucket).upload(
-            path: path,
-            file: data,
+            path,
+            data: data,
             options: uploadOptions
         )
         
@@ -321,6 +339,8 @@ final class SupabaseService: ObservableObject {
         Task {
             do {
                 for channelName in SupabaseConfig.realtimeChannels {
+                    // Note: client.realtime is deprecated, but using it for compatibility
+                    // TODO: Migrate to client.realtimeV2 when Supabase Swift SDK migration is complete
                     let channel = client.realtime.channel("\(channelName)-changes")
                     realtimeChannels.append(channel)
                     
@@ -329,7 +349,7 @@ final class SupabaseService: ObservableObject {
                         event: "INSERT",
                         schema: "public",
                         table: channelName
-                    )) { [weak self] message in
+                    )) { message in
                         Task { @MainActor in
                             print("📡 Real-time INSERT on \(channelName)")
                             NotificationCenter.default.post(
@@ -349,7 +369,7 @@ final class SupabaseService: ObservableObject {
                         event: "UPDATE",
                         schema: "public",
                         table: channelName
-                    )) { [weak self] message in
+                    )) { message in
                         Task { @MainActor in
                             print("📡 Real-time UPDATE on \(channelName)")
                             NotificationCenter.default.post(
@@ -369,7 +389,7 @@ final class SupabaseService: ObservableObject {
                         event: "DELETE",
                         schema: "public",
                         table: channelName
-                    )) { [weak self] message in
+                    )) { message in
                         Task { @MainActor in
                             print("📡 Real-time DELETE on \(channelName)")
                             NotificationCenter.default.post(
@@ -384,20 +404,17 @@ final class SupabaseService: ObservableObject {
                         }
                     }
                     
-                    // Subscribe to the channel with error handling
-                    do {
-                        await channel.subscribe()
-                        print("✅ Subscribed to realtime channel: \(channelName)")
-                    } catch {
-                        print("⚠️ Failed to subscribe to channel \(channelName): \(error.localizedDescription)")
-                        // Continue with other channels even if one fails
-                    }
+                    // Subscribe to the channel
+                    // Note: subscribe() is not async and doesn't throw, so no await/catch needed
+                    channel.subscribe()
+                    print("✅ Subscribed to realtime channel: \(channelName)")
                 }
                 
                 await MainActor.run {
                     print("✅ Real-time subscriptions setup for \(SupabaseConfig.realtimeChannels.count) channels")
                 }
             } catch {
+                // Error handling for Task setup (though unlikely to throw)
                 await MainActor.run {
                     print("⚠️ Error setting up realtime subscriptions: \(error.localizedDescription)")
                     print("   This is normal if Realtime isn't enabled in Supabase or tables aren't in publication")
