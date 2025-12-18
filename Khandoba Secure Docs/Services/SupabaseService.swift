@@ -16,9 +16,8 @@ final class SupabaseService: ObservableObject {
     @Published var error: Error?
     
     private var supabaseClient: SupabaseClient?
-    // Note: RealtimeChannel is deprecated, but migration to RealtimeChannelV2 requires significant refactoring
-    // Keeping for now - will migrate in future update
-    private var realtimeChannels: [RealtimeChannel] = []
+    // Migrated to RealtimeChannelV2
+    private var realtimeChannels: [RealtimeChannelV2] = []
     
     nonisolated init() {}
     
@@ -45,10 +44,8 @@ final class SupabaseService: ObservableObject {
         do {
             // Test connection with a simple query that doesn't require authentication
             // This verifies the Supabase URL and key are correct
-            // Note: client.database is deprecated, but using it for compatibility
-            // TODO: Migrate to client.from("users") when Supabase Swift SDK stabilizes
-            let _: [SupabaseUser] = try await client.database
-                .from("users")
+            // Migrated to new API: client.from()
+            let _: [SupabaseUser] = try await client.from("users")
                 .select()
                 .limit(0)
                 .execute()
@@ -140,9 +137,8 @@ final class SupabaseService: ObservableObject {
             fatalError("Supabase client not initialized. Call configure() first.")
         }
         
-        // Note: client.database is deprecated, but using it for compatibility
-        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
-        return client.database.from(table)
+        // Migrated to new API: client.from()
+        return client.from(table)
     }
     
     func insert<T: Codable>(_ table: String, values: T) async throws -> T {
@@ -150,10 +146,8 @@ final class SupabaseService: ObservableObject {
             throw SupabaseError.clientNotInitialized
         }
         
-        // Note: client.database is deprecated, but using it for compatibility
-        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
-        let response: T = try await client.database
-            .from(table)
+        // Migrated to new API: client.from()
+        let response: T = try await client.from(table)
             .insert(values)
             .select()
             .single()
@@ -168,18 +162,17 @@ final class SupabaseService: ObservableObject {
             throw SupabaseError.clientNotInitialized
         }
         
-        // Note: client.database is deprecated, but using it for compatibility
-        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
-        let response: T = try await client.database
-            .from(table)
-            .update(values)
-            .eq("id", value: id.uuidString)
-            .select()
-            .single()
-            .execute()
-            .value
-        
-        return response
+        // Migrated to new API: client.from() with timeout
+        return try await AsyncTimeout.withTimeout(10.0) {
+            let response: T = try await client.from(table)
+                .update(values)
+                .eq("id", value: id.uuidString)
+                .select()
+                .single()
+                .execute()
+                .value
+            return response
+        }
     }
     
     func delete(_ table: String, id: UUID) async throws {
@@ -187,10 +180,8 @@ final class SupabaseService: ObservableObject {
             throw SupabaseError.clientNotInitialized
         }
         
-        // Note: client.database is deprecated, but using it for compatibility
-        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
-        try await client.database
-            .from(table)
+        // Migrated to new API: client.from()
+        try await client.from(table)
             .delete()
             .eq("id", value: id.uuidString)
             .execute()
@@ -201,17 +192,16 @@ final class SupabaseService: ObservableObject {
             throw SupabaseError.clientNotInitialized
         }
         
-        // Note: client.database is deprecated, but using it for compatibility
-        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
-        let response: T = try await client.database
-            .from(table)
-            .select()
-            .eq("id", value: id.uuidString)
-            .single()
-            .execute()
-            .value
-        
-        return response
+        // Migrated to new API: client.from() with timeout
+        return try await AsyncTimeout.withTimeout(10.0) {
+            let response: T = try await client.from(table)
+                .select()
+                .eq("id", value: id.uuidString)
+                .single()
+                .execute()
+                .value
+            return response
+        }
     }
     
     func fetchAll<T: Codable>(
@@ -225,10 +215,18 @@ final class SupabaseService: ObservableObject {
             throw SupabaseError.clientNotInitialized
         }
         
+        // Check request cache for deduplication
+        let cacheKey = "\(table)_\(filters?.description ?? "")_\(limit ?? 0)_\(orderBy ?? "")"
+        if let cached = Self.requestCache[cacheKey],
+           Date().timeIntervalSince(cached.timestamp) < Self.cacheTimeout,
+           let cachedData = cached.data as? [T] {
+            return cachedData
+        }
+        
         // Build query with filters
-        // Note: client.database is deprecated, but using it for compatibility
-        // TODO: Migrate to client.from(table) when Supabase Swift SDK stabilizes
-        var filterQuery = client.database.from(table).select()
+        // Migrated to new API: client.from() with timeout
+        return try await AsyncTimeout.withTimeout(10.0) {
+            var filterQuery = client.from(table).select()
         
         // Apply filters
         if let filters = filters {
@@ -296,11 +294,14 @@ final class SupabaseService: ObservableObject {
         
         // Note: upload(path:file:) is deprecated, renamed to upload(_:data:options:)
         // New API signature: upload(_ path: String, data: Data, options: FileOptions?)
-        try await client.storage.from(bucket).upload(
-            path,
-            data: data,
-            options: uploadOptions
-        )
+        // Upload with timeout (30 seconds for large files)
+        try await AsyncTimeout.withTimeout(30.0) {
+            try await client.storage.from(bucket).upload(
+                path,
+                data: data,
+                options: uploadOptions
+            )
+        }
         
         return path
     }
@@ -339,17 +340,16 @@ final class SupabaseService: ObservableObject {
         Task {
             do {
                 for channelName in SupabaseConfig.realtimeChannels {
-                    // Note: client.realtime is deprecated, but using it for compatibility
-                    // TODO: Migrate to client.realtimeV2 when Supabase Swift SDK migration is complete
-                    let channel = client.realtime.channel("\(channelName)-changes")
+                    // Migrated to RealtimeChannelV2
+                    let channel = await client.realtimeV2.channel("\(channelName)-changes")
                     realtimeChannels.append(channel)
                     
-                    // Subscribe to INSERT events
-                    channel.on("postgres_changes", filter: ChannelFilter(
-                        event: "INSERT",
+                    // Subscribe to INSERT events using RealtimeChannelV2
+                    channel.onPostgresChange(
+                        event: .insert,
                         schema: "public",
                         table: channelName
-                    )) { message in
+                    ) { payload in
                         Task { @MainActor in
                             print("📡 Real-time INSERT on \(channelName)")
                             NotificationCenter.default.post(
@@ -358,18 +358,18 @@ final class SupabaseService: ObservableObject {
                                 userInfo: [
                                     "channel": channelName,
                                     "event": "INSERT",
-                                    "payload": message.payload
+                                    "payload": payload.newRecord ?? [:]
                                 ]
                             )
                         }
                     }
                     
                     // Subscribe to UPDATE events
-                    channel.on("postgres_changes", filter: ChannelFilter(
-                        event: "UPDATE",
+                    channel.onPostgresChange(
+                        event: .update,
                         schema: "public",
                         table: channelName
-                    )) { message in
+                    ) { payload in
                         Task { @MainActor in
                             print("📡 Real-time UPDATE on \(channelName)")
                             NotificationCenter.default.post(
@@ -378,18 +378,18 @@ final class SupabaseService: ObservableObject {
                                 userInfo: [
                                     "channel": channelName,
                                     "event": "UPDATE",
-                                    "payload": message.payload
+                                    "payload": payload.newRecord ?? [:]
                                 ]
                             )
                         }
                     }
                     
                     // Subscribe to DELETE events
-                    channel.on("postgres_changes", filter: ChannelFilter(
-                        event: "DELETE",
+                    channel.onPostgresChange(
+                        event: .delete,
                         schema: "public",
                         table: channelName
-                    )) { message in
+                    ) { payload in
                         Task { @MainActor in
                             print("📡 Real-time DELETE on \(channelName)")
                             NotificationCenter.default.post(
@@ -398,15 +398,14 @@ final class SupabaseService: ObservableObject {
                                 userInfo: [
                                     "channel": channelName,
                                     "event": "DELETE",
-                                    "payload": message.payload
+                                    "payload": payload.oldRecord ?? [:]
                                 ]
                             )
                         }
                     }
                     
-                    // Subscribe to the channel
-                    // Note: subscribe() is not async and doesn't throw, so no await/catch needed
-                    channel.subscribe()
+                    // Subscribe to the channel after setting up all listeners
+                    try await channel.subscribe()
                     print("✅ Subscribed to realtime channel: \(channelName)")
                 }
                 
@@ -424,10 +423,14 @@ final class SupabaseService: ObservableObject {
     }
     
     func unsubscribeAll() {
-        for channel in realtimeChannels {
-            channel.unsubscribe()
+        Task {
+            for channel in realtimeChannels {
+                try? await channel.unsubscribe()
+            }
+            await MainActor.run {
+                realtimeChannels.removeAll()
+            }
         }
-        realtimeChannels.removeAll()
     }
 }
 

@@ -12,6 +12,8 @@ import UniformTypeIdentifiers
 import Combine
 import CoreLocation
 
+// Import AsyncTimeout for timeout handling
+
 final class DocumentService: ObservableObject {
     @Published var documents: [Document] = []
     @Published var isLoading = false
@@ -156,13 +158,17 @@ final class DocumentService: ObservableObject {
     
     /// Load documents from Supabase
     private func loadDocumentsFromSupabase(vaultID: UUID, supabaseService: SupabaseService, vault: Vault) async throws {
+        // Add timeout to prevent hangs
         print("📄 Loading documents from Supabase for vault: \(vaultID)")
         // RLS automatically filters documents user has access to
         // Always fetch fresh data from Supabase (no cache) to ensure consistency
-        let supabaseDocs: [SupabaseDocument] = try await supabaseService.fetchAll(
-            "documents",
-            filters: ["vault_id": vaultID.uuidString, "status": "active"]
-        )
+        // Add timeout to prevent hangs
+        let supabaseDocs: [SupabaseDocument] = try await AsyncTimeout.withTimeout(10.0) {
+            try await supabaseService.fetchAll(
+                "documents",
+                filters: ["vault_id": vaultID.uuidString, "status": "active"]
+            )
+        }
         
         print("   Found \(supabaseDocs.count) document(s) in Supabase (fresh fetch, cache replaced)")
         

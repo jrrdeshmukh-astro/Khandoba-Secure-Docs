@@ -221,7 +221,27 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // This ensures the "Sign in to Apple Account" modal matches the app's dark theme
         configureDarkModeAppearance()
         
+        // Setup memory pressure monitoring
+        setupMemoryPressureMonitoring()
+        
         return true
+    }
+    
+    private func setupMemoryPressureMonitoring() {
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: .all, queue: .main)
+        source.setEventHandler {
+            let event = source.mask
+            if event.contains(.warning) {
+                Task { @MainActor in
+                    DataOptimizationService.cleanupCacheIfNeeded(maxSize: 5_000_000) // More aggressive cleanup
+                }
+            } else if event.contains(.critical) {
+                Task { @MainActor in
+                    DataOptimizationService.handleMemoryPressure()
+                }
+            }
+        }
+        source.resume()
     }
     
     private func configureDarkModeAppearance() {

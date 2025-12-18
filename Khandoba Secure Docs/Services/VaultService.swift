@@ -11,6 +11,8 @@ import SwiftUI
 import Combine
 import CoreLocation
 
+// Import AsyncTimeout for timeout handling
+
 final class VaultService: ObservableObject {
     @Published var vaults: [Vault] = []
     @Published var isLoading = false
@@ -77,9 +79,11 @@ final class VaultService: ObservableObject {
             }
         }
         
-        // Supabase mode
+        // Supabase mode with timeout
         if AppConfig.useSupabase, let supabaseService = supabaseService, let userID = currentUserID {
-            try await loadVaultsFromSupabase(supabaseService: supabaseService, userID: userID)
+            try await AsyncTimeout.withTimeout(10.0) {
+                try await loadVaultsFromSupabase(supabaseService: supabaseService, userID: userID)
+            }
             return
         }
         

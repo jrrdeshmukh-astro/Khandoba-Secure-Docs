@@ -11,11 +11,85 @@ import Combine
 
 @MainActor
 final class DataOptimizationService: ObservableObject {
+    // MARK: - LRU Cache Implementation
+    
+    /// LRU Cache entry with timestamp
+    private struct CacheEntry<T> {
+        let value: T
+        var lastAccessed: Date
+        var accessCount: Int
+    }
+    
+    /// LRU Cache with size limits
+    private class LRUCache<T> {
+        private var cache: [UUID: CacheEntry<T>] = [:]
+        private let maxSize: Int
+        private let maxMemoryBytes: Int
+        
+        init(maxSize: Int = 100, maxMemoryBytes: Int = 10_000_000) {
+            self.maxSize = maxSize
+            self.maxMemoryBytes = maxMemoryBytes
+        }
+        
+        func get(_ key: UUID) -> T? {
+            guard var entry = cache[key] else { return nil }
+            entry.lastAccessed = Date()
+            entry.accessCount += 1
+            cache[key] = entry
+            return entry.value
+        }
+        
+        func set(_ key: UUID, value: T) {
+            // Remove oldest entries if at capacity
+            while cache.count >= maxSize {
+                evictOldest()
+            }
+            
+            cache[key] = CacheEntry(
+                value: value,
+                lastAccessed: Date(),
+                accessCount: 1
+            )
+        }
+        
+        func remove(_ key: UUID) {
+            cache.removeValue(forKey: key)
+        }
+        
+        func removeAll() {
+            cache.removeAll()
+        }
+        
+        func invalidate(keys: [UUID]?) {
+            if let keys = keys {
+                for key in keys {
+                    cache.removeValue(forKey: key)
+                }
+            } else {
+                cache.removeAll()
+            }
+        }
+        
+        private func evictOldest() {
+            guard let oldest = cache.min(by: { $0.value.lastAccessed < $1.value.lastAccessed }) else {
+                return
+            }
+            cache.removeValue(forKey: oldest.key)
+        }
+        
+        var count: Int { cache.count }
+        var keys: [UUID] { Array(cache.keys) }
+    }
+    
     // MARK: - Caching
     
-    private static var documentCache: [UUID: Document] = [:]
-    private static var vaultCache: [UUID: Vault] = [:]
-    private static var userCache: [UUID: User] = [:]
+    private static var documentCache = LRUCache<Document>(maxSize: 200, maxMemoryBytes: 20_000_000)
+    private static var vaultCache = LRUCache<Vault>(maxSize: 50, maxMemoryBytes: 5_000_000)
+    private static var userCache = LRUCache<User>(maxSize: 20, maxMemoryBytes: 2_000_000)
+    
+    // Cache versioning for stale data detection
+    private static var cacheVersion: Int = 1
+    private static var cacheVersionKey = "cache_version"
     
     // MARK: - Cache Management
     
@@ -73,16 +147,22 @@ final class DataOptimizationService: ObservableObject {
         ids: [UUID],
         from context: ModelContext
     ) throws -> [Document] {
-        // Check cache first
+        // Check cache first (LRU will update access times)
         var results: [Document] = []
         var missingIDs: [UUID] = []
+        var cacheHits = 0
         
         for id in ids {
             if let cached = getCachedDocument(id) {
                 results.append(cached)
+                cacheHits += 1
             } else {
                 missingIDs.append(id)
             }
+        }
+        
+        if cacheHits > 0 {
+            print("📊 Cache hit rate: \(cacheHits)/\(ids.count) (\(Int(Double(cacheHits) / Double(ids.count) * 100))%)")
         }
         
         // Fetch missing from database
@@ -193,10 +273,20 @@ final class DataOptimizationService: ObservableObject {
         let currentSize = cacheMemoryUsage()
         
         if currentSize > maxSize {
-            // Clear oldest 50% of cache
-            documentCache.removeAll()
-            print("Cache cleared: \(currentSize) bytes freed")
+            // Clear 50% of least recently used entries
+            let documentKeys = documentCache.keys
+            let keysToRemove = Array(documentKeys.prefix(documentKeys.count / 2))
+            for key in keysToRemove {
+                documentCache.remove(key)
+            }
+            print("🧹 Cache cleaned: \(currentSize) → \(cacheMemoryUsage()) bytes")
         }
+    }
+    
+    /// Handle memory pressure warning
+    static func handleMemoryPressure() {
+        print("⚠️ Memory pressure detected - clearing caches")
+        clearAllCaches()
     }
 }
 
