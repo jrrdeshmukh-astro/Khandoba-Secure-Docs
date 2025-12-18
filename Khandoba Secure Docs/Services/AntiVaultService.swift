@@ -193,7 +193,7 @@ final class AntiVaultService: ObservableObject {
         // Update in database
         if AppConfig.useSupabase, let supabaseService = supabaseService {
             let supabaseAntiVault = try await convertToSupabaseAntiVault(antiVault)
-            try await supabaseService.update("anti_vaults", id: antiVault.id, values: supabaseAntiVault)
+            _ = try await supabaseService.update("anti_vaults", id: antiVault.id, values: supabaseAntiVault)
         } else {
             guard let modelContext = modelContext else {
                 throw AntiVaultError.contextNotAvailable

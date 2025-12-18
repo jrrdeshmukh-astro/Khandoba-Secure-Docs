@@ -337,7 +337,7 @@ struct DocumentUploadView: View {
         } catch let error as DocumentError {
             await MainActor.run {
                 switch error {
-                case .contentBlocked(let severity, let categories, let reason):
+                case .contentBlocked(let _, let categories, let reason):
                     blockedContentReason = reason
                     blockedContentCategories = categories
                     showContentBlocked = true

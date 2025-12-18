@@ -266,6 +266,8 @@ final class ContentFilterService: ObservableObject {
     // MARK: - Video Filtering
     
     private func filterVideo(data: Data) async throws -> ContentFilterResult {
+        // Note: This function needs to be nonisolated or handle MainActor properly
+        // For now, we'll use the deprecated API for compatibility
         // Save to temporary file for analysis
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
@@ -284,17 +286,26 @@ final class ContentFilterService: ObservableObject {
         var reasons: [String] = []
         
         // Extract frames at key points (start, middle, end)
+        // Load duration using modern API (iOS 16+)
+        let duration = try await asset.load(.duration)
+        let durationSeconds = CMTimeGetSeconds(duration)
+        
         let frameTimes = [
             CMTime(seconds: 0, preferredTimescale: 600),
-            CMTime(seconds: CMTimeGetSeconds(asset.duration) / 2, preferredTimescale: 600),
-            CMTime(seconds: CMTimeGetSeconds(asset.duration) * 0.9, preferredTimescale: 600)
+            CMTime(seconds: durationSeconds / 2, preferredTimescale: 600),
+            CMTime(seconds: durationSeconds * 0.9, preferredTimescale: 600)
         ]
         
         let imageGenerator = AVAssetImageGenerator(asset: asset)
         imageGenerator.appliesPreferredTrackTransform = true
         
+        // Extract frames at key points
+        // Note: copyCGImage is deprecated in iOS 18.0, but still functional
+        // Using it for compatibility - will migrate to generateCGImagesAsynchronously in future update
         for time in frameTimes {
-            if let cgImage = try? await imageGenerator.copyCGImage(at: time, actualTime: nil) {
+            // Use deprecated API (still works, just shows warning)
+            // swiftlint:disable:next deprecated_member_use
+            if let cgImage = try? imageGenerator.copyCGImage(at: time, actualTime: nil) {
                 let frameResult = try await filterImageFrame(cgImage: cgImage)
                 
                 if frameResult.isBlocked {
@@ -308,8 +319,8 @@ final class ContentFilterService: ObservableObject {
             }
         }
         
-        // Check audio track for profanity
-        if let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first {
+        // Check audio track for profanity (track existence check only)
+        if try? await asset.loadTracks(withMediaType: .audio).first != nil {
             // In a real implementation, extract audio and use speech recognition
             // For now, we'll rely on frame analysis
         }
@@ -417,8 +428,7 @@ final class ContentFilterService: ObservableObject {
         try data.write(to: tempURL)
         
         // Transcribe audio using Speech framework
-        let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
-        guard let recognizer = recognizer else {
+        guard SFSpeechRecognizer(locale: Locale(identifier: "en-US")) != nil else {
             // Cannot transcribe - allow but log
             return ContentFilterResult(
                 isBlocked: false,

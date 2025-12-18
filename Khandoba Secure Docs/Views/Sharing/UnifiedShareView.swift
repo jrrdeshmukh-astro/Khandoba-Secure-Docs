@@ -295,7 +295,7 @@ struct UnifiedShareView: View {
         Task {
             do {
                 guard let currentUser = authService.currentUser else {
-                    throw AppError.authenticationFailed("User not authenticated")
+                    throw NSError(domain: "UnifiedShareView", code: 401, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
                 }
                 
                 let contact = selectedContacts[0]

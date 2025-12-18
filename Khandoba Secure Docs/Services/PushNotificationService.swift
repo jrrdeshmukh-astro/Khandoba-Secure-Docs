@@ -42,7 +42,7 @@ final class PushNotificationService: NSObject, ObservableObject {
             print(" Push notification registration skipped in extension")
             #else
             // Register for remote notifications only in main app
-            await registerForRemoteNotificationsMainApp()
+            registerForRemoteNotificationsMainApp()
             #endif
             print(" Push notification authorization granted")
         } else {

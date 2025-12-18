@@ -552,7 +552,7 @@ struct RedactionView: View {
         }
         
         // Upload redacted encrypted document to Supabase Storage (overwrite existing)
-        try await supabaseService.uploadFile(
+        _ = try await supabaseService.uploadFile(
             bucket: SupabaseConfig.encryptedDocumentsBucket,
             path: storagePath,
             data: encryptedData
@@ -568,7 +568,7 @@ struct RedactionView: View {
             supabaseDoc.name + " (Redacted)"
         updatedDoc.extractedText = nil // Clear extracted text (may contain PHI)
         
-        try await supabaseService.update("documents", id: document.id, values: updatedDoc)
+        _ = try await supabaseService.update("documents", id: document.id, values: updatedDoc)
         
         // Update local document model
         await MainActor.run {
@@ -608,7 +608,7 @@ struct RedactionView: View {
                 accessLog.locationLongitude = location.coordinate.longitude
             }
             
-            try? await supabaseService.insert("vault_access_logs", values: accessLog)
+            _ = try? await supabaseService.insert("vault_access_logs", values: accessLog)
         } else {
             // Create access log in SwiftData
             let accessLog = VaultAccessLog(

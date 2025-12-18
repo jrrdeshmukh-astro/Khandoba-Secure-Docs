@@ -754,7 +754,7 @@ final class NomineeService: ObservableObject {
             // Fetch vault and user info
             let vault: SupabaseVault = try await supabaseService.fetch("vaults", id: supabaseNominee.vaultID)
             let user: SupabaseUser = try await supabaseService.fetch("users", id: supabaseNominee.userID)
-            let owner: SupabaseUser = try await supabaseService.fetch("users", id: vault.ownerID)
+            let _: SupabaseUser = try await supabaseService.fetch("users", id: vault.ownerID)
             
             // Create Vault model for nominee
             let vaultModel = Vault(
@@ -802,7 +802,7 @@ final class NomineeService: ObservableObject {
     
     func acceptInvite(token: String) async throws -> Nominee? {
         // Supabase mode - token-based invites not used, use direct database access
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
+        if AppConfig.useSupabase, supabaseService != nil {
             // In Supabase, nominees are accepted by updating status
             // Token-based invites would need a separate invitations table
             // For now, return nil (would need to implement invitation system)

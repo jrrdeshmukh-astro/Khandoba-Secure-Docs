@@ -359,7 +359,7 @@ struct CreateAntiVaultView: View {
                     updatedAt: Date(),
                     lastUnlockedAt: antiVault.lastUnlockedAt
                 )
-                try await supabaseService.update("anti_vaults", id: antiVault.id, values: supabaseAntiVault)
+                _ = try await supabaseService.update("anti_vaults", id: antiVault.id, values: supabaseAntiVault)
             } else {
                 try modelContext.save()
             }

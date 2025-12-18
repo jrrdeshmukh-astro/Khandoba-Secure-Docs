@@ -135,6 +135,8 @@ struct WelcomeView: View {
                     errorMessage = "Sign in request could not be handled."
                 case .failed:
                     errorMessage = "Sign in failed. Please check your iCloud sign-in status."
+                case .notInteractive:
+                    errorMessage = "Sign in is not available. Please try again."
                 @unknown default:
                     errorMessage = "Apple Sign In error: \(authError.localizedDescription)\n\nTip: Ensure your device is signed into iCloud."
                 }

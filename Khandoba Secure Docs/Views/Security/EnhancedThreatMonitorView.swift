@@ -96,7 +96,7 @@ struct EnhancedThreatMonitorView: View {
         // Run ML analysis
         geoMetrics = await mlService.analyzeGeoClassification(for: vault)
         accessMetrics = await mlService.analyzeAccessPatterns(for: vault)
-        tagMetrics = await mlService.analyzeTagPatterns(for: vault)
+        tagMetrics = mlService.analyzeTagPatterns(for: vault)
         
         // Calculate overall risk
         let geoRisk = geoMetrics?.riskScore ?? 0

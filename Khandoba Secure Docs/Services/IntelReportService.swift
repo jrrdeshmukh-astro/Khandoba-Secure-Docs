@@ -269,7 +269,7 @@ final class IntelReportService: ObservableObject {
     // MARK: - Geographic Inconsistency Detection
     
     private func detectGeographicInconsistencies(sharedDocuments: [Document], antiVaultDocuments: [Document]) -> [GeographicInconsistency] {
-        var inconsistencies: [GeographicInconsistency] = []
+        let inconsistencies: [GeographicInconsistency] = []
         
         // This would require location data from access logs
         // For now, return empty array - would be populated with actual location tracking

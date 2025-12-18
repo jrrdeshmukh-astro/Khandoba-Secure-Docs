@@ -356,9 +356,9 @@ final class FormalLogicEngine: ObservableObject {
                                   (likelihoodIfNoBreach * (1 - priorBreach)))
             
             // Determine actionable message based on probability
-            // Note: posteriorBreach can exceed 0.5 with different evidence values
-            let actionableMessage = posteriorBreach > 0.5
-                ? "High probability of breach. Initiate incident response immediately."
+            // With given constants, posteriorBreach will be ~0.32, so use a lower threshold
+            let actionableMessage = posteriorBreach > 0.3
+                ? "Elevated breach probability detected. Monitor closely and consider additional security measures."
                 : "Monitor closely for additional indicators."
             
             inferences.append(LogicalInference(

@@ -345,8 +345,6 @@ struct UrgencyBadge: View {
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        let colors = theme.colors(for: colorScheme)
-        
         let (color, icon) = urgencyInfo
         
         HStack(spacing: 4) {

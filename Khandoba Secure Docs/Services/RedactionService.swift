@@ -16,7 +16,7 @@ final class RedactionService {
     
     /// Redact PHI from PDF document using proper PDFKit annotations (HIPAA compliant)
     static func redactPDF(data: Data, redactionAreas: [CGRect], phiMatches: [PHIMatch]) throws -> Data {
-        guard let pdfDocument = PDFDocument(data: data) else {
+        guard PDFDocument(data: data) != nil else {
             throw RedactionError.invalidPDF
         }
         

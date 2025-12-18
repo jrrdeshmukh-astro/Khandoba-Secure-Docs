@@ -166,7 +166,7 @@ final class DocumentFidelityService: ObservableObject {
         
         // Update in Supabase
         let supabaseFidelity = try await convertToSupabaseFidelity(fidelity, documentID: document.id)
-        try await supabaseService.update("document_fidelity", id: fidelity.id, values: supabaseFidelity)
+        _ = try await supabaseService.update("document_fidelity", id: fidelity.id, values: supabaseFidelity)
         print("✅ Transfer tracked in Supabase: \(fidelity.transferCount) total transfers")
     }
     
@@ -294,7 +294,7 @@ final class DocumentFidelityService: ObservableObject {
         
         // Update in Supabase
         let supabaseFidelity = try await convertToSupabaseFidelity(fidelity, documentID: document.id)
-        try await supabaseService.update("document_fidelity", id: fidelity.id, values: supabaseFidelity)
+        _ = try await supabaseService.update("document_fidelity", id: fidelity.id, values: supabaseFidelity)
         print("✅ Edit tracked in Supabase: \(fidelity.editCount) total edits")
     }
     

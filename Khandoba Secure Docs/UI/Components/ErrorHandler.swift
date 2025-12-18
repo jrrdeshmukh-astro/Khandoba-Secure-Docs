@@ -129,7 +129,7 @@ struct ErrorAlertModifier: ViewModifier {
                 Button("OK") {
                     error = nil
                 }
-                if let currentError = currentError, let retrySuggestion = ErrorHandler.retrySuggestion(for: currentError) {
+                if let currentError = currentError, ErrorHandler.retrySuggestion(for: currentError) != nil {
                     Button("Retry") {
                         // Retry logic would be handled by parent view
                         error = nil

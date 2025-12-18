@@ -52,7 +52,7 @@ final class VaultService: ObservableObject {
         // Load current user from Supabase
         Task {
             do {
-                let supabaseUser: SupabaseUser = try await supabaseService.fetch(
+                let _: SupabaseUser = try await supabaseService.fetch(
                     "users",
                     id: userID
                 )
@@ -1075,7 +1075,7 @@ final class VaultService: ObservableObject {
             let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: vault.id)
             
             // Create updated vault with mutable fields
-            var updatedVault = SupabaseVault(
+            let updatedVault = SupabaseVault(
                 id: existingVault.id,
                 name: existingVault.name,
                 vaultDescription: existingVault.vaultDescription,
@@ -1426,7 +1426,7 @@ final class VaultService: ObservableObject {
         
         // Update vault status to "locked" in Supabase
         let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: vault.id)
-        var updatedVault = SupabaseVault(
+        let updatedVault = SupabaseVault(
             id: existingVault.id,
             name: existingVault.name,
             vaultDescription: existingVault.vaultDescription,

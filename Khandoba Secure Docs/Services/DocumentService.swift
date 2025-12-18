@@ -96,8 +96,9 @@ final class DocumentService: ObservableObject {
         setupRealtimeListener()
     }
     
-    // Track current vault for cache refresh
+    // Track current vault for cache refresh (using ID to avoid Sendable issues)
     private var currentVault: Vault?
+    private var currentVaultID: UUID?
     
     // Setup realtime listener for document sync
     private func setupRealtimeListener() {
@@ -118,8 +119,9 @@ final class DocumentService: ObservableObject {
             
             // Refresh documents cache when changes occur
             Task {
-                let vault = await MainActor.run { self.currentVault }
-                if let vault = vault {
+                // Use vault ID to avoid Sendable conformance issue with Swift 6
+                let vaultID = await MainActor.run { self.currentVaultID }
+                if let vaultID = vaultID, let vault = await MainActor.run({ self.currentVault }) {
                     do {
                         try await self.loadDocuments(for: vault)
                         print("✅ DocumentService: Cache refreshed after realtime \(event)")
@@ -138,6 +140,7 @@ final class DocumentService: ObservableObject {
         // Store current vault for realtime refresh
         await MainActor.run {
             self.currentVault = vault
+            self.currentVaultID = vault.id
         }
         
         // Supabase mode
