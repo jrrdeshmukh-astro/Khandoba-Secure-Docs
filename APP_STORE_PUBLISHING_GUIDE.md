@@ -1,7 +1,9 @@
 # Step-by-Step App Store Publishing Guide
-## Khandoba Secure Docs v1.0.1
+## Khandoba v1.0.1 Update
 
-**Complete guide for publishing to the Apple App Store**
+**Complete guide for updating your existing app on the Apple App Store**
+
+**Note:** This is an **UPDATE** to version 1.0.0 which is already live on the App Store.
 
 ---
 
@@ -10,32 +12,32 @@
 ### ✅ Code Readiness
 - [x] Zero build errors
 - [x] All features implemented and tested
-- [x] Version number: 1.0.1
-- [x] Build number: 29
+- [x] Version number: 1.0.1 (increment from 1.0.0)
+- [x] Build number: 29 (increment from previous build)
 - [x] Minimum iOS: 17.0
 - [x] All deprecation warnings addressed (where possible)
 
 ### ✅ Configuration
-- [x] Bundle ID: `com.khandoba.securedocs`
+- [x] Bundle ID: `com.khandoba.securedocs` (existing app)
 - [x] Team ID: `Q5Y8754WU4`
 - [x] Entitlements: Production mode
 - [x] Signing: Automatic (team selected)
 - [x] App Icon: 1024x1024 (in Assets.xcassets)
 
 ### ⏳ Required Before Submission
-- [ ] App Store Connect app created
-- [ ] Subscription products created
-- [ ] Screenshots prepared (all required sizes)
-- [ ] App description written
-- [ ] Privacy policy URL live
-- [ ] Terms of service URL live
+- [x] App Store Connect app exists (already created for 1.0.0)
+- [ ] App pricing set (one-time purchase, no subscriptions)
+- [ ] Screenshots updated (if UI changed)
+- [ ] "What's New" text written
+- [ ] Privacy policy URL live (if updated)
+- [ ] Terms of service URL live (if updated)
 - [ ] Support URL configured
 
 ---
 
 ## Step 1: App Store Connect Setup
 
-### 1.1 Create App Listing
+### 1.1 Access Existing App
 
 1. **Go to App Store Connect**
    - Visit: https://appstoreconnect.apple.com
@@ -43,20 +45,14 @@
 
 2. **Navigate to My Apps**
    - Click "My Apps" in the top navigation
-   - Click the "+" button to create a new app
+   - Find and select **"Khandoba"** (your existing app)
 
-3. **Fill App Information**
-   ```
-   Platform: iOS
-   Name: Khandoba Secure Docs
-   Primary Language: English (U.S.)
-   Bundle ID: com.khandoba.securedocs
-   SKU: khandoba-secure-docs-001
-   User Access: Full Access (or Limited Access if using teams)
-   ```
+3. **Verify App Information**
+   - Bundle ID: `com.khandoba.securedocs`
+   - Current Version: 1.0.0 (live on App Store)
+   - Status: Ready for Sale
 
-4. **Click "Create"**
-   - App will be created in "Prepare for Submission" status
+**Note:** Since the app already exists, you don't need to create a new app listing. You'll be creating a new version (1.0.1) instead.
 
 ### 1.2 Configure App Information
 
@@ -101,68 +97,44 @@
 
 ---
 
-## Step 2: Create Subscription Products
+## Step 2: Set App Pricing
 
-### 2.1 Navigate to Subscriptions
+### 2.1 Configure Pricing
 
 1. **In App Store Connect**
-   - Go to: Your App → Features → In-App Purchases
-   - Click "+" to create new subscription
+   - Go to: Your App → Pricing and Availability
+   - Click "Edit" next to Price Schedule
 
-2. **Create Subscription Group**
-   - Name: "Premium Subscription"
-   - Click "Create"
+2. **Select Pricing Model:**
+   - **Paid App**: One-time purchase
+   - **Price Tier**: Select your price (e.g., $9.99, $14.99, $19.99)
+   - **Recommended**: $9.99 or $14.99 for premium security app
 
-### 2.2 Create Monthly Subscription
+3. **Price Tiers (USD):**
+   - **Tier 1**: $0.99
+   - **Tier 2**: $1.99
+   - **Tier 3**: $2.99
+   - **Tier 4**: $3.99
+   - **Tier 5**: $4.99
+   - **Tier 6**: $6.99
+   - **Tier 7**: $7.99
+   - **Tier 8**: $9.99 ⭐ **Recommended**
+   - **Tier 9**: $11.99
+   - **Tier 10**: $12.99
+   - **Tier 11**: $13.99
+   - **Tier 12**: $14.99
+   - **Tier 13**: $15.99
+   - **Tier 14**: $16.99
+   - **Tier 15**: $17.99
+   - **Tier 16**: $18.99
+   - **Tier 17**: $19.99
 
-1. **Click "+" in Subscription Group**
-2. **Fill Subscription Details:**
-   ```
-   Reference Name: Premium Monthly
-   Product ID: com.khandoba.premium.monthly
-   Subscription Duration: 1 Month
-   Price: $9.99
-   Free Trial: 7 Days
-   ```
+4. **Availability:**
+   - Select countries where app will be available
+   - Default: All countries
+   - Click "Save"
 
-3. **Localizations:**
-   - **English (U.S.)**:
-     - Display Name: Premium Monthly
-     - Description: Unlimited vaults, AI features, and premium security tools. Cancel anytime.
-
-4. **Review Information:**
-   - Review Notes: "Monthly premium subscription with 7-day free trial"
-   - Screenshot: (optional, but recommended)
-
-5. **Click "Save"**
-
-### 2.3 Create Yearly Subscription
-
-1. **Click "+" in Subscription Group**
-2. **Fill Subscription Details:**
-   ```
-   Reference Name: Premium Yearly
-   Product ID: com.khandoba.premium.yearly
-   Subscription Duration: 1 Year
-   Price: $71.88
-   Free Trial: 7 Days
-   ```
-
-3. **Localizations:**
-   - **English (U.S.)**:
-     - Display Name: Premium Yearly
-     - Description: Save 40% with annual subscription. All premium features included.
-
-4. **Review Information:**
-   - Review Notes: "Annual premium subscription with 7-day free trial. Saves 40% compared to monthly."
-
-5. **Click "Save"**
-
-### 2.4 Submit Subscriptions for Review
-
-1. **Select both subscriptions**
-2. **Click "Submit for Review"**
-3. **Wait for approval** (typically 24-48 hours)
+**Note:** Since this is a paid app, there are no in-app purchases or subscriptions to configure.
 
 ---
 
@@ -243,7 +215,7 @@ AI Security Vault with Voice
 
 ### 3.3 Promotional Text (170 characters max)
 ```
-🎙️ NEW: AI Voice Security Reports! Get threat analysis narrated in plain English. The only vault app with ML auto-approval and actionable insights.
+🎙️ AI Voice Security Reports! Get threat analysis narrated in plain English. One-time purchase - all features included. No subscriptions.
 ```
 
 ### 3.4 Keywords (100 characters max)
@@ -458,15 +430,20 @@ xcrun altool --upload-app \
   - Exempt from regulations? **YES** (standard encryption)
   - Export compliance code: **Not required**
 
-### 7.3 Add Build to Version
+### 7.3 Create New Version and Add Build
 
 1. **Go to: App Store Connect → Your App → App Store**
-2. **Click "+ Version or Platform"** (if first version)
-3. **Or select existing version**
+2. **Click "+ Version or Platform"** to create version 1.0.1
+3. **Enter Version Number:**
+   - Version: `1.0.1`
+   - This will be the new version number
 4. **Under "Build" section:**
    - Click "+" next to "Build"
-   - Select your processed build
+   - Select your processed build (should show build number 29)
    - Click "Done"
+5. **Verify:**
+   - Current version: 1.0.0 (still live)
+   - New version: 1.0.1 (in review)
 
 ### 7.4 Complete Version Information
 
@@ -474,34 +451,30 @@ xcrun altool --upload-app \
 
 1. **What's New in This Version:**
    ```
-   Version 1.0.1 - Initial Release
+   Version 1.0.1 - Update
    
-   🎉 Welcome to Khandoba Secure Docs!
+   🎉 What's New in 1.0.1:
    
-   The world's first vault app with AI voice intelligence. Here's what makes us different:
+   ✨ IMPROVEMENTS:
+   • Fixed transfer ownership flow - now seamlessly integrates with nominee system
+   • Enhanced nominee acceptance process
+   • Improved error handling and user feedback
+   • Performance optimizations
+   • Bug fixes and stability improvements
    
-   🎙️ AI VOICE SECURITY REPORTS
-   Listen to your security status instead of reading logs. Our AI narrates comprehensive threat analysis with step-by-step recommendations.
+   🔧 TECHNICAL UPDATES:
+   • Updated Supabase integration
+   • Improved cloud sync reliability
+   • Enhanced security monitoring
+   • Better offline support
    
-   🤖 ML AUTO-APPROVAL
-   Dual-key vault access is automatically approved or denied based on threat metrics, location data, and behavior patterns. 99%+ accuracy.
+   📱 USER EXPERIENCE:
+   • Smoother navigation
+   • Faster document loading
+   • Improved voice report generation
+   • Better notification handling
    
-   📊 SOURCE/SINK INTELLIGENCE  
-   Every document is classified as "source" (you created) or "sink" (you received). Get context-aware security analysis.
-   
-   🌍 GEOGRAPHIC INTELLIGENCE
-   Impossible travel detection prevents fraud. Access from NYC at 3 PM then LA at 3:30 PM? Auto-denied.
-   
-   🎯 ACTIONABLE INSIGHTS
-   Every threat comes with:
-   • What to do
-   • Why it matters  
-   • When to do it
-   • How to do it
-   
-   Plus: Professional animations, haptic feedback, calendar sync, and more!
-   
-   Start your 7-day free trial today! 🚀
+   Thank you for using Khandoba! We're constantly improving based on your feedback.
    ```
 
 2. **App Review Information:**
@@ -552,7 +525,7 @@ xcrun altool --upload-app \
    - Screenshots ✅
    - Version information ✅
    - Build selected ✅
-   - Subscriptions created ✅
+   - Pricing configured ✅
 
 2. **Click "Add for Review"**
    - Review summary appears
@@ -708,14 +681,13 @@ rm -rf ~/Library/Developer/Xcode/DerivedData/*
 
 ## Timeline Estimate
 
-**Total Time: 3-7 days**
+**Total Time: 1-3 days** (faster for updates)
 
-- **Day 1**: App Store Connect setup, subscription creation (2-4 hours)
-- **Day 2**: Build, archive, upload (2-3 hours)
-- **Day 3-5**: Apple review (24-48 hours typical)
-- **Day 6-7**: Post-approval release and monitoring
+- **Day 1**: Build, archive, upload (2-3 hours)
+- **Day 1-2**: Apple review (24-48 hours typical for updates)
+- **Day 2-3**: Post-approval release and monitoring
 
-**Note:** First-time submissions may take longer. Subsequent updates are typically faster.
+**Note:** Updates typically review faster than initial submissions. Since your app is already approved, this should be a straightforward update process.
 
 ---
 
@@ -723,13 +695,13 @@ rm -rf ~/Library/Developer/Xcode/DerivedData/*
 
 Before clicking "Submit for Review", verify:
 
-- [ ] App Store Connect app created
+- [ ] App Store Connect app exists (already created)
 - [ ] All metadata completed
 - [ ] Screenshots uploaded (all required sizes)
-- [ ] Subscription products created and approved
+- [ ] App pricing set (one-time purchase)
 - [ ] Build uploaded and processed
 - [ ] Build added to version
-- [ ] App description written
+- [ ] App description written (updated for paid app)
 - [ ] Privacy policy URL live and accessible
 - [ ] Support URL configured
 - [ ] Review notes provided
