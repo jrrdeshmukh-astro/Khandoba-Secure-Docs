@@ -17,6 +17,8 @@ final class SupabaseService: ObservableObject {
     
     private var supabaseClient: SupabaseClient?
     // Using old RealtimeChannel API for compatibility (RealtimeChannelV2 API not fully stable)
+    // This deprecation warning is intentional - will migrate when RealtimeChannelV2 is stable
+    // swiftlint:disable:next deprecated_member_use
     private var realtimeChannels: [RealtimeChannel] = []
     
     // Request deduplication cache

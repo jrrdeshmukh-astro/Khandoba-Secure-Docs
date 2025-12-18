@@ -4,13 +4,13 @@
 
 ### ✅ Xcode Project Settings
 - **MARKETING_VERSION**: `1.0.1` ✅ (Updated from 1.0)
-- **CURRENT_PROJECT_VERSION**: `29` ✅ (Updated from 28)
+- **CURRENT_PROJECT_VERSION**: `30` ✅ (Updated from 29)
 - **Bundle ID**: `com.khandoba.securedocs` ✅
 - **Team ID**: `Q5Y8754WU4` ✅
 
 ### ✅ AppConfig.swift
 - **appVersion**: `1.0.1` ✅
-- **appBuildNumber**: `29` ✅
+- **appBuildNumber**: `30` ✅
 
 ---
 
@@ -43,7 +43,7 @@ cd "/Users/jaideshmukh/Desktop/Khandoba Secure Docs"
 - [ ] Open Xcode
 - [ ] Select project → Target → General
 - [ ] Verify **Version**: 1.0.1
-- [ ] Verify **Build**: 29
+- [ ] Verify **Build**: 30
 - [ ] Select **"Generic iOS Device"** (NOT Simulator)
 - [ ] Configuration: **Release**
 
@@ -88,7 +88,7 @@ cd "/Users/jaideshmukh/Desktop/Khandoba Secure Docs"
 
 ### Version Numbers
 - **Version**: Must be 1.0.1 (higher than 1.0.0)
-- **Build**: Must be 29 (higher than previous build)
+- **Build**: Must be 30 (higher than previous build)
 - Both are now correctly set ✅
 
 ---
@@ -105,7 +105,7 @@ cd "/Users/jaideshmukh/Desktop/Khandoba Secure Docs"
 
 3. **Add Build**
    - Click "+" next to Build
-   - Select processed build (29)
+   - Select processed build (30)
 
 4. **Complete Metadata**
    - Use values from `APP_STORE_CONNECT_FIELDS.md`

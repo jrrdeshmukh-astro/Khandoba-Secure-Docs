@@ -41,6 +41,8 @@ struct VaultListView: View {
     @State private var selectedVault: Vault?
     @State private var showNomineeList = false
     @State private var frontVaultIndex: Int = 0
+    @State private var showSimplifiedContactSelection = false
+    @State private var vaultForInvite: Vault?
     
     // Filter out system vaults
     private var activeVaults: [Vault] {
@@ -190,6 +192,11 @@ struct VaultListView: View {
             }
             .sheet(isPresented: $showCreateVault) {
                 CreateVaultView()
+            }
+            .sheet(isPresented: $showSimplifiedContactSelection) {
+                if let vault = vaultForInvite {
+                    SimplifiedContactSelectionView(vault: vault)
+                }
             }
             .refreshable {
                 await loadVaults()
@@ -452,9 +459,21 @@ struct CircularRolodexView: View {
                         totalCount: vaults.count,
                         hasActiveSession: vaultService.hasActiveSession(for: vault.id),
                         onTap: {
-                            selectedVaultID = vault.id
+                            // Front card (offset == 0) shows simplified contact selection
+                            // Other cards navigate to vault detail
+                            if offset == 0 {
+                                vaultForInvite = vault
+                                showSimplifiedContactSelection = true
+                            } else {
+                                selectedVaultID = vault.id
+                            }
                         },
-                        onLongPress: nil,
+                        onLongPress: {
+                            // Long press on front card opens vault detail
+                            if offset == 0 {
+                                selectedVaultID = vault.id
+                            }
+                        },
                         rotation: rotation,
                         scale: scale,
                         yOffset: offsetY,

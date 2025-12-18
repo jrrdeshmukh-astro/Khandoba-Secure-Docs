@@ -22,7 +22,8 @@ final class ContactDiscoveryService: ObservableObject {
     private let container: CKContainer
     
     nonisolated init() {
-        let containerID = AppConfig.cloudKitContainer
+        // Access cloudKitContainer in a nonisolated way
+        let containerID = "iCloud.com.khandoba.securedocs" // Direct value to avoid main actor isolation
         self.container = CKContainer(identifier: containerID)
     }
     

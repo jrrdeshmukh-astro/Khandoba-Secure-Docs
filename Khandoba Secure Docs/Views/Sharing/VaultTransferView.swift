@@ -10,6 +10,7 @@ import SwiftData
 
 struct VaultTransferView: View {
     let vault: Vault
+    let preselectedNominee: Nominee?
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
@@ -26,6 +27,11 @@ struct VaultTransferView: View {
     @State private var errorMessage = ""
     @State private var availableUsers: [User] = []
     @State private var nominees: [Nominee] = []
+    
+    init(vault: Vault, preselectedNominee: Nominee? = nil) {
+        self.vault = vault
+        self.preselectedNominee = preselectedNominee
+    }
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -187,11 +193,29 @@ struct VaultTransferView: View {
             // Load nominees for this vault
             try await nomineeService.loadNominees(for: vault, includeInactive: false)
             nominees = nomineeService.nominees
-            
+
+            // If preselectedNominee is provided, pre-select it
+            if let preselected = preselectedNominee,
+               preselected.status == .accepted || preselected.status == .active {
+                // Find the user matching this nominee
+                if let nomineeEmail = preselected.email, !nomineeEmail.isEmpty {
+                    let userDescriptor = FetchDescriptor<User>(
+                        predicate: #Predicate { user in
+                            user.email == nomineeEmail.lowercased()
+                        }
+                    )
+                    if let matchingUser = try? modelContext.fetch(userDescriptor).first {
+                        await MainActor.run {
+                            selectedUserID = matchingUser.id
+                        }
+                    }
+                }
+            }
+
             // Get users who are nominees (only accepted nominees can receive ownership)
             // Match nominees to users by email (User model doesn't have phoneNumber)
             let acceptedNomineeIDs = nominees
-                .filter { $0.status == .accepted }
+                .filter { $0.status == .accepted || $0.status == .active }
                 .compactMap { nominee -> UUID? in
                     // Try to find user by email
                     if let email = nominee.email, !email.isEmpty {

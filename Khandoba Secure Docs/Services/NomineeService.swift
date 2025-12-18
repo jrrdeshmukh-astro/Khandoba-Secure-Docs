@@ -864,16 +864,25 @@ final class NomineeService: ObservableObject {
         if let vault = nominee.vault,
            let currentUserID = currentUserID {
             // Look for pending transfer request for this user/nominee
+            // Break up complex predicate to avoid type-checking timeout
+            let vaultID = vault.id
+            let nomineeEmail = nominee.email
             let transferDescriptor = FetchDescriptor<VaultTransferRequest>(
                 predicate: #Predicate { request in
-                    request.vault?.id == vault.id &&
+                    request.vault?.id == vaultID &&
                     request.status == "pending" &&
-                    (request.newOwnerID == currentUserID ||
-                     (request.newOwnerEmail != nil && request.newOwnerEmail == nominee.email))
+                    request.newOwnerID == currentUserID
                 }
             )
             
-            if let transferRequest = try? modelContext.fetch(transferDescriptor).first {
+            // Fetch and then filter by email in code (simpler than complex predicate)
+            let allPendingRequests = (try? modelContext.fetch(transferDescriptor)) ?? []
+            let transferRequest = allPendingRequests.first { request in
+                request.newOwnerID == currentUserID ||
+                (nomineeEmail != nil && request.newOwnerEmail == nomineeEmail)
+            }
+            
+            if let transferRequest = transferRequest {
                 print("🔄 Transfer ownership request found - processing transfer")
                 // Process the transfer request
                 if let vaultService = vaultService {

@@ -285,16 +285,8 @@ struct ContentView: View {
                 print("   ✅ CloudKit share accepted successfully")
                 
                 // Extract root record ID from URL if possible
-                var rootRecordID: String?
-                if url.absoluteString.contains("icloud.com/share") {
-                    // Try to extract from URL path
-                    let pathComponents = url.pathComponents
-                    if let shareIndex = pathComponents.firstIndex(of: "share"), 
-                       shareIndex + 1 < pathComponents.count {
-                        // The share token is in the path, but we need the root record ID
-                        // For now, we'll show success without the specific vault name
-                    }
-                }
+                // Note: rootRecordID extraction from URL is not straightforward
+                // We'll find the vault after CloudKit syncs
                 
                 // After accepting share, wait a moment for SwiftData to sync
                 try await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds for sync
@@ -303,12 +295,12 @@ struct ContentView: View {
                 // This is done by posting a notification that VaultListView listens to
                 NotificationCenter.default.post(name: .cloudKitShareInvitationReceived, object: nil)
                 
-                // Try to find the shared vault
-                let vaultID = await findSharedVault(rootRecordID: rootRecordID)
+                // Try to find the shared vault (rootRecordID not available from URL)
+                let vaultID = await findSharedVault(rootRecordID: nil)
                 
                 await MainActor.run {
                     // Show success view for CloudKit share
-                    cloudKitShareRootRecordID = rootRecordID
+                    cloudKitShareRootRecordID = nil // Not available from URL
                     sharedVaultID = vaultID
                     showCloudKitShareSuccess = true
                 }
@@ -382,6 +374,19 @@ struct ContentView: View {
         showBluetoothInvitation = true
     }
     
+    /// Helper to get root record ID from metadata (handles iOS 16+ deprecation)
+    private func getRootRecordID(from metadata: CKShare.Metadata) -> CKRecord.ID {
+        if #available(iOS 16.0, *) {
+            if let hierarchicalID = metadata.hierarchicalRootRecordID {
+                return hierarchicalID
+            }
+        }
+        // Fallback to deprecated rootRecordID for iOS < 16 or when hierarchical is nil
+        // This deprecation warning is intentional - API still functional, no replacement available
+        // swiftlint:disable:next deprecated_member_use
+        return metadata.rootRecordID
+    }
+    
     private func acceptCloudKitShare(metadata: CKShare.Metadata) {
         Task {
             do {
@@ -395,12 +400,13 @@ struct ContentView: View {
                 // Force refresh vaults to ensure shared vault appears
                 NotificationCenter.default.post(name: .cloudKitShareInvitationReceived, object: nil)
                 
-                // Try to find the shared vault
-                let vaultID = await findSharedVault(rootRecordID: metadata.rootRecordID.recordName)
+                // Try to find the shared vault using helper to avoid deprecation warning
+                let rootRecordID = getRootRecordID(from: metadata)
+                let vaultID = await findSharedVault(rootRecordID: rootRecordID.recordName)
                 
                 await MainActor.run {
                     // Show success view for CloudKit share (different from token-based invitation)
-                    cloudKitShareRootRecordID = metadata.rootRecordID.recordName
+                    cloudKitShareRootRecordID = rootRecordID.recordName
                     sharedVaultID = vaultID
                     showCloudKitShareSuccess = true
                 }
@@ -408,9 +414,10 @@ struct ContentView: View {
                 print("   ❌ Error processing CloudKit share from metadata: \(error.localizedDescription)")
                 // Even if processing fails, SwiftData might still sync
                 // Try to find the vault anyway
-                let vaultID = await findSharedVault(rootRecordID: metadata.rootRecordID.recordName)
+                let rootRecordID = getRootRecordID(from: metadata)
+                let vaultID = await findSharedVault(rootRecordID: rootRecordID.recordName)
                 await MainActor.run {
-                    cloudKitShareRootRecordID = metadata.rootRecordID.recordName
+                    cloudKitShareRootRecordID = rootRecordID.recordName
                     sharedVaultID = vaultID
                     showCloudKitShareSuccess = true
                 }

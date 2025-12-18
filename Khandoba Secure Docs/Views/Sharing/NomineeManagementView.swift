@@ -129,6 +129,14 @@ struct NomineeRow: View {
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var chatService: ChatService
+    @EnvironmentObject var vaultService: VaultService
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
+    
+    @State private var showTransferOwnership = false
+    @State private var showError = false
+    @State private var errorMessage = ""
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -162,6 +170,16 @@ struct NomineeRow: View {
                 
                 Spacer()
                 
+                // Transfer Ownership button (only for accepted nominees)
+                if nominee.status == .accepted || nominee.status == .active {
+                    Button {
+                        showTransferOwnership = true
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .foregroundColor(colors.warning)
+                    }
+                }
+                
                 // Chat button (only for accepted/active nominees)
                 if nominee.status == .accepted || nominee.status == .active {
                     NavigationLink {
@@ -181,6 +199,14 @@ struct NomineeRow: View {
                         .foregroundColor(colors.error)
                 }
             }
+        }
+        .sheet(isPresented: $showTransferOwnership) {
+            VaultTransferView(vault: vault, preselectedNominee: nominee)
+        }
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
         }
     }
     

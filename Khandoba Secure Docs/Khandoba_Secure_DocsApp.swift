@@ -186,6 +186,8 @@ struct Khandoba_Secure_DocsApp: App {
                     print("⚠️ iCloud account is restricted - CloudKit sync may be limited")
                 case .couldNotDetermine:
                     print("⚠️ Could not determine iCloud account status")
+                case .temporarilyUnavailable:
+                    print("⚠️ iCloud account is temporarily unavailable")
                 @unknown default:
                     print("⚠️ Unknown iCloud account status")
                 }
@@ -314,18 +316,20 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     
     // MARK: - CloudKit Share Invitation Handling
     
+    /// Helper to get root record ID from metadata (handles iOS 16+ deprecation)
+    private func getRootRecordID(from metadata: CKShare.Metadata) -> CKRecord.ID {
+        if #available(iOS 16.0, *) {
+            if let hierarchicalID = metadata.hierarchicalRootRecordID {
+                return hierarchicalID
+            }
+        }
+        // Fallback to deprecated rootRecordID for iOS < 16 or when hierarchical is nil
+        return metadata.rootRecordID
+    }
+    
     /// Helper to get root record name from CloudKit share metadata
-    /// Note: rootRecordID is deprecated in iOS 16.0+, but still functional
-    /// Using it for compatibility - no replacement API available yet
     private func getRootRecordName(from metadata: CKShare.Metadata) -> String {
-        // Suppress deprecation warning - API is still functional
-        // This deprecation warning is expected and can be safely ignored
-        #if swift(>=5.9)
-        // Access deprecated API - still functional, no replacement available
-        return metadata.rootRecordID.recordName
-        #else
-        return metadata.rootRecordID.recordName
-        #endif
+        return getRootRecordID(from: metadata).recordName
     }
     
     /// Handle CloudKit share invitations when app is opened from a share URL

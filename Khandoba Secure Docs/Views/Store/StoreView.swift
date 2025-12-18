@@ -320,7 +320,7 @@ struct StoreView: View {
                     Task {
                         // Open Apple's subscription management
                         #if !APP_EXTENSION
-                        if let windowScene = await UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                             do {
                                 try await AppStore.showManageSubscriptions(in: windowScene)
                             } catch {

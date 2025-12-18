@@ -177,11 +177,6 @@ struct VaultDetailView: View {
                 // Security & Intelligence section
                 securityIntelligenceSection(colors: colors)
                 
-                // Vault Management section (owners only)
-                if isOwner && !vault.isSystemVault {
-                    vaultManagementSection(colors: colors)
-                }
-                
                 // Media Actions section
                 if hasActiveSession && !vault.isSystemVault {
                     mediaActionsSection(colors: colors)
