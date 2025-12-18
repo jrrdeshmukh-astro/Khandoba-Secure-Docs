@@ -16,6 +16,8 @@ struct VaultTransferView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
+    @StateObject private var nomineeService = NomineeService()
     
     @State private var selectedUserID: UUID?
     @State private var reason = ""
@@ -23,6 +25,7 @@ struct VaultTransferView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var availableUsers: [User] = []
+    @State private var nominees: [Nominee] = []
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -60,6 +63,27 @@ struct VaultTransferView: View {
                                 .font(theme.typography.headline)
                                 .foregroundColor(colors.textPrimary)
                                 .padding(.horizontal)
+                            
+                            if availableUsers.isEmpty {
+                                StandardCard {
+                                    VStack(spacing: UnifiedTheme.Spacing.sm) {
+                                        Image(systemName: "person.crop.circle.badge.questionmark")
+                                            .font(.system(size: 40))
+                                            .foregroundColor(colors.textSecondary)
+                                        
+                                        Text("No Nominated Users")
+                                            .font(theme.typography.headline)
+                                            .foregroundColor(colors.textPrimary)
+                                        
+                                        Text("You can only transfer ownership to users who are already nominated for this vault. Please nominate users first.")
+                                            .font(theme.typography.caption)
+                                            .foregroundColor(colors.textSecondary)
+                                            .multilineTextAlignment(.center)
+                                    }
+                                    .padding()
+                                }
+                                .padding(.horizontal)
+                            }
                             
                             ForEach(availableUsers) { user in
                                 Button {
@@ -153,15 +177,52 @@ struct VaultTransferView: View {
             }
         }
         .task {
-            await loadUsers()
+            nomineeService.configure(modelContext: modelContext, currentUserID: authService.currentUser?.id)
+            await loadNominees()
         }
     }
     
-    private func loadUsers() async {
-        // Load all users except current user
-        let descriptor = FetchDescriptor<User>()
-        if let users = try? modelContext.fetch(descriptor) {
-            availableUsers = users.filter { $0.id != authService.currentUser?.id }
+    private func loadNominees() async {
+        do {
+            // Load nominees for this vault
+            try await nomineeService.loadNominees(for: vault, includeInactive: false)
+            nominees = nomineeService.nominees
+            
+            // Get users who are nominees (only accepted nominees can receive ownership)
+            // Match nominees to users by email (User model doesn't have phoneNumber)
+            let acceptedNomineeIDs = nominees
+                .filter { $0.status == .accepted }
+                .compactMap { nominee -> UUID? in
+                    // Try to find user by email
+                    if let email = nominee.email, !email.isEmpty {
+                        let userDescriptor = FetchDescriptor<User>(
+                            predicate: #Predicate { user in
+                                user.email == email
+                            }
+                        )
+                        if let user = try? modelContext.fetch(userDescriptor).first {
+                            return user.id
+                        }
+                    }
+                    return nil
+                }
+            
+            // Fetch users who are nominees
+            if !acceptedNomineeIDs.isEmpty {
+                let userDescriptor = FetchDescriptor<User>(
+                    predicate: #Predicate { user in
+                        acceptedNomineeIDs.contains(user.id)
+                    }
+                )
+                if let users = try? modelContext.fetch(userDescriptor) {
+                    availableUsers = users.filter { $0.id != authService.currentUser?.id }
+                }
+            } else {
+                availableUsers = []
+            }
+        } catch {
+            errorMessage = "Failed to load nominees: \(error.localizedDescription)"
+            showError = true
         }
     }
     
@@ -169,26 +230,85 @@ struct VaultTransferView: View {
         guard let newOwnerID = selectedUserID,
               let requestedByUserID = authService.currentUser?.id else { return }
         
-        isLoading = true
-        
-        let request = VaultTransferRequest(
-            reason: reason.isEmpty ? nil : reason,
-            newOwnerID: newOwnerID
-        )
-        request.vault = vault
-        request.requestedByUserID = requestedByUserID
-        
-        modelContext.insert(request)
-        
-        do {
-            try modelContext.save()
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
+        // Validate that the selected user is a nominee
+        // Match by email (User model doesn't have phoneNumber)
+        guard let matchingNominee = nominees.first(where: { nominee in
+            // Check if nominee matches the selected user by email
+            if let user = availableUsers.first(where: { $0.id == newOwnerID }) {
+                if let nomineeEmail = nominee.email, !nomineeEmail.isEmpty,
+                   let userEmail = user.email, !userEmail.isEmpty,
+                   nomineeEmail.lowercased() == userEmail.lowercased() {
+                    return true
+                }
+            }
+            return false
+        }) else {
+            errorMessage = "You can only transfer ownership to users who are already nominated for this vault."
             showError = true
+            return
         }
         
-        isLoading = false
+        isLoading = true
+        
+        Task {
+            do {
+                if AppConfig.useSupabase {
+                    // Supabase mode: Create transfer request in Supabase
+                    let supabaseRequest = SupabaseVaultTransferRequest(
+                        vaultID: vault.id,
+                        fromUserID: requestedByUserID,
+                        toUserID: newOwnerID,
+                        reason: reason.isEmpty ? nil : reason
+                    )
+                    
+                    let _: SupabaseVaultTransferRequest = try await supabaseService.insert(
+                        "vault_transfer_requests",
+                        values: supabaseRequest
+                    )
+                    
+                    print("📤 Transfer request created in Supabase for nominee: \(matchingNominee.name)")
+                    print("   Nominee will be notified when they accept their invitation")
+                    
+                    await MainActor.run {
+                        dismiss()
+                    }
+                } else {
+                    // SwiftData/CloudKit mode: Create transfer request locally
+                    let request = VaultTransferRequest(
+                        reason: reason.isEmpty ? nil : reason,
+                        newOwnerID: newOwnerID
+                    )
+                    request.vault = vault
+                    request.requestedByUserID = requestedByUserID
+                    
+                    // Link transfer request to nominee for notification
+                    // Store nominee ID in transfer request metadata (using newOwnerEmail as identifier)
+                    if let nomineeEmail = matchingNominee.email {
+                        request.newOwnerEmail = nomineeEmail
+                        request.newOwnerName = matchingNominee.name
+                    }
+                    
+                    modelContext.insert(request)
+                    try modelContext.save()
+                    
+                    // Notify the nominee about the transfer request
+                    // The nominee will see this when they accept their invitation
+                    // or when they view their nominee status
+                    print("📤 Transfer request created for nominee: \(matchingNominee.name)")
+                    print("   Nominee will be notified when they accept their invitation")
+                    
+                    await MainActor.run {
+                        dismiss()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                    isLoading = false
+                }
+            }
+        }
     }
 }
 

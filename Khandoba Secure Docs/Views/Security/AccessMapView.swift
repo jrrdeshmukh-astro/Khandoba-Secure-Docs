@@ -225,20 +225,21 @@ struct AccessMapView: View {
                             
                             // In Supabase mode, use loadedAccessLogs; otherwise use vault.accessLogs
                             let logs: [VaultAccessLog] = AppConfig.useSupabase ? loadedAccessLogs : (vault.accessLogs ?? [])
-                            ForEach(Array(logs.prefix(20))) { log in
-                                if log.locationLatitude != nil && log.locationLongitude != nil {
-                                    Button {
-                                        // Find and select corresponding annotation
-                                        if let annotation = annotations.first(where: { $0.id == log.id }) {
-                                            selectedAnnotation = annotation
-                                            // Pan map to this location
-                                            withAnimation {
-                                                region.center = annotation.coordinate
-                                            }
+                            // Show ALL logs with location data (sorted by most recent first)
+                            let logsWithLocation = logs.filter { $0.locationLatitude != nil && $0.locationLongitude != nil }
+                                .sorted { $0.timestamp > $1.timestamp }
+                            ForEach(Array(logsWithLocation)) { log in
+                                Button {
+                                    // Find and select corresponding annotation
+                                    if let annotation = annotations.first(where: { $0.id == log.id }) {
+                                        selectedAnnotation = annotation
+                                        // Pan map to this location
+                                        withAnimation {
+                                            region.center = annotation.coordinate
                                         }
-                                    } label: {
-                                        AccessLogMapRow(log: log)
                                     }
+                                } label: {
+                                    AccessLogMapRow(log: log)
                                 }
                             }
                         }
@@ -422,28 +423,28 @@ struct AccessMapView: View {
     private func loadAccessPoints() {
         var allAnnotations: [AccessAnnotation] = []
         
-        // OPTIMIZATION: Limit to recent events to prevent hanging
-        let maxEvents = 50
-        
-        // 1. VAULT ACCESS LOGS (opening, closing, viewing)
-        print("MAP: Loading vault events (limit: \(maxEvents))...")
+        // Include ALL events - no limit
+        print("MAP: Loading ALL vault events...")
         // In Supabase mode, use loadedAccessLogs; otherwise use vault.accessLogs
         let logs: [VaultAccessLog] = AppConfig.useSupabase ? loadedAccessLogs : (vault.accessLogs ?? [])
         print("MAP: Found \(logs.count) access logs total")
         
-        // Only process most recent logs
-        let recentLogs = logs.sorted { $0.timestamp > $1.timestamp }.prefix(maxEvents)
+        // Process ALL logs with location data (sorted by most recent first for display)
+        let sortedLogs = logs.sorted { $0.timestamp > $1.timestamp }
         
         var logAnnotations: [AccessAnnotation] = []
-        for log in recentLogs {
+        for log in sortedLogs {
             if let lat = log.locationLatitude, let lon = log.locationLongitude {
+                // Determine event category based on access type
+                let category = categorizeEventType(log.accessType)
+                
                 let annotation = AccessAnnotation(
-                id: log.id,
-                coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                accessType: log.accessType,
+                    id: log.id,
+                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                    accessType: log.accessType,
                     timestamp: log.timestamp,
-                    eventCategory: "Access",
-                    details: log.userName ?? "Unknown User"
+                    eventCategory: category,
+                    details: log.documentName ?? log.userName ?? "Event"
                 )
                 logAnnotations.append(annotation)
             }
@@ -484,39 +485,20 @@ struct AccessMapView: View {
         allAnnotations.append(contentsOf: requestAnnotations)
         print("    Loaded \(requestAnnotations.count) dual-key requests")
         
-        // 3. DOCUMENT ACTIONS (preview, edit, rename, redact)
-        var documentActionAnnotations: [AccessAnnotation] = []
-        for log in recentLogs {
-            if log.documentID != nil,
-               let lat = log.locationLatitude,
-               let lon = log.locationLongitude,
-               (log.accessType == "previewed" || log.accessType == "edited" || 
-                log.accessType == "renamed" || log.accessType == "redacted") {
-                
-                let annotation = AccessAnnotation(
-                    id: log.id,
-                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                    accessType: log.accessType,
-                    timestamp: log.timestamp,
-                    eventCategory: "Document",
-                    details: log.documentName ?? "Document"
-                )
-                documentActionAnnotations.append(annotation)
-            }
-        }
-        allAnnotations.append(contentsOf: documentActionAnnotations)
-        print("MAP: Loaded \(documentActionAnnotations.count) document action events")
+        // 3. DOCUMENT ACTIONS (all document-related events are already included in logAnnotations above)
+        // No need to duplicate - document actions are part of access logs
+        print("MAP: Document actions included in access logs above")
         
         // 4. DOCUMENT UPLOADS
-        // OPTIMIZATION: Only show recent uploads
+        // Include ALL uploads (not just recent)
         // In Supabase mode, use loadedDocuments; otherwise use vault.documents
         let documents: [Document] = AppConfig.useSupabase ? loadedDocuments : (vault.documents ?? [])
-        let recentDocuments = documents.sorted { $0.uploadedAt > $1.uploadedAt }.prefix(20)
+        let sortedDocuments = documents.sorted { $0.uploadedAt > $1.uploadedAt }
         var uploadAnnotations: [AccessAnnotation] = []
         
-        for document in recentDocuments {
+        for document in sortedDocuments {
             // Find access log near upload time
-            if let matchingLog = logs.first(where: { 
+            if let matchingLog = sortedLogs.first(where: { 
                 abs($0.timestamp.timeIntervalSince(document.uploadedAt)) < 300 // Within 5 minutes
             }), let lat = matchingLog.locationLatitude,
                let lon = matchingLog.locationLongitude {
@@ -537,23 +519,8 @@ struct AccessMapView: View {
         print("MAP: Loaded \(uploadAnnotations.count) upload events")
         
         // 5. REPORT GENERATION EVENTS
-        // Track when intel reports are generated (stored in vault access logs)
-        var reportAnnotations: [AccessAnnotation] = []
-        for log in logs where log.accessType == "report_generated" {
-            if let lat = log.locationLatitude, let lon = log.locationLongitude {
-                let annotation = AccessAnnotation(
-                    id: log.id,
-                    coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                    accessType: "report_generated",
-                    timestamp: log.timestamp,
-                    eventCategory: "Report",
-                    details: "Intel report generated"
-                )
-                reportAnnotations.append(annotation)
-            }
-        }
-        allAnnotations.append(contentsOf: reportAnnotations)
-        print("MAP: Loaded \(reportAnnotations.count) report generation events")
+        // Report events are already included in logAnnotations above (they're access logs with accessType "report_generated")
+        print("MAP: Report generation events included in access logs above")
         
         // Sort by timestamp (most recent first) and update on main actor
         let sortedAnnotations = allAnnotations.sorted { $0.timestamp > $1.timestamp }
@@ -564,11 +531,15 @@ struct AccessMapView: View {
         }
         
         print("MAP SUMMARY: Total events on map: \(sortedAnnotations.count)")
-        print("   Access: \(logAnnotations.count)")
-        print("   Document Actions: \(documentActionAnnotations.count)")
+        print("   Access Logs: \(logAnnotations.count)")
         print("   Dual-Key: \(requestAnnotations.count)")
         print("   Uploads: \(uploadAnnotations.count)")
-        print("   Reports: \(reportAnnotations.count)")
+        
+        // Count by category for summary
+        let categoryCounts = Dictionary(grouping: sortedAnnotations, by: { $0.eventCategory })
+        for (category, events) in categoryCounts {
+            print("   \(category): \(events.count)")
+        }
         
         // Debug: Print first few coordinates
         for (index, annotation) in annotations.prefix(3).enumerated() {
@@ -620,20 +591,52 @@ struct AccessMapView: View {
         )
     }
     
+    /// Categorize event type for filtering
+    private func categorizeEventType(_ type: String) -> String {
+        switch type.lowercased() {
+        // Access events
+        case "opened", "closed", "viewed", "modified", "deleted":
+            return "Access"
+        // Document actions
+        case "previewed", "edited", "renamed", "redacted", "downloaded", "shared":
+            return "Document"
+        // Dual-key events
+        case "dual_key_approved", "dual_key_denied", "dual_key_pending":
+            return "Dual-Key"
+        // Upload events
+        case "upload", "uploaded":
+            return "Upload"
+        // Report events
+        case "report_generated", "report_created":
+            return "Report"
+        // Session events
+        case "session_started", "session_ended", "session_extended":
+            return "Access"
+        // Default to Access category
+        default:
+            return "Access"
+        }
+    }
+    
     private func iconForAccessType(_ type: String) -> String {
-        switch type {
+        switch type.lowercased() {
         // Access events
         case "opened": return "lock.open.fill"
         case "closed": return "lock.fill"
         case "viewed": return "eye.fill"
         case "modified": return "pencil.circle.fill"
         case "deleted": return "trash.fill"
+        case "session_started": return "play.circle.fill"
+        case "session_ended": return "stop.circle.fill"
+        case "session_extended": return "arrow.clockwise.circle.fill"
         
         // Document actions
         case "previewed": return "eye.circle.fill"
         case "edited": return "pencil.and.outline"
         case "renamed": return "textformat"
         case "redacted": return "eye.slash.fill"
+        case "downloaded": return "arrow.down.doc.fill"
+        case "shared": return "square.and.arrow.up.fill"
         
         // Dual-key events
         case "dual_key_approved": return "checkmark.shield.fill"
@@ -641,10 +644,10 @@ struct AccessMapView: View {
         case "dual_key_pending": return "clock.badge.questionmark.fill"
         
         // Upload events
-        case "upload": return "arrow.up.doc.fill"
+        case "upload", "uploaded": return "arrow.up.doc.fill"
         
         // Report events
-        case "report_generated": return "chart.bar.doc.horizontal.fill"
+        case "report_generated", "report_created": return "chart.bar.doc.horizontal.fill"
         
         default: return "circle.fill"
         }
@@ -652,19 +655,22 @@ struct AccessMapView: View {
     
     private func colorForAccessType(_ type: String) -> Color {
         let colors = theme.colors(for: colorScheme)
-        switch type {
+        switch type.lowercased() {
         // Access events
-        case "opened": return colors.success
-        case "closed": return colors.textTertiary
+        case "opened", "session_started": return colors.success
+        case "closed", "session_ended": return colors.textTertiary
         case "viewed": return colors.info
         case "modified": return colors.warning
         case "deleted": return colors.error
+        case "session_extended": return colors.secondary
         
         // Document actions
         case "previewed": return colors.info
         case "edited": return colors.warning
         case "renamed": return colors.secondary
         case "redacted": return colors.error
+        case "downloaded": return colors.primary
+        case "shared": return colors.info
         
         // Dual-key events
         case "dual_key_approved": return colors.success
@@ -672,10 +678,10 @@ struct AccessMapView: View {
         case "dual_key_pending": return colors.warning
         
         // Upload events
-        case "upload": return colors.primary
+        case "upload", "uploaded": return colors.primary
         
         // Report events
-        case "report_generated": return Color.purple
+        case "report_generated", "report_created": return Color.purple
         
         default: return colors.textTertiary
         }
@@ -839,24 +845,42 @@ struct AccessLogMapRow: View {
     }
     
     private func iconForType(_ type: String) -> String {
-        switch type {
-        case "opened": return "lock.open.fill"
-        case "closed": return "lock.fill"
+        switch type.lowercased() {
+        case "opened", "session_started": return "lock.open.fill"
+        case "closed", "session_ended": return "lock.fill"
         case "viewed": return "eye.fill"
         case "modified": return "pencil.circle.fill"
         case "deleted": return "trash.fill"
+        case "previewed": return "eye.circle.fill"
+        case "edited": return "pencil.and.outline"
+        case "renamed": return "textformat"
+        case "redacted": return "eye.slash.fill"
+        case "downloaded": return "arrow.down.doc.fill"
+        case "shared": return "square.and.arrow.up.fill"
+        case "upload", "uploaded": return "arrow.up.doc.fill"
+        case "dual_key_approved": return "checkmark.shield.fill"
+        case "dual_key_denied": return "xmark.shield.fill"
+        case "dual_key_pending": return "clock.badge.questionmark.fill"
+        case "report_generated", "report_created": return "chart.bar.doc.horizontal.fill"
+        case "session_extended": return "arrow.clockwise.circle.fill"
         default: return "circle.fill"
         }
     }
     
     private func colorForType(_ type: String) -> Color {
         let colors = theme.colors(for: colorScheme)
-        switch type {
-        case "opened": return colors.success
-        case "closed": return colors.textTertiary
-        case "viewed": return colors.info
-        case "modified": return colors.warning
-        case "deleted": return colors.error
+        switch type.lowercased() {
+        case "opened", "session_started": return colors.success
+        case "closed", "session_ended": return colors.textTertiary
+        case "viewed", "previewed": return colors.info
+        case "modified", "edited": return colors.warning
+        case "deleted", "redacted", "dual_key_denied": return colors.error
+        case "renamed", "session_extended": return colors.secondary
+        case "downloaded", "shared": return colors.primary
+        case "upload", "uploaded": return colors.primary
+        case "dual_key_approved": return colors.success
+        case "dual_key_pending": return colors.warning
+        case "report_generated", "report_created": return Color.purple
         default: return colors.textTertiary
         }
     }

@@ -771,7 +771,37 @@ final class NomineeService: ObservableObject {
             print("✅ Nominee accepted in Supabase: \(nominee.name)")
             print("   Vault: \(vault.name)")
             
-            // Check if this is a transfer ownership request
+            // Check for pending transfer request for this nominee (NEW FLOW)
+            let transferRequests: [SupabaseVaultTransferRequest] = try await supabaseService.fetchAll(
+                "vault_transfer_requests",
+                filters: ["vault_id": vault.id.uuidString, "status": "pending"]
+            )
+            
+            // Find transfer request matching this nominee (by userID)
+            if let transferRequest = transferRequests.first(where: { request in
+                request.toUserID == currentUserID || request.toUserID == supabaseNominee.userID
+            }) {
+                print("🔄 Transfer ownership request found - processing transfer")
+                // Process the transfer request
+                if let vaultService = vaultService {
+                    try await vaultService.transferOwnership(vault: vaultModel, to: currentUserID)
+                    // Update transfer request status in Supabase
+                    var updatedRequest = transferRequest
+                    updatedRequest.status = "completed"
+                    updatedRequest.approvedAt = Date()
+                    let _: SupabaseVaultTransferRequest = try await supabaseService.update(
+                        "vault_transfer_requests",
+                        id: transferRequest.id,
+                        values: updatedRequest
+                    )
+                    print("✅ Vault ownership transferred via request in Supabase: \(vault.name) → User ID: \(currentUserID)")
+                } else {
+                    print("⚠️ VaultService not available - ownership transfer skipped")
+                }
+                return nominee
+            }
+            
+            // Legacy: Check if this is a transfer ownership request (old flow)
             // Transfer ownership: If nominee was invited by vault owner and this is the only nominee
             if supabaseNominee.invitedByUserID == vault.ownerID {
                 // Check if this is the only nominee for this vault
@@ -783,7 +813,7 @@ final class NomineeService: ObservableObject {
                 
                 // If this is the only nominee and they're accepting, it's likely a transfer
                 if pendingNominees.count == 1 && pendingNominees.first?.id == nomineeID {
-                    print("🔄 Transfer ownership detected - transferring vault to new owner")
+                    print("🔄 Transfer ownership detected (legacy flow) - transferring vault to new owner")
                     // Transfer ownership to the accepting user
                     if let vaultService = vaultService {
                         try await vaultService.transferOwnership(vault: vaultModel, to: currentUserID)
@@ -830,7 +860,57 @@ final class NomineeService: ObservableObject {
         print("   Vault: \(nominee.vault?.name ?? "Unknown")")
         print("   📤 CloudKit sync: Status update will sync to owner's device")
         
-        // Check if this is a transfer ownership request
+        // Check for pending transfer request for this nominee (NEW FLOW)
+        if let vault = nominee.vault,
+           let currentUserID = currentUserID {
+            // Look for pending transfer request for this user/nominee
+            let transferDescriptor = FetchDescriptor<VaultTransferRequest>(
+                predicate: #Predicate { request in
+                    request.vault?.id == vault.id &&
+                    request.status == "pending" &&
+                    (request.newOwnerID == currentUserID ||
+                     (request.newOwnerEmail != nil && request.newOwnerEmail == nominee.email))
+                }
+            )
+            
+            if let transferRequest = try? modelContext.fetch(transferDescriptor).first {
+                print("🔄 Transfer ownership request found - processing transfer")
+                // Process the transfer request
+                if let vaultService = vaultService {
+                    try await vaultService.transferOwnership(vault: vault, to: currentUserID)
+                    // Mark transfer request as completed
+                    transferRequest.status = "completed"
+                    transferRequest.approvedAt = Date()
+                    transferRequest.newOwnerID = currentUserID
+                    try modelContext.save()
+                    print("✅ Vault ownership transferred via request: \(vault.name) → User ID: \(currentUserID)")
+                } else {
+                    // Fallback: Update vault owner directly
+                    let userDescriptor = FetchDescriptor<User>(
+                        predicate: #Predicate { $0.id == currentUserID }
+                    )
+                    if let newOwner = try modelContext.fetch(userDescriptor).first,
+                       let owner = vault.owner {
+                        vault.owner = newOwner
+                        if newOwner.ownedVaults == nil {
+                            newOwner.ownedVaults = []
+                        }
+                        if !(newOwner.ownedVaults?.contains(where: { $0.id == vault.id }) ?? false) {
+                            newOwner.ownedVaults?.append(vault)
+                        }
+                        owner.ownedVaults?.removeAll { $0.id == vault.id }
+                        transferRequest.status = "completed"
+                        transferRequest.approvedAt = Date()
+                        transferRequest.newOwnerID = currentUserID
+                        try modelContext.save()
+                        print("✅ Vault ownership transferred (fallback): \(vault.name)")
+                    }
+                }
+                return nominee
+            }
+        }
+        
+        // Legacy: Check if this is a transfer ownership request (old flow)
         // Transfer ownership: If nominee is the only nominee and vault owner invited them, transfer ownership
         if let vault = nominee.vault,
            let owner = vault.owner,
@@ -842,7 +922,7 @@ final class NomineeService: ObservableObject {
             
             // If this is the only nominee and they're accepting, it's likely a transfer
             if pendingNominees.count == 1 && pendingNominees.first?.id == nominee.id {
-                print("🔄 Transfer ownership detected - transferring vault to new owner")
+                print("🔄 Transfer ownership detected (legacy flow) - transferring vault to new owner")
                 // Transfer ownership to the accepting user
                 if let vaultService = vaultService {
                     try await vaultService.transferOwnership(vault: vault, to: currentUserID)

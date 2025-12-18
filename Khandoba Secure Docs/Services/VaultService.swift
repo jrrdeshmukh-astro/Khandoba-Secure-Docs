@@ -1634,9 +1634,13 @@ final class VaultService: ObservableObject {
     
     /// Transfer vault ownership to a new owner
     /// This is called when a nominee accepts a transfer invitation
+    /// IMPORTANT: Only nominated users can receive ownership
     func transferOwnership(vault: Vault, to newOwnerID: UUID) async throws {
         // Supabase mode
         if AppConfig.useSupabase, let supabaseService = supabaseService {
+            // Validate nominee status in Supabase
+            try await validateNomineeForTransfer(vault: vault, newOwnerID: newOwnerID, supabaseService: supabaseService)
+            
             try await transferOwnershipInSupabase(
                 vault: vault,
                 newOwnerID: newOwnerID,
@@ -1649,6 +1653,9 @@ final class VaultService: ObservableObject {
         guard let modelContext = modelContext else {
             throw VaultError.contextNotAvailable
         }
+        
+        // Validate that the new owner is a nominee
+        try validateNomineeForTransfer(vault: vault, newOwnerID: newOwnerID, modelContext: modelContext)
         
         // Find new owner
         let userDescriptor = FetchDescriptor<User>(
@@ -1684,6 +1691,61 @@ final class VaultService: ObservableObject {
         try await loadVaults()
         
         print("✅ Vault ownership transferred: \(vault.name) → \(newOwner.fullName)")
+    }
+    
+    /// Validate that a user is a nominee before allowing ownership transfer
+    private func validateNomineeForTransfer(vault: Vault, newOwnerID: UUID, modelContext: ModelContext) throws {
+        // Fetch all accepted nominees and filter by vault in code (SwiftData predicate limitation with optionals)
+        let nomineeDescriptor = FetchDescriptor<Nominee>(
+            predicate: #Predicate { nominee in
+                nominee.statusRaw == "accepted"
+            }
+        )
+        
+        let allNominees = try modelContext.fetch(nomineeDescriptor)
+        let nominees = allNominees.filter { $0.vault?.id == vault.id }
+        
+        // Check if new owner matches any nominee by user ID (via email lookup)
+        let userDescriptor = FetchDescriptor<User>(
+            predicate: #Predicate { $0.id == newOwnerID }
+        )
+        
+        guard let newOwner = try modelContext.fetch(userDescriptor).first else {
+            throw VaultError.userNotFound
+        }
+        
+        // Check if nominee matches the user by email
+        // Note: User model doesn't have phoneNumber, so we only check email
+        let isNominee = nominees.contains { nominee in
+            if let nomineeEmail = nominee.email, !nomineeEmail.isEmpty,
+               let userEmail = newOwner.email, !userEmail.isEmpty,
+               nomineeEmail.lowercased() == userEmail.lowercased() {
+                return true
+            }
+            return false
+        }
+        
+        guard isNominee else {
+            throw VaultError.transferOwnershipRestricted("Ownership can only be transferred to users who are already nominated and have accepted their invitation for this vault.")
+        }
+    }
+    
+    /// Validate nominee for transfer in Supabase mode
+    private func validateNomineeForTransfer(vault: Vault, newOwnerID: UUID, supabaseService: SupabaseService) async throws {
+        // Fetch nominees for this vault from Supabase
+        let nominees: [SupabaseNominee] = try await supabaseService.fetchAll(
+            "nominees",
+            filters: ["vault_id": vault.id.uuidString, "status": "accepted"]
+        )
+        
+        // Check if new owner is a nominee by userID
+        let isNominee = nominees.contains { nominee in
+            nominee.userID == newOwnerID
+        }
+        
+        guard isNominee else {
+            throw VaultError.transferOwnershipRestricted("Ownership can only be transferred to users who are already nominated and have accepted their invitation for this vault.")
+        }
     }
     
     /// Transfer vault ownership in Supabase
@@ -1743,6 +1805,7 @@ enum VaultError: LocalizedError {
     case userNotFound
     case awaitingApproval
     case accessDenied
+    case transferOwnershipRestricted(String)
     
     var errorDescription: String? {
         switch self {
@@ -1754,6 +1817,8 @@ enum VaultError: LocalizedError {
             return "Access denied by security system"
         case .awaitingApproval:
             return "Vault requires admin approval. Request has been submitted."
+        case .transferOwnershipRestricted(let message):
+            return message
         }
     }
 }

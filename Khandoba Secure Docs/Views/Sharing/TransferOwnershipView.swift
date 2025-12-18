@@ -19,12 +19,14 @@ struct TransferOwnershipView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @StateObject private var nomineeService = NomineeService()
     
     // Form fields
     @State private var newOwnerName = ""
     @State private var phoneNumber = ""
     @State private var email = ""
     @State private var reason = ""
+    @State private var nominees: [Nominee] = []
     
     // State
     @State private var isCreating = false
@@ -439,6 +441,24 @@ struct TransferOwnershipView: View {
         guard canCreate else { return }
         guard let currentUser = authService.currentUser else {
             errorMessage = "You must be logged in to transfer ownership"
+            showError = true
+            return
+        }
+        
+        // Validate that the person is already a nominee
+        let isNominee = nominees.contains { nominee in
+            // Check by email or phone number
+            if !email.isEmpty, let nomineeEmail = nominee.email, nomineeEmail.lowercased() == email.lowercased().trimmingCharacters(in: .whitespaces) {
+                return nominee.status == .accepted
+            }
+            if !phoneNumber.isEmpty, let nomineePhone = nominee.phoneNumber, nomineePhone == phoneNumber.trimmingCharacters(in: .whitespaces) {
+                return nominee.status == .accepted
+            }
+            return false
+        }
+        
+        guard isNominee else {
+            errorMessage = "You can only transfer ownership to users who are already nominated and have accepted their invitation for this vault. Please nominate the user first."
             showError = true
             return
         }

@@ -303,6 +303,34 @@ struct UnifiedShareView: View {
                 let phoneNumber = contact.phoneNumbers.first?.value.stringValue
                 let email = contact.emailAddresses.first?.value as String?
                 
+                // Validate that the contact is already a nominee
+                try await nomineeService.loadNominees(for: vault, includeInactive: false)
+                let nominees = nomineeService.nominees
+                
+                let isNominee = nominees.contains { nominee in
+                    // Check by email or phone number
+                    if let nomineeEmail = nominee.email, let contactEmail = email, !nomineeEmail.isEmpty, !contactEmail.isEmpty {
+                        if nomineeEmail.lowercased() == contactEmail.lowercased() {
+                            return nominee.status == .accepted
+                        }
+                    }
+                    if let nomineePhone = nominee.phoneNumber, let contactPhone = phoneNumber, !nomineePhone.isEmpty, !contactPhone.isEmpty {
+                        if nomineePhone == contactPhone {
+                            return nominee.status == .accepted
+                        }
+                    }
+                    return false
+                }
+                
+                guard isNominee else {
+                    await MainActor.run {
+                        errorMessage = "You can only transfer ownership to users who are already nominated and have accepted their invitation for this vault. Please nominate the user first."
+                        showError = true
+                        isProcessing = false
+                    }
+                    return
+                }
+                
                 // Create transfer request (nominee with special transfer flag)
                 // Use NomineeService to create nominee (supports both SwiftData and Supabase)
                 if AppConfig.useSupabase {

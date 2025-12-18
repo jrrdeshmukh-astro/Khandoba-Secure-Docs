@@ -46,33 +46,32 @@ struct DocumentPreviewView: View {
             VStack(spacing: 0) {
                 // Secure Preview with Screenshot Prevention
                 if let previewURL = previewURL {
-                    if isContentVisible && !isScreenCaptured {
-                        // Show content only when explicitly enabled and no screen capture detected
-                        // Use specialized players for audio/video, QuickLook for others
+                    // Audio and video files don't need secure preview - show immediately
+                    let isAudioOrVideo = document.documentType == "audio" || document.mimeType?.hasPrefix("audio/") == true ||
+                                        document.documentType == "video" || document.mimeType?.hasPrefix("video/") == true
+                    
+                    // For audio/video: always show content (no secure preview needed)
+                    // For other files: require explicit "Show Content" button
+                    let shouldShowContent = isAudioOrVideo || (isContentVisible && !isScreenCaptured)
+                    
+                    if shouldShowContent {
+                        // Show content - use specialized players for audio/video, QuickLook for others
                         if document.documentType == "audio" || document.mimeType?.hasPrefix("audio/") == true {
-                            // Audio playback
+                            // Audio playback - no secure preview needed
                             if let decryptedData = decryptedData {
                                 AudioPlayerPreviewView(document: document, audioData: decryptedData)
-                                    .overlay(
-                                        // Screenshot prevention overlay (monitors continuously)
-                                        SecurePreviewOverlay(isScreenCaptured: $isScreenCaptured)
-                                    )
                             } else {
                                 ProgressView("Loading audio...")
                             }
                         } else if document.documentType == "video" || document.mimeType?.hasPrefix("video/") == true {
-                            // Video playback
+                            // Video playback - no secure preview needed
                             if let decryptedData = decryptedData {
                                 VideoPlayerPreviewView(document: document, videoData: decryptedData, videoURL: previewURL)
-                                    .overlay(
-                                        // Screenshot prevention overlay (monitors continuously)
-                                        SecurePreviewOverlay(isScreenCaptured: $isScreenCaptured)
-                                    )
                             } else {
                                 ProgressView("Loading video...")
                             }
                         } else {
-                            // Other file types (PDF, images, etc.) use QuickLook
+                            // Other file types (PDF, images, etc.) use QuickLook with secure preview
                             QuickLookPreviewView(url: previewURL)
                                 .overlay(
                                     // Screenshot prevention overlay (monitors continuously)
@@ -80,7 +79,7 @@ struct DocumentPreviewView: View {
                                 )
                         }
                     } else {
-                        // Secure overlay - content hidden
+                        // Secure overlay - content hidden (only for non-audio/video files)
                         SecurePreviewOverlay(
                             isScreenCaptured: $isScreenCaptured,
                             onShowContent: {
@@ -176,11 +175,21 @@ struct DocumentPreviewView: View {
             Text("This action cannot be undone")
         }
         .task {
-            // Start screen capture monitoring
-            startScreenCaptureMonitoring()
+            // Start screen capture monitoring (only for non-audio/video files)
+            let isAudioOrVideo = document.documentType == "audio" || document.mimeType?.hasPrefix("audio/") == true ||
+                                document.documentType == "video" || document.mimeType?.hasPrefix("video/") == true
+            if !isAudioOrVideo {
+                startScreenCaptureMonitoring()
+            }
             
             // Load document for preview
             await loadDocumentForPreview()
+            
+            // Auto-show content for audio/video files (no secure preview needed)
+            if isAudioOrVideo {
+                isContentVisible = true
+            }
+            
             // Log document preview
             await logDocumentPreview()
         }
