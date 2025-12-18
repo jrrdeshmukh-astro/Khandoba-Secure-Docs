@@ -198,10 +198,12 @@ struct VaultTransferView: View {
             if let preselected = preselectedNominee,
                preselected.status == .accepted || preselected.status == .active {
                 // Find the user matching this nominee
+                // Note: lowercased() is not supported in predicates, so we normalize before
                 if let nomineeEmail = preselected.email, !nomineeEmail.isEmpty {
+                    let normalizedEmail = nomineeEmail.lowercased()
                     let userDescriptor = FetchDescriptor<User>(
                         predicate: #Predicate { user in
-                            user.email == nomineeEmail.lowercased()
+                            user.email == normalizedEmail
                         }
                     )
                     if let matchingUser = try? modelContext.fetch(userDescriptor).first {

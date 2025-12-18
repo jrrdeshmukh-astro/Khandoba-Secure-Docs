@@ -127,6 +127,13 @@ struct VaultListView: View {
                                         cardNamespace: cardNamespace,
                                         selectedVaultID: $pendingVaultID,
                                         cardsAppeared: cardsAppeared,
+                                        onFrontCardTap: { vault in
+                                            vaultForInvite = vault
+                                            showSimplifiedContactSelection = true
+                                        },
+                                        onLongPress: { vault in
+                                            selectedVaultID = vault.id
+                                        },
                                         frontVaultIndex: $frontVaultIndex
                                     )
                                     .frame(height: cardHeight)
@@ -415,6 +422,8 @@ struct CircularRolodexView: View {
     let cardNamespace: Namespace.ID
     @Binding var selectedVaultID: UUID? // This is actually pendingVaultID from parent
     let cardsAppeared: Bool
+    let onFrontCardTap: ((Vault) -> Void)? // Callback for front card tap
+    let onLongPress: ((Vault) -> Void)? // Callback for long press
     
     @State private var currentIndex: Int = 0
     @State private var dragOffset: CGFloat = 0
@@ -430,116 +439,11 @@ struct CircularRolodexView: View {
             ZStack {
                 // Render cards from back to front (so front card appears on top)
                 ForEach((0..<min(visibleCards, vaults.count)).reversed(), id: \.self) { offset in
-                    let index = (currentIndex + offset) % vaults.count
-                    let vault = vaults[index]
-                    
-                    // Position: 0 = front card, higher = behind
-                    let position = CGFloat(offset)
-                    let relativePosition = position + (dragOffset / cardHeight)
-                    let clamped = max(0, min(CGFloat(visibleCards - 1), relativePosition))
-                    
-                    // 3D rotation: cards tilt as they move behind
-                    let rotation = Double(-clamped * 20)
-                    
-                    // Scale: cards behind are smaller
-                    let scale = CGFloat(1.0 - clamped * 0.1)
-                    
-                    // Vertical offset: stack cards with overlap
-                    let offsetY = clamped * (cardHeight + cardSpacing)
-                    
-                    // Opacity: fade cards behind
-                    let opacity = Double(max(0.3, 1.0 - clamped * 0.25))
-                    
-                    // zIndex: front card (offset 0) has highest z, behind cards have lower z
-                    let z = Double(visibleCards - Int(clamped))
-                    
-                    WalletCard(
-                        vault: vault,
-                        index: index,
-                        totalCount: vaults.count,
-                        hasActiveSession: vaultService.hasActiveSession(for: vault.id),
-                        onTap: {
-                            // Front card (offset == 0) shows simplified contact selection
-                            // Other cards navigate to vault detail
-                            if offset == 0 {
-                                vaultForInvite = vault
-                                showSimplifiedContactSelection = true
-                            } else {
-                                selectedVaultID = vault.id
-                            }
-                        },
-                        onLongPress: {
-                            // Long press on front card opens vault detail
-                            if offset == 0 {
-                                selectedVaultID = vault.id
-                            }
-                        },
-                        rotation: rotation,
-                        scale: scale,
-                        yOffset: offsetY,
-                        z: z,
-                        opacity: opacity,
-                        namespace: cardNamespace,
-                        isFrontCard: offset == 0 // Only front card (offset 0) is source for matched geometry
-                    )
-                    .frame(height: cardHeight)
-                    .frame(width: geo.size.width - (UnifiedTheme.Spacing.lg * 2))
-                    .position(x: centerX, y: centerY + offsetY)
-                    .opacity(cardsAppeared ? opacity : 0)
-                    .scaleEffect(cardsAppeared ? scale : 0.8)
-                    .zIndex(z)
-                    .animation(
-                        AnimationStyles.spring,
-                        value: currentIndex
-                    )
-                    .animation(
-                        AnimationStyles.snap,
-                        value: dragOffset
-                    )
-                    .transition(
-                        .asymmetric(
-                            insertion: .scale(scale: 0.9).combined(with: .opacity),
-                            removal: .scale(scale: 1.1).combined(with: .opacity)
-                        )
-                    )
+                    cardView(for: offset, centerX: centerX, centerY: centerY)
                 }
             }
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture()
-                    .onChanged { dragValue in
-                        dragOffset = dragValue.translation.height
-                    }
-                    .onEnded { dragValue in
-                        let threshold: CGFloat = cardHeight * 0.25
-                        let translation = dragValue.translation.height
-                        let velocity = dragValue.predictedEndTranslation.height - translation
-                        
-                        // Determine if we should move to next/previous card
-                        let shouldMove = abs(translation) > threshold || abs(velocity) > 400
-                        
-                        if shouldMove {
-                            if translation > 0 {
-                                // Swipe down: move to next card (current goes behind)
-                                withAnimation(AnimationStyles.spring) {
-                                    currentIndex = (currentIndex + 1) % vaults.count
-                                    frontVaultIndex = currentIndex
-                                }
-                            } else {
-                                // Swipe up: move to previous card (bring previous forward)
-                                withAnimation(AnimationStyles.spring) {
-                                    currentIndex = (currentIndex - 1 + vaults.count) % vaults.count
-                                    frontVaultIndex = currentIndex
-                                }
-                            }
-                        }
-                        
-                        // Reset drag offset
-                        withAnimation(AnimationStyles.snap) {
-                            dragOffset = 0
-                        }
-                    }
-            )
+            .gesture(dragGesture)
             .onChange(of: currentIndex) { oldValue, newValue in
                 frontVaultIndex = newValue
             }
@@ -547,6 +451,119 @@ struct CircularRolodexView: View {
                 frontVaultIndex = currentIndex
             }
         }
+    }
+    
+    @ViewBuilder
+    private func cardView(for offset: Int, centerX: CGFloat, centerY: CGFloat) -> some View {
+        GeometryReader { geo in
+            let index = (currentIndex + offset) % vaults.count
+            let vault = vaults[index]
+            
+            // Position: 0 = front card, higher = behind
+            let position = CGFloat(offset)
+            let relativePosition = position + (dragOffset / cardHeight)
+            let clamped = max(0, min(CGFloat(visibleCards - 1), relativePosition))
+            
+            // 3D rotation: cards tilt as they move behind
+            let rotation = Double(-clamped * 20)
+            
+            // Scale: cards behind are smaller
+            let scale = CGFloat(1.0 - clamped * 0.1)
+            
+            // Vertical offset: stack cards with overlap
+            let offsetY = clamped * (cardHeight + cardSpacing)
+            
+            // Opacity: fade cards behind
+            let opacity = Double(max(0.3, 1.0 - clamped * 0.25))
+            
+            // zIndex: front card (offset 0) has highest z, behind cards have lower z
+            let z = Double(visibleCards - Int(clamped))
+                        
+            WalletCard(
+                vault: vault,
+                index: index,
+                totalCount: vaults.count,
+                hasActiveSession: vaultService.hasActiveSession(for: vault.id),
+                onTap: {
+                    // Front card (offset == 0) shows simplified contact selection
+                    // Other cards navigate to vault detail
+                    if offset == 0 {
+                        onFrontCardTap?(vault)
+                    } else {
+                        selectedVaultID = vault.id
+                    }
+                },
+                onLongPress: {
+                    // Long press on front card opens vault detail
+                    if offset == 0 {
+                        onLongPress?(vault)
+                    }
+                },
+                rotation: rotation,
+                scale: scale,
+                yOffset: offsetY,
+                z: z,
+                opacity: opacity,
+                namespace: cardNamespace,
+                isFrontCard: offset == 0 // Only front card (offset 0) is source for matched geometry
+            )
+            .frame(height: cardHeight)
+            .frame(width: geo.size.width - (UnifiedTheme.Spacing.lg * 2))
+            .position(x: centerX, y: centerY + offsetY)
+            .opacity(cardsAppeared ? opacity : 0)
+            .scaleEffect(cardsAppeared ? scale : 0.8)
+            .zIndex(z)
+            .animation(
+                AnimationStyles.spring,
+                value: currentIndex
+            )
+            .animation(
+                AnimationStyles.snap,
+                value: dragOffset
+            )
+            .transition(
+                .asymmetric(
+                    insertion: .scale(scale: 0.9).combined(with: .opacity),
+                    removal: .scale(scale: 1.1).combined(with: .opacity)
+                )
+            )
+        }
+    }
+    
+    private var dragGesture: some Gesture {
+        DragGesture()
+            .onChanged { dragValue in
+                dragOffset = dragValue.translation.height
+            }
+            .onEnded { dragValue in
+                let threshold: CGFloat = cardHeight * 0.25
+                let translation = dragValue.translation.height
+                let velocity = dragValue.predictedEndTranslation.height - translation
+                
+                // Determine if we should move to next/previous card
+                let shouldMove = abs(translation) > threshold || abs(velocity) > 400
+                
+                if shouldMove {
+                    if translation > 0 {
+                        // Swipe down: move to next card (current goes behind)
+                        withAnimation(AnimationStyles.spring) {
+                            currentIndex = (currentIndex + 1) % vaults.count
+                            frontVaultIndex = currentIndex
+                        }
+                    } else {
+                        // Swipe up: move to previous card (bring previous forward)
+                        withAnimation(AnimationStyles.spring) {
+                            currentIndex = (currentIndex - 1 + vaults.count) % vaults.count
+                            frontVaultIndex = currentIndex
+                        }
+                    }
+                }
+                
+                // Reset drag offset
+                withAnimation(AnimationStyles.snap) {
+                    dragOffset = 0
+                }
+            }
     }
 }
 
