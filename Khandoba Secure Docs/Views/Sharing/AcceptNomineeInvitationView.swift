@@ -287,7 +287,7 @@ struct AcceptNomineeInvitationView: View {
     }
     
     private func acceptInvitation() {
-        guard let nominee = nominee else { return }
+        guard nominee != nil else { return }
         
         isLoading = true
         Task {

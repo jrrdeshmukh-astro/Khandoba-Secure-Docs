@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="khandoba_secure_docs_prefs.xml"/>
+        <exclude domain="database" path="khandoba_database"/>
+    </cloud-backup>
+</data-extraction-rules>

@@ -241,7 +241,7 @@ struct AcceptBluetoothInvitationView: View {
             let sessionExpiresAt = Date().addingTimeInterval(invitation.sessionDuration)
             
             // Create session-based nominee
-            let nominee = try await nomineeService.inviteNominee(
+            let _ = try await nomineeService.inviteNominee(
                 name: currentUser.fullName,
                 phoneNumber: nil,
                 email: nil,

@@ -10,15 +10,27 @@ import SwiftData
 import Combine
 import UserNotifications
 import CloudKit
+
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 @main
 struct Khandoba_Secure_DocsApp: App {
     @StateObject private var authService = AuthenticationService()
     @StateObject private var pushNotificationService = PushNotificationService.shared
     @StateObject private var supabaseService = SupabaseService()
+    @StateObject private var migrationService = DataMigrationService()
     
+    #if os(iOS)
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #elseif os(macOS)
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #elseif os(tvOS)
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #endif
     
     // SwiftData ModelContainer - only used when useSupabase = false
     var sharedModelContainer: ModelContainer? {
@@ -122,6 +134,33 @@ struct Khandoba_Secure_DocsApp: App {
                                 await MainActor.run {
                                     authService.configure(supabaseService: supabaseService)
                                 }
+                                
+                                // Check and perform migration if needed (users upgrading from 1.0.0)
+                                if let modelContext = sharedModelContainer?.mainContext {
+                                    // Create DataMergeService for migration
+                                    let dataMergeService = DataMergeService()
+                                    await MainActor.run {
+                                        dataMergeService.configure(supabaseService: supabaseService, modelContext: modelContext)
+                                        migrationService.configure(
+                                            modelContext: modelContext,
+                                            supabaseService: supabaseService,
+                                            dataMergeService: dataMergeService
+                                        )
+                                    }
+                                    
+                                    if migrationService.needsMigration() {
+                                        print("🔄 Migration needed - user upgrading from version 1.0.0")
+                                        do {
+                                            try await migrationService.migrateFromCloudKitToSupabase()
+                                            print("✅ Migration completed successfully")
+                                        } catch {
+                                            print("⚠️ Migration failed: \(error.localizedDescription)")
+                                            // Continue anyway - user can retry later
+                                        }
+                                    } else {
+                                        print("ℹ️ No migration needed - user already on version 1.0.1")
+                                    }
+                                }
                             } catch {
                                 print("⚠️ Supabase initialization failed: \(error.localizedDescription)")
                                 print("   Falling back to SwiftData/CloudKit")
@@ -140,6 +179,10 @@ struct Khandoba_Secure_DocsApp: App {
                     if !AppConfig.useSupabase {
                     verifyCloudKitSetup()
                     }
+                    
+                    #if os(macOS)
+                    configureMacOSMenuBar()
+                    #endif
         }
         .preferredColorScheme(.dark) // Force dark theme
         }
@@ -209,148 +252,8 @@ struct Khandoba_Secure_DocsApp: App {
     }
 }
 
-// MARK: - AppDelegate for Push Notifications
-
-class AppDelegate: NSObject, UIApplicationDelegate {
-    func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
-    ) -> Bool {
-        // Set notification delegate
-        UNUserNotificationCenter.current().delegate = PushNotificationService.shared
-        
-        // Force dark mode for system alerts and modals
-        // This ensures the "Sign in to Apple Account" modal matches the app's dark theme
-        configureDarkModeAppearance()
-        
-        // Setup memory pressure monitoring
-        setupMemoryPressureMonitoring()
-        
-        return true
-    }
-    
-    private func setupMemoryPressureMonitoring() {
-        let source = DispatchSource.makeMemoryPressureSource(eventMask: .all, queue: .main)
-        source.setEventHandler {
-            let event = source.mask
-            if event.contains(.warning) {
-                Task { @MainActor in
-                    DataOptimizationService.cleanupCacheIfNeeded(maxSize: 5_000_000) // More aggressive cleanup
-                }
-            } else if event.contains(.critical) {
-                Task { @MainActor in
-                    DataOptimizationService.handleMemoryPressure()
-                }
-            }
-        }
-        source.resume()
-    }
-    
-    private func configureDarkModeAppearance() {
-        if #available(iOS 13.0, *) {
-            // Set window appearance to dark for all windows
-            // Skip in app extensions where UIApplication.shared is unavailable
-            // Use compile-time check to completely exclude UIApplication.shared in extensions
-            #if !APP_EXTENSION
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                windowScene.windows.forEach { window in
-                    window.overrideUserInterfaceStyle = .dark
-                }
-            }
-            #endif
-            
-            // Configure UITextField appearance in alerts for dark mode
-            let textFieldAppearance = UITextField.appearance(whenContainedInInstancesOf: [UIAlertController.self])
-            textFieldAppearance.overrideUserInterfaceStyle = .dark
-            
-            // Configure UIButton appearance in alerts for dark mode
-            let buttonAppearance = UIButton.appearance(whenContainedInInstancesOf: [UIAlertController.self])
-            buttonAppearance.overrideUserInterfaceStyle = .dark
-            
-            // Also set for any future windows
-            NotificationCenter.default.addObserver(
-                forName: UIWindow.didBecomeKeyNotification,
-                object: nil,
-                queue: .main
-            ) { notification in
-                if let window = notification.object as? UIWindow {
-                    window.overrideUserInterfaceStyle = .dark
-                }
-            }
-            
-            print("✅ Dark mode enforced for system alerts, modals, and all windows")
-        }
-    }
-    
-    // Handle device token registration
-    func application(
-        _ application: UIApplication,
-        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
-    ) {
-        Task { @MainActor in
-            PushNotificationService.shared.registerDeviceToken(deviceToken)
-        }
-    }
-    
-    // Handle registration failure
-    func application(
-        _ application: UIApplication,
-        didFailToRegisterForRemoteNotificationsWithError error: Error
-    ) {
-        Task { @MainActor in
-            PushNotificationService.shared.registrationFailed(error: error)
-        }
-    }
-    
-    // Handle remote notification when app is in background
-    func application(
-        _ application: UIApplication,
-        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
-        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
-    ) {
-        Task {
-            let result = await PushNotificationService.shared.handleRemoteNotification(userInfo)
-            completionHandler(result)
-        }
-    }
-    
-    // MARK: - CloudKit Share Invitation Handling
-    
-    /// Helper to get root record ID from metadata (handles iOS 16+ deprecation)
-    private func getRootRecordID(from metadata: CKShare.Metadata) -> CKRecord.ID {
-        if #available(iOS 16.0, *) {
-            if let hierarchicalID = metadata.hierarchicalRootRecordID {
-                return hierarchicalID
-            }
-        }
-        // Fallback to deprecated rootRecordID for iOS < 16 or when hierarchical is nil
-        return metadata.rootRecordID
-    }
-    
-    /// Helper to get root record name from CloudKit share metadata
-    private func getRootRecordName(from metadata: CKShare.Metadata) -> String {
-        return getRootRecordID(from: metadata).recordName
-    }
-    
-    /// Handle CloudKit share invitations when app is opened from a share URL
-    func application(
-        _ application: UIApplication,
-        userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
-    ) {
-        print("📥 CloudKit share invitation received")
-        print("   Share record: \(cloudKitShareMetadata.share.recordID.recordName)")
-        // Access via helper to minimize deprecation warning scope
-        let rootRecordName = getRootRecordName(from: cloudKitShareMetadata)
-        print("   Root record: \(rootRecordName)")
-        
-        // Post notification to handle share acceptance
-        NotificationCenter.default.post(
-            name: .cloudKitShareInvitationReceived,
-            object: nil,
-            userInfo: ["metadata": cloudKitShareMetadata]
-        )
-    }
-}
-
-// MARK: - Notification Names
-// Note: Notification names moved to Config/NotificationNames.swift for sharing with extensions
+// MARK: - AppDelegate
+// Platform-specific app delegates are in:
+// - App/AppDelegate_iOS.swift
+// - App/AppDelegate_macOS.swift  
+// - App/AppDelegate_tvOS.swift

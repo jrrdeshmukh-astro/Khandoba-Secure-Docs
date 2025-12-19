@@ -23,6 +23,18 @@ final class Vault {
     var isAntiVault: Bool = false // Anti-vaults are special vaults for fraud detection
     var monitoredVaultID: UUID? // For anti-vaults: the vault being monitored
     
+    // 1:1 Anti-Vault relationship - each vault has exactly one anti-vault
+    // Using UUID to avoid circular dependency, but maintaining 1:1 constraint
+    var antiVaultID: UUID? // The anti-vault monitoring this vault (1:1 relationship)
+    
+    // Anti-vault properties embedded in Vault for 1:1 relationship
+    var antiVaultStatus: String = "locked" // "locked", "active", "archived"
+    var antiVaultAutoUnlockPolicyData: Data? // JSON encoded AutoUnlockPolicy
+    var antiVaultThreatDetectionSettingsData: Data? // JSON encoded ThreatDetectionSettings
+    var antiVaultLastIntelReportID: UUID?
+    var antiVaultLastUnlockedAt: Date?
+    var antiVaultCreatedAt: Date?
+    
     // Encryption
     var encryptionKeyData: Data?
     var isEncrypted: Bool = true

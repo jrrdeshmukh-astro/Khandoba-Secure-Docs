@@ -17,13 +17,18 @@ struct VoiceRecordingView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var documentService: DocumentService
     
+    #if !os(tvOS)
     @StateObject private var recorder = AudioRecorder()
+    #endif
     @State private var recordingDuration: TimeInterval = 0
     @State private var timer: Timer?
     @State private var showSaveConfirm = false
     @State private var showContentBlocked = false
     @State private var blockedContentReason: String?
     @State private var blockedContentCategories: [ContentCategory] = []
+    @State private var showFilePicker = false
+    
+    private var platform = Platform.current
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -32,7 +37,27 @@ struct VoiceRecordingView: View {
             colors.background
                 .ignoresSafeArea()
             
-            VStack(spacing: UnifiedTheme.Spacing.xl) {
+            if platform.supportsMicrophone {
+                microphoneRecordingView(colors: colors)
+            } else {
+                fileUploadView(colors: colors)
+            }
+        }
+        #if os(macOS) || os(tvOS)
+        .fileImporter(
+            isPresented: $showFilePicker,
+            allowedContentTypes: [.audio, .mpeg4Audio, .mp3],
+            allowsMultipleSelection: false
+        ) { result in
+            handleFileSelection(result)
+        }
+        #endif
+    }
+    
+    @ViewBuilder
+    private func microphoneRecordingView(colors: UnifiedTheme.ColorSet) -> some View {
+        #if !os(tvOS)
+        VStack(spacing: UnifiedTheme.Spacing.xl) {
                 Spacer()
                 
                 // Waveform Animation
@@ -64,6 +89,7 @@ struct VoiceRecordingView: View {
                 Spacer()
                 
                 // Record Button
+                #if os(iOS)
                 Button {
                     toggleRecording()
                 } label: {
@@ -77,6 +103,21 @@ struct VoiceRecordingView: View {
                             .foregroundColor(.white)
                     }
                 }
+                #elseif os(macOS)
+                // macOS: Show file picker option
+                Button {
+                    showFilePicker = true
+                } label: {
+                    HStack {
+                        Image(systemName: "folder")
+                        Text("Choose Audio File")
+                    }
+                    .padding()
+                    .background(colors.primary)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                }
+                #endif
                 
                 if recordingDuration > 0 && !recorder.isRecording {
                     HStack(spacing: UnifiedTheme.Spacing.lg) {
@@ -116,7 +157,9 @@ struct VoiceRecordingView: View {
             }
         }
         .navigationTitle("Voice Recording")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Cancel") {
@@ -150,38 +193,116 @@ struct VoiceRecordingView: View {
                 }
             }
         }
+        #endif
     }
     
+    @ViewBuilder
+    private func fileUploadView(colors: UnifiedTheme.ColorSet) -> some View {
+        // tvOS: File upload only
+        VStack(spacing: UnifiedTheme.Spacing.xl) {
+            Image(systemName: "mic.badge.plus")
+                .font(.system(size: 80))
+                .foregroundColor(colors.primary)
+            
+            Text("Audio Upload")
+                .font(theme.typography.title)
+                .foregroundColor(colors.textPrimary)
+            
+            Text("Microphone recording is not available on Apple TV. Please use file upload to add audio files.")
+                .font(theme.typography.body)
+                .foregroundColor(colors.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding()
+            
+            Button {
+                showFilePicker = true
+            } label: {
+                HStack {
+                    Image(systemName: "folder")
+                    Text("Choose Audio File")
+                }
+                .padding()
+                .background(colors.primary)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+        }
+        .padding()
+    }
+    
+    #if os(macOS) || os(tvOS)
+    private func handleFileSelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            if let url = urls.first {
+                Task {
+                    await saveAudioFileFromPicker(url)
+                }
+            }
+        case .failure(let error):
+            print("File selection failed: \(error)")
+        }
+    }
+    
+    private func saveAudioFileFromPicker(_ url: URL) async {
+        do {
+            let data = try Data(contentsOf: url)
+            let fileName = url.lastPathComponent
+            
+            let document = try await documentService.uploadDocument(
+                data: data,
+                name: fileName,
+                mimeType: "audio/m4a",
+                to: vault,
+                uploadMethod: .fileUpload
+            )
+            
+            print("✅ Audio file uploaded: \(document.name)")
+            dismiss()
+        } catch {
+            print("❌ Failed to upload audio file: \(error)")
+        }
+    }
+    #endif
+    
     private func toggleRecording() {
+        #if !os(tvOS)
         if recorder.isRecording {
             recorder.stopRecording()
             timer?.invalidate()
+            timer = nil
         } else {
             recordingDuration = 0
             recorder.startRecording()
-            
-            timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-                recordingDuration += 0.1
-            }
+            startTimer()
+        }
+        #endif
+    }
+    
+    private func startTimer() {
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            recordingDuration += 0.1
         }
     }
     
     private func discardRecording() {
+        #if !os(tvOS)
         recorder.deleteRecording()
+        #endif
         recordingDuration = 0
+        timer?.invalidate()
+        timer = nil
     }
     
     private func saveRecording() {
-        guard let recordingURL = recorder.recordingURL else { return }
+        #if !os(tvOS)
+        guard let url = recorder.recordingURL else { return }
         
         Task {
             do {
-                let data = try Data(contentsOf: recordingURL)
+                let data = try Data(contentsOf: url)
                 let fileName = "voice_\(Date().timeIntervalSince1970).m4a"
                 
-                // Premium subscription - unlimited voice recordings
-                
-                // Upload
                 let document = try await documentService.uploadDocument(
                     data: data,
                     name: fileName,
@@ -192,7 +313,6 @@ struct VoiceRecordingView: View {
                 
                 print("✅ Voice memo saved successfully: \(document.name)")
                 
-                // Reload documents for the vault to ensure UI updates
                 try await documentService.loadDocuments(for: vault)
                 
                 await MainActor.run {
@@ -200,7 +320,7 @@ struct VoiceRecordingView: View {
                 }
             } catch let error as DocumentError {
                 switch error {
-                case .contentBlocked(let _, let categories, let reason):
+                case .contentBlocked(_, let categories, let reason):
                     await MainActor.run {
                         blockedContentReason = reason
                         blockedContentCategories = categories
@@ -209,7 +329,6 @@ struct VoiceRecordingView: View {
                 default:
                     print("❌ Error saving recording: \(error.localizedDescription)")
                     await MainActor.run {
-                        // Show error to user
                         blockedContentReason = error.localizedDescription
                         showContentBlocked = true
                     }
@@ -217,12 +336,12 @@ struct VoiceRecordingView: View {
             } catch {
                 print("❌ Error saving recording: \(error.localizedDescription)")
                 await MainActor.run {
-                    // Show error to user
                     blockedContentReason = error.localizedDescription
                     showContentBlocked = true
                 }
             }
         }
+        #endif
     }
     
     private func formatDuration(_ duration: TimeInterval) -> String {

@@ -7,8 +7,32 @@
 
 import Foundation
 import UserNotifications
-import UIKit
 import Combine
+
+#if os(iOS) || os(tvOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
+
+/// Platform-agnostic background fetch result
+enum BackgroundFetchResult {
+    case newData
+    case noData
+    case failed
+}
+
+#if os(iOS) || os(tvOS)
+extension BackgroundFetchResult {
+    var uiBackgroundFetchResult: UIBackgroundFetchResult {
+        switch self {
+        case .newData: return .newData
+        case .noData: return .noData
+        case .failed: return .failed
+        }
+    }
+}
+#endif
 
 @MainActor
 final class PushNotificationService: NSObject, ObservableObject {
@@ -92,7 +116,7 @@ final class PushNotificationService: NSObject, ObservableObject {
     // MARK: - Notification Handling
     
     /// Handle incoming remote notification
-    func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
+    func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) async -> BackgroundFetchResult {
         print("📬 Received remote notification")
         
         guard userInfo["aps"] as? [String: Any] != nil else {
@@ -337,7 +361,11 @@ extension PushNotificationService: UNUserNotificationCenterDelegate {
     /// Register for remote notifications (main app only)
     @MainActor
     private func registerForRemoteNotificationsMainApp() {
+        #if os(iOS) || os(tvOS)
         UIApplication.shared.registerForRemoteNotifications()
+        #elseif os(macOS)
+        NSApplication.shared.registerForRemoteNotifications(matching: [.alert, .sound, .badge])
+        #endif
     }
     #else
     /// Register for remote notifications (dummy for extension)

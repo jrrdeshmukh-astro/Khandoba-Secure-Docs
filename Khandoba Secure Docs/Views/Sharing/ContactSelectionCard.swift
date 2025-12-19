@@ -37,7 +37,7 @@ struct ContactSelectionCard: View {
                         )
                         .frame(width: 52, height: 52)
                     
-                    if let contact = contact {
+                    if contact != nil {
                         Image(systemName: "person.fill")
                             .font(.system(size: 26, weight: .semibold))
                             .foregroundColor(colors.primary)

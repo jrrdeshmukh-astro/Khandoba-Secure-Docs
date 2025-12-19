@@ -16,21 +16,35 @@ final class LocationService: NSObject, ObservableObject {
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var isAuthorized: Bool = false
     
+    #if !os(tvOS)
     private let locationManager = CLLocationManager()
+    #endif
     private var geofences: [Geofence] = []
     
     override init() {
         super.init()
+        #if !os(tvOS)
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         checkAuthorizationStatus()
+        #else
+        // tvOS doesn't support location services
+        authorizationStatus = .denied
+        isAuthorized = false
+        #endif
     }
     
     func requestAuthorization() {
+        #if !os(tvOS)
         locationManager.requestWhenInUseAuthorization()
+        #endif
     }
     
     func requestLocationPermission() async {
+        #if os(tvOS)
+        // tvOS doesn't support location
+        return
+        #else
         // Request permission if not determined
         if authorizationStatus == .notDetermined {
             locationManager.requestWhenInUseAuthorization()
@@ -44,25 +58,35 @@ final class LocationService: NSObject, ObservableObject {
             // Give it time to get first location
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         }
+        #endif
     }
     
     func startTracking() {
+        #if !os(tvOS)
         guard isAuthorized else { return }
         locationManager.startUpdatingLocation()
+        #endif
     }
     
     func stopTracking() {
+        #if !os(tvOS)
         locationManager.stopUpdatingLocation()
+        #endif
     }
     
     func getCurrentLocation() async -> CLLocation? {
+        #if os(tvOS)
+        return nil // tvOS doesn't support location
+        #else
         guard isAuthorized else { return nil }
         return currentLocation
+        #endif
     }
     
     // MARK: - Geofencing
     
     func addGeofence(_ geofence: Geofence) {
+        #if !os(tvOS)
         geofences.append(geofence)
         
         let region = CLCircularRegion(
@@ -74,14 +98,17 @@ final class LocationService: NSObject, ObservableObject {
         region.notifyOnExit = true
         
         locationManager.startMonitoring(for: region)
+        #endif
     }
     
     func removeGeofence(_ geofence: Geofence) {
+        #if !os(tvOS)
         geofences.removeAll { $0.id == geofence.id }
         
         if let region = locationManager.monitoredRegions.first(where: { $0.identifier == geofence.id.uuidString }) {
             locationManager.stopMonitoring(for: region)
         }
+        #endif
     }
     
     func isInsideGeofence(_ geofence: Geofence, location: CLLocation) -> Bool {
@@ -99,12 +126,18 @@ final class LocationService: NSObject, ObservableObject {
     }
     
     private func checkAuthorizationStatus() {
+        #if !os(tvOS)
         authorizationStatus = locationManager.authorizationStatus
         isAuthorized = authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
+        #else
+        authorizationStatus = .denied
+        isAuthorized = false
+        #endif
     }
 }
 
 // MARK: - CLLocationManagerDelegate
+#if !os(tvOS)
 extension LocationService: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         Task { @MainActor in
@@ -135,6 +168,7 @@ extension LocationService: CLLocationManagerDelegate {
         }
     }
 }
+#endif
 
 // MARK: - Geofence Model
 struct Geofence: Identifiable, Codable {

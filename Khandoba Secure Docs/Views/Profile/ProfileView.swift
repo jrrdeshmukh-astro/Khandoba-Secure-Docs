@@ -101,6 +101,27 @@ struct ProfileView: View {
                         .listRowBackground(colors.surface)
                         
                         NavigationLink {
+                            AntiVaultManagementView()
+                        } label: {
+                            HStack(spacing: UnifiedTheme.Spacing.md) {
+                                Image(systemName: "shield.lefthalf.filled")
+                                    .foregroundColor(colors.primary)
+                                    .frame(width: 24)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Anti-Vaults")
+                                        .font(theme.typography.subheadline)
+                                        .foregroundColor(colors.textPrimary)
+                                    
+                                    Text("Fraud detection monitoring")
+                                        .font(theme.typography.caption)
+                                        .foregroundColor(colors.textSecondary)
+                                }
+                            }
+                        }
+                        .listRowBackground(colors.surface)
+                        
+                        NavigationLink {
                             PrivacyPolicyView()
                         } label: {
                             HStack(spacing: UnifiedTheme.Spacing.md) {

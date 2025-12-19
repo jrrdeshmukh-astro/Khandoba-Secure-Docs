@@ -22,6 +22,7 @@ final class VaultService: ObservableObject {
     private var supabaseService: SupabaseService?
     private var currentUserID: UUID?
     var currentUser: User? // Added for Intel report access
+    private var dataMergeService = DataMergeService() // For intelligent CloudKit/Supabase merging
     
     // Session timeout management
     private var sessionTimeoutTasks: [UUID: Task<Void, Never>] = [:]
@@ -35,6 +36,7 @@ final class VaultService: ObservableObject {
         self.modelContext = modelContext
         self.supabaseService = nil
         self.currentUserID = userID
+        dataMergeService.configure(supabaseService: nil, modelContext: modelContext)
         
         // Load current user
         Task {
@@ -50,6 +52,7 @@ final class VaultService: ObservableObject {
         self.supabaseService = supabaseService
         self.modelContext = nil
         self.currentUserID = userID
+        dataMergeService.configure(supabaseService: supabaseService, modelContext: nil)
         
         // Load current user from Supabase
         Task {
@@ -83,6 +86,19 @@ final class VaultService: ObservableObject {
         if AppConfig.useSupabase, let supabaseService = supabaseService, let userID = currentUserID {
             try await AsyncTimeout.withTimeout(10.0) {
                 try await self.loadVaultsFromSupabase(supabaseService: supabaseService, userID: userID)
+            }
+            
+            // If both CloudKit and Supabase are available, merge intelligently
+            if let modelContext = modelContext {
+                let cloudKitVaults = try modelContext.fetch(FetchDescriptor<Vault>())
+                let supabaseVaults: [SupabaseVault] = try await supabaseService.fetchAll("vaults", filters: nil)
+                let mergedVaults = try await dataMergeService.mergeVaults(
+                    cloudKitVaults: cloudKitVaults,
+                    supabaseVaults: supabaseVaults
+                )
+                await MainActor.run {
+                    self.vaults = mergedVaults
+                }
             }
             return
         }
@@ -155,25 +171,48 @@ final class VaultService: ObservableObject {
         let supabaseVaults: [SupabaseVault] = try await supabaseService.fetchAll("vaults", filters: nil)
         
         // Convert to Vault models for compatibility
-        await MainActor.run {
-            self.vaults = supabaseVaults.map { supabaseVault in
-                let vault = Vault(
-                    name: supabaseVault.name,
-                    vaultDescription: supabaseVault.vaultDescription,
-                    keyType: supabaseVault.keyType
-                )
-                vault.id = supabaseVault.id
-                vault.createdAt = supabaseVault.createdAt
-                vault.lastAccessedAt = supabaseVault.lastAccessedAt
-                vault.status = supabaseVault.status
-                vault.vaultType = supabaseVault.vaultType
-                vault.isSystemVault = supabaseVault.isSystemVault
-                vault.encryptionKeyData = supabaseVault.encryptionKeyData
-                vault.isEncrypted = supabaseVault.isEncrypted
-                vault.isZeroKnowledge = supabaseVault.isZeroKnowledge
-                vault.relationshipOfficerID = supabaseVault.relationshipOfficerID
-                return vault
+        // Load anti-vault data first (async operation)
+        var vaultsWithAntiVaults: [Vault] = []
+        for supabaseVault in supabaseVaults {
+            let vault = Vault(
+                name: supabaseVault.name,
+                vaultDescription: supabaseVault.vaultDescription,
+                keyType: supabaseVault.keyType
+            )
+            vault.id = supabaseVault.id
+            vault.createdAt = supabaseVault.createdAt
+            vault.lastAccessedAt = supabaseVault.lastAccessedAt
+            vault.status = supabaseVault.status
+            vault.vaultType = supabaseVault.vaultType
+            vault.isSystemVault = supabaseVault.isSystemVault
+            vault.encryptionKeyData = supabaseVault.encryptionKeyData
+            vault.isEncrypted = supabaseVault.isEncrypted
+            vault.isZeroKnowledge = supabaseVault.isZeroKnowledge
+            vault.relationshipOfficerID = supabaseVault.relationshipOfficerID
+            vault.isAntiVault = supabaseVault.isAntiVault
+            vault.monitoredVaultID = supabaseVault.monitoredVaultID
+            vault.antiVaultID = supabaseVault.antiVaultID
+            
+            // Load anti-vault properties if anti-vault exists
+            if let antiVaultID = supabaseVault.antiVaultID {
+                // Load anti-vault data from Supabase
+                if let antiVault: SupabaseAntiVault = try? await supabaseService.fetch("anti_vaults", id: antiVaultID) {
+                    vault.antiVaultStatus = antiVault.status
+                    vault.antiVaultLastIntelReportID = antiVault.lastIntelReportID
+                    vault.antiVaultLastUnlockedAt = antiVault.lastUnlockedAt
+                    vault.antiVaultCreatedAt = antiVault.createdAt
+                    
+                    // Encode policy and settings
+                    vault.antiVaultAutoUnlockPolicyData = encodeAutoUnlockPolicy(antiVault.autoUnlockPolicy)
+                    vault.antiVaultThreatDetectionSettingsData = encodeThreatDetectionSettings(antiVault.threatDetectionSettings)
+                }
             }
+            
+            vaultsWithAntiVaults.append(vault)
+        }
+        
+        await MainActor.run {
+            self.vaults = vaultsWithAntiVaults
         }
         
         // Load active sessions
@@ -383,6 +422,24 @@ final class VaultService: ObservableObject {
         if vault.accessLogs == nil { vault.accessLogs = [] }
         if vault.dualKeyRequests == nil { vault.dualKeyRequests = [] }
         
+        // Auto-create anti-vault for 1:1 relationship
+        let antiVaultID = UUID()
+        vault.antiVaultID = antiVaultID
+        vault.antiVaultStatus = "locked"
+        vault.antiVaultCreatedAt = Date()
+        vault.antiVaultAutoUnlockPolicyData = encodeAutoUnlockPolicy(AutoUnlockPolicy())
+        vault.antiVaultThreatDetectionSettingsData = encodeThreatDetectionSettings(ThreatDetectionSettings())
+        
+        // Also create AntiVault model for backward compatibility
+        let antiVault = AntiVault(
+            id: antiVaultID,
+            vaultID: antiVaultID,
+            monitoredVaultID: vault.id,
+            ownerID: currentUserID,
+            status: "locked"
+        )
+        modelContext.insert(antiVault)
+        
         modelContext.insert(vault)
         try modelContext.save()
         
@@ -436,6 +493,30 @@ final class VaultService: ObservableObject {
             values: supabaseVault
         )
         
+        // Auto-create anti-vault for 1:1 relationship
+        // Note: vault_id must reference an existing vault (the monitored vault)
+        // The anti-vault is embedded in the vault, so vault_id = monitored_vault_id
+        let antiVaultID = UUID()
+        let antiVault = SupabaseAntiVault(
+            id: antiVaultID,
+            vaultID: created.id, // Must reference existing vault (foreign key constraint)
+            monitoredVaultID: created.id, // Monitors the created vault (1:1 relationship)
+            ownerID: userID,
+            status: "locked",
+            autoUnlockPolicy: AutoUnlockPolicy(),
+            threatDetectionSettings: ThreatDetectionSettings(),
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        
+        // Create anti-vault in Supabase (vault must exist first for foreign key)
+        _ = try await supabaseService.insert("anti_vaults", values: antiVault)
+        
+        // Update vault with anti-vault ID (1:1 relationship)
+        var updatedVault = created
+        updatedVault.antiVaultID = antiVaultID
+        _ = try await supabaseService.update("vaults", id: created.id, values: updatedVault)
+
         // Create access log
         var accessLog = SupabaseVaultAccessLog(
             vaultID: created.id,
@@ -456,7 +537,7 @@ final class VaultService: ObservableObject {
             values: accessLog
         )
         
-        // Convert to Vault model for compatibility
+        // Create Vault model with all properties
         let vault = Vault(
             name: created.name,
             vaultDescription: created.vaultDescription,
@@ -464,12 +545,17 @@ final class VaultService: ObservableObject {
         )
         vault.id = created.id
         vault.createdAt = created.createdAt
+        vault.lastAccessedAt = created.lastAccessedAt
         vault.status = created.status
         vault.vaultType = created.vaultType
         vault.isSystemVault = created.isSystemVault
         vault.encryptionKeyData = created.encryptionKeyData
         vault.isEncrypted = created.isEncrypted
         vault.isZeroKnowledge = created.isZeroKnowledge
+        vault.relationshipOfficerID = created.relationshipOfficerID
+        vault.isAntiVault = created.isAntiVault
+        vault.monitoredVaultID = created.monitoredVaultID
+        vault.antiVaultID = created.antiVaultID
         
         try await loadVaults()
         
@@ -1797,6 +1883,30 @@ final class VaultService: ObservableObject {
         try await loadVaults()
         
         print("✅ Vault ownership transferred in Supabase: \(vault.name) → User ID: \(newOwnerID)")
+    }
+    
+    // MARK: - Anti-Vault Encoding Helpers
+    
+    private func encodeAutoUnlockPolicy(_ policy: AutoUnlockPolicy) -> Data? {
+        let json: [String: Any] = [
+            "unlockOnSessionNomination": policy.unlockOnSessionNomination,
+            "unlockOnSubsetNomination": policy.unlockOnSubsetNomination,
+            "requireApproval": policy.requireApproval,
+            "approvalUserIDs": policy.approvalUserIDs.map { $0.uuidString }
+        ]
+        return try? JSONSerialization.data(withJSONObject: json)
+    }
+    
+    private func encodeThreatDetectionSettings(_ settings: ThreatDetectionSettings) -> Data? {
+        let json: [String: Any] = [
+            "detectContentDiscrepancies": settings.detectContentDiscrepancies,
+            "detectMetadataMismatches": settings.detectMetadataMismatches,
+            "detectAccessPatternAnomalies": settings.detectAccessPatternAnomalies,
+            "detectGeographicInconsistencies": settings.detectGeographicInconsistencies,
+            "detectEditHistoryDiscrepancies": settings.detectEditHistoryDiscrepancies,
+            "minThreatSeverity": settings.minThreatSeverity
+        ]
+        return try? JSONSerialization.data(withJSONObject: json)
     }
 }
 

@@ -22,6 +22,9 @@ struct SupabaseVault: Codable, Identifiable {
     var isEncrypted: Bool
     var isZeroKnowledge: Bool
     var relationshipOfficerID: UUID?
+    var isAntiVault: Bool
+    var monitoredVaultID: UUID?
+    var antiVaultID: UUID? // 1:1 relationship with anti-vault
     var updatedAt: Date
     
     enum CodingKeys: String, CodingKey {
@@ -39,6 +42,9 @@ struct SupabaseVault: Codable, Identifiable {
         case isEncrypted = "is_encrypted"
         case isZeroKnowledge = "is_zero_knowledge"
         case relationshipOfficerID = "relationship_officer_id"
+        case isAntiVault = "is_anti_vault"
+        case monitoredVaultID = "monitored_vault_id"
+        case antiVaultID = "anti_vault_id"
         case updatedAt = "updated_at"
     }
     
@@ -58,6 +64,9 @@ struct SupabaseVault: Codable, Identifiable {
         self.isEncrypted = vault.isEncrypted
         self.isZeroKnowledge = vault.isZeroKnowledge
         self.relationshipOfficerID = vault.relationshipOfficerID
+        self.isAntiVault = vault.isAntiVault
+        self.monitoredVaultID = vault.monitoredVaultID
+        self.antiVaultID = vault.antiVaultID
         self.updatedAt = Date()
     }
     
@@ -77,6 +86,9 @@ struct SupabaseVault: Codable, Identifiable {
         isEncrypted: Bool = true,
         isZeroKnowledge: Bool = true,
         relationshipOfficerID: UUID? = nil,
+        isAntiVault: Bool = false,
+        monitoredVaultID: UUID? = nil,
+        antiVaultID: UUID? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
@@ -93,6 +105,9 @@ struct SupabaseVault: Codable, Identifiable {
         self.isEncrypted = isEncrypted
         self.isZeroKnowledge = isZeroKnowledge
         self.relationshipOfficerID = relationshipOfficerID
+        self.isAntiVault = isAntiVault
+        self.monitoredVaultID = monitoredVaultID
+        self.antiVaultID = antiVaultID
         self.updatedAt = updatedAt
     }
 }

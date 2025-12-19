@@ -169,7 +169,7 @@ struct SecureNomineeChatView: View {
                 // Find nominee's user ID (if they've accepted and created an account)
                 // For now, use nominee ID - in production, nominees would have User accounts
                 // The conversationID already includes both vault and nominee IDs
-                guard let currentUserID = authService.currentUser?.id else {
+                guard authService.currentUser?.id != nil else {
                     throw ChatError.contextNotAvailable
                 }
                 

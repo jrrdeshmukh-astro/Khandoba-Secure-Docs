@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude sensitive data from backup -->
+    <exclude domain="sharedpref" path="khandoba_secure_docs_prefs.xml"/>
+    <exclude domain="database" path="khandoba_database"/>
+</full-backup-content>

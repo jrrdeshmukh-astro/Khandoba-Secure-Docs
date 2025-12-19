@@ -18,17 +18,19 @@ struct AppConfig {
     static let appName = "Khandoba Secure Docs"
     
     // Production Configuration
-    // Note: No custom API server needed - app uses CloudKit for all data sync
-    // static let apiBaseURL = "https://api.khandoba.org" // Not used - CloudKit handles all sync
+    // Note: Supabase is used for platform-agnostic vault access (web, iOS, Android, etc.)
+    // CloudKit is available as fallback for iOS-only features
     static let cloudKitContainer = "iCloud.com.khandoba.securedocs"
     
-    // CloudKit API Configuration
+    // CloudKit API Configuration (fallback for iOS-only features)
     static let cloudKitKeyID = "PR62QK662L"
     static let cloudKitTeamID = "Q5Y8754WU4"
     static let cloudKitKeyPath = "AuthKey_PR62QK662L.p8" // Relative to project root
     
     // Supabase Configuration
-    // Production Supabase project configured
+    // Production Supabase project configured for platform-agnostic access
+    // Set to true to use Supabase (enables web, iOS, Android, and other platform access)
+    // Set to false to use CloudKit/SwiftData (iOS-only, Apple's managed service)
     static let useSupabase = true // Feature flag to switch between CloudKit and Supabase
     static let supabaseURL = SupabaseConfig.currentEnvironment.supabaseURL
     static let supabaseAnonKey = SupabaseConfig.currentEnvironment.supabaseAnonKey
@@ -53,4 +55,3 @@ struct AppConfig {
     // App Group Identifier (must match extension)
     static let appGroupIdentifier = "group.com.khandoba.securedocs"
 }
-

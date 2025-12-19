@@ -305,6 +305,7 @@ final class ContentFilterService: ObservableObject {
         for time in frameTimes {
             // Use deprecated API (still works, just shows warning)
             // swiftlint:disable:next deprecated_member_use
+            // copyCGImage is deprecated in iOS 18.0, but needed for compatibility
             if let cgImage = try? imageGenerator.copyCGImage(at: time, actualTime: nil) {
                 let frameResult = try await filterImageFrame(cgImage: cgImage)
                 

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import Contacts
 
 struct VaultListView: View {
     @Environment(\.unifiedTheme) var theme
@@ -41,8 +42,10 @@ struct VaultListView: View {
     @State private var selectedVault: Vault?
     @State private var showNomineeList = false
     @State private var frontVaultIndex: Int = 0
-    @State private var showSimplifiedContactSelection = false
+    @State private var showContactPicker = false
     @State private var vaultForInvite: Vault?
+    @State private var selectedContacts: [CNContact] = []
+    @State private var showInvitationConfirmation = false
     
     // Filter out system vaults
     private var activeVaults: [Vault] {
@@ -57,6 +60,54 @@ struct VaultListView: View {
         activeVaults
     }
     
+    @ViewBuilder
+    private var emptyVaultsView: some View {
+        let emptyVault = Vault(
+            name: "Create Your First Vault",
+            vaultDescription: "Tap to get started",
+            status: "locked",
+            keyType: "single"
+        )
+        let themeColors = theme.colors(for: colorScheme)
+        
+        VStack(spacing: UnifiedTheme.Spacing.xl) {
+            WalletCard(
+                vault: emptyVault,
+                index: 0,
+                totalCount: 1,
+                hasActiveSession: false,
+                onTap: { showCreateVault = true },
+                onLongPress: nil,
+                rotation: 0,
+                scale: 1.0,
+                yOffset: 0,
+                z: 1,
+                namespace: cardNamespace,
+                isFrontCard: true
+            )
+            .frame(height: cardHeight)
+            .padding(.horizontal, UnifiedTheme.Spacing.lg)
+            .padding(.top, UnifiedTheme.Spacing.xl)
+            
+            emptyVaultsText(colors: themeColors)
+        }
+    }
+    
+    @ViewBuilder
+    private func emptyVaultsText(colors: UnifiedTheme.Colors) -> some View {
+        VStack(spacing: UnifiedTheme.Spacing.sm) {
+            Text("No Vaults Yet")
+                .font(theme.typography.headline)
+                .foregroundColor(colors.textPrimary)
+            
+            Text("Create your first secure vault to store documents")
+                .font(theme.typography.caption)
+                .foregroundColor(colors.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, UnifiedTheme.Spacing.xl)
+    }
+    
     var body: some View {
         let themeColors = theme.colors(for: colorScheme)
         let colors = themeColors
@@ -69,112 +120,9 @@ struct VaultListView: View {
                 if vaultService.isLoading || isLoading {
                     LoadingView("Loading vaults...")
                 } else if userVaults.isEmpty {
-                    VStack(spacing: UnifiedTheme.Spacing.xl) {
-                        let emptyVault = Vault(
-                            name: "Create Your First Vault",
-                            vaultDescription: "Tap to get started",
-                            status: "locked",
-                            keyType: "single"
-                        )
-                        WalletCard(
-                            vault: emptyVault,
-                            index: 0,
-                            totalCount: 1,
-                            hasActiveSession: false,
-                            onTap: { showCreateVault = true },
-                            onLongPress: nil,
-                            rotation: 0,
-                            scale: 1.0,
-                            yOffset: 0,
-                            z: 1,
-                            namespace: cardNamespace,
-                            isFrontCard: true
-                        )
-                        .frame(height: cardHeight)
-                        .padding(.horizontal, UnifiedTheme.Spacing.lg)
-                        .padding(.top, UnifiedTheme.Spacing.xl)
-                        
-                        VStack(spacing: UnifiedTheme.Spacing.sm) {
-                            Text("No Vaults Yet")
-                                .font(theme.typography.headline)
-                                .foregroundColor(colors.textPrimary)
-                            
-                            Text("Create your first secure vault to store documents")
-                                .font(theme.typography.caption)
-                                .foregroundColor(colors.textSecondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(.horizontal, UnifiedTheme.Spacing.xl)
-                    }
+                    emptyVaultsView
                 } else {
-                    ScrollView {
-                        VStack(spacing: UnifiedTheme.Spacing.xl) {
-                            // Active Vaults Section
-                            if !activeVaults.isEmpty {
-                                VStack(alignment: .leading, spacing: 0) {
-                                    Text("Active Vaults")
-                                        .font(theme.typography.headline)
-                                        .foregroundColor(colors.textPrimary)
-                                        .padding(.horizontal)
-                                        .padding(.bottom, UnifiedTheme.Spacing.lg)
-                                    
-                                    // Circular rolodex view (PassKit-inspired)
-                                    CircularRolodexView(
-                                        vaults: activeVaults,
-                                        vaultService: vaultService,
-                                        cardHeight: cardHeight,
-                                        cardSpacing: cardSpacing,
-                                        cardNamespace: cardNamespace,
-                                        selectedVaultID: $pendingVaultID,
-                                        cardsAppeared: cardsAppeared,
-                                        frontVaultIndex: $frontVaultIndex
-                                    )
-                                    .frame(height: cardHeight)
-                                    .padding(.horizontal)
-                                }
-                                
-                                // Nominee List Section for active vaults
-                                if !activeVaults.isEmpty {
-                                    let frontVault = activeVaults[frontVaultIndex % activeVaults.count]
-                                    NomineeListSection(
-                                        vault: frontVault,
-                                        nomineeService: nomineeService,
-                                        colors: colors,
-                                        theme: theme
-                                    )
-                                    .padding(.top, UnifiedTheme.Spacing.xl)
-                                    .transition(TransitionStyles.slideFromBottom)
-                                    .id("nominees-\(frontVault.id)")
-                                    .onAppear {
-                                        loadNomineesForVault(frontVault)
-                                    }
-                                    .onChange(of: frontVaultIndex) { oldValue, newValue in
-                                        let newVault = activeVaults[newValue % activeVaults.count]
-                                        loadNomineesForVault(newVault)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.vertical, UnifiedTheme.Spacing.lg)
-                        .padding(.top, UnifiedTheme.Spacing.md)
-                    }
-                    .navigationDestination(isPresented: Binding(
-                        get: { selectedVaultID != nil },
-                        set: { if !$0 { selectedVaultID = nil } }
-                    )) {
-                        if let vaultID = selectedVaultID,
-                           let vault = activeVaults.first(where: { $0.id == vaultID }) {
-                            VaultDetailView(vault: vault)
-                        }
-                    }
-                        .onChange(of: pendingVaultID) { oldValue, newValue in
-                            // Intercept vault selection - require Face ID first
-                            if let vaultID = newValue {
-                                Task {
-                                    await authenticateAndOpenVault(vaultID: vaultID)
-                                }
-                            }
-                        }
+                    mainContent(colors: colors)
                 }
             }
             .navigationTitle("Vaults")
@@ -193,17 +141,41 @@ struct VaultListView: View {
             .sheet(isPresented: $showCreateVault) {
                 CreateVaultView()
             }
-            .sheet(isPresented: $showSimplifiedContactSelection) {
+            .sheet(isPresented: $showContactPicker) {
                 if let vault = vaultForInvite {
-                    SimplifiedContactSelectionView(vault: vault)
+                    ContactPickerView(
+                        vault: vault,
+                        onContactsSelected: { contacts in
+                            selectedContacts = contacts
+                            showContactPicker = false
+                            showInvitationConfirmation = true
+                        },
+                        onDismiss: {
+                            showContactPicker = false
+                            vaultForInvite = nil
+                        }
+                    )
                 }
+            }
+            .sheet(isPresented: $showInvitationConfirmation) {
+                if let vault = vaultForInvite, !selectedContacts.isEmpty {
+                    SimplifiedContactSelectionView(
+                        vault: vault,
+                        preselectedContacts: selectedContacts
+                    )
+                }
+            }
+            .navigationDestination(isPresented: navigationBinding) {
+                navigationDestinationView
+            }
+            .onChange(of: pendingVaultID) { oldValue, newValue in
+                handlePendingVaultIDChange(oldValue: oldValue, newValue: newValue)
             }
             .refreshable {
                 await loadVaults()
             }
             .errorAlert(error: $error)
             .overlay {
-                // Face ID prompt overlay with smooth animation
                 if showFaceIDPrompt {
                     FaceIDPromptOverlay(
                         isAuthenticating: isAuthenticating,
@@ -218,45 +190,135 @@ struct VaultListView: View {
                     .zIndex(1000)
                 }
             }
-        }
-        .task {
-            await loadVaults()
-            try? await Task.sleep(nanoseconds: 100_000_000)
-            withAnimation(AnimationStyles.spring) {
-                cardsAppeared = true
+            .task {
+                await loadVaults()
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                withAnimation(AnimationStyles.spring) {
+                    cardsAppeared = true
+                }
             }
-        }
-        .onChange(of: userVaults.count) { oldValue, newValue in
-            if newValue > 0 {
-                cardsAppeared = false
-                Task {
-                    try? await Task.sleep(nanoseconds: 100_000_000)
-                    withAnimation(AnimationStyles.spring) {
-                        cardsAppeared = true
+            .onChange(of: userVaults.count) { oldValue, newValue in
+                if newValue > 0 {
+                    cardsAppeared = false
+                    Task {
+                        try? await Task.sleep(nanoseconds: 100_000_000)
+                        withAnimation(AnimationStyles.spring) {
+                            cardsAppeared = true
+                        }
                     }
                 }
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .navigateToVault)) { notification in
-            if let vaultID = notification.userInfo?["vaultID"] as? UUID {
-                navigateToVault(vaultID: vaultID)
+            .onReceive(NotificationCenter.default.publisher(for: .navigateToVault)) { notification in
+                if let vaultID = notification.userInfo?["vaultID"] as? UUID {
+                    navigateToVault(vaultID: vaultID)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .cloudKitShareInvitationReceived)) { _ in
+                Task { await loadVaults() }
+            }
+            .onChange(of: navigateToVaultID) { oldValue, newValue in
+                if let vaultID = newValue {
+                    selectedVaultID = vaultID
+                    navigateToVaultID = nil
+                }
+            }
+            .onChange(of: selectedVaultID) { oldValue, newValue in
+                if let vaultID = newValue, let vault = userVaults.first(where: { $0.id == vaultID }) {
+                    selectedVault = vault
+                } else if newValue == nil {
+                    selectedVault = nil
+                }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .cloudKitShareInvitationReceived)) { _ in
-            Task { await loadVaults() }
+    }
+    
+    @ViewBuilder
+    private func mainContent(colors: UnifiedTheme.Colors) -> some View {
+        ScrollView {
+            VStack(spacing: UnifiedTheme.Spacing.xl) {
+                if !activeVaults.isEmpty {
+                    activeVaultsSection(colors: colors)
+                    nomineeListSection(colors: colors)
+                }
+            }
+            .padding(.vertical, UnifiedTheme.Spacing.lg)
+            .padding(.top, UnifiedTheme.Spacing.md)
         }
-        .onChange(of: navigateToVaultID) { oldValue, newValue in
-            if let vaultID = newValue {
-                selectedVaultID = vaultID
-                navigateToVaultID = nil
+    }
+    
+    @ViewBuilder
+    private func activeVaultsSection(colors: UnifiedTheme.Colors) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Active Vaults")
+                .font(theme.typography.headline)
+                .foregroundColor(colors.textPrimary)
+                .padding(.horizontal)
+                .padding(.bottom, UnifiedTheme.Spacing.lg)
+            
+            CircularRolodexView(
+                vaults: activeVaults,
+                vaultService: vaultService,
+                cardHeight: cardHeight,
+                cardSpacing: cardSpacing,
+                cardNamespace: cardNamespace,
+                selectedVaultID: $pendingVaultID,
+                cardsAppeared: cardsAppeared,
+                onFrontCardTap: { vault in
+                    pendingVaultID = vault.id
+                },
+                onLongPress: { vault in
+                    vaultForInvite = vault
+                    showContactPicker = true
+                },
+                frontVaultIndex: $frontVaultIndex
+            )
+            .frame(height: cardHeight)
+            .padding(.horizontal)
+        }
+    }
+    
+    @ViewBuilder
+    private func nomineeListSection(colors: UnifiedTheme.Colors) -> some View {
+        if !activeVaults.isEmpty {
+            let frontVault = activeVaults[frontVaultIndex % activeVaults.count]
+            NomineeListSection(
+                vault: frontVault,
+                nomineeService: nomineeService,
+                colors: colors,
+                theme: theme
+            )
+            .padding(.top, UnifiedTheme.Spacing.xl)
+            .transition(TransitionStyles.slideFromBottom)
+            .id("nominees-\(frontVault.id)")
+            .onAppear {
+                loadNomineesForVault(frontVault)
+            }
+            .onChange(of: frontVaultIndex) { oldValue, newValue in
+                let newVault = activeVaults[newValue % activeVaults.count]
+                loadNomineesForVault(newVault)
             }
         }
-        .onChange(of: selectedVaultID) { oldValue, newValue in
-            // Update selected vault when navigating
-            if let vaultID = newValue, let vault = userVaults.first(where: { $0.id == vaultID }) {
-                selectedVault = vault
-            } else if newValue == nil {
-                selectedVault = nil
+    }
+    
+    private var navigationBinding: Binding<Bool> {
+        Binding(
+            get: { selectedVaultID != nil },
+            set: { if !$0 { selectedVaultID = nil } }
+        )
+    }
+    
+    @ViewBuilder
+    private var navigationDestinationView: some View {
+        if let vaultID = selectedVaultID,
+           let vault = activeVaults.first(where: { $0.id == vaultID }) {
+            VaultDetailView(vault: vault)
+        }
+    }
+    
+    private func handlePendingVaultIDChange(oldValue: UUID?, newValue: UUID?) {
+        if let vaultID = newValue {
+            Task {
+                await authenticateAndOpenVault(vaultID: vaultID)
             }
         }
     }
@@ -311,6 +373,22 @@ struct VaultListView: View {
     // MARK: - Face ID Authentication Flow
     
     private func authenticateAndOpenVault(vaultID: UUID) async {
+        // #region agent log
+        let logData1: [String: Any] = [
+            "location": "VaultListView.swift:375",
+            "message": "authenticateAndOpenVault called",
+            "data": ["vaultID": vaultID.uuidString, "hasActiveSession": vaultService.hasActiveSession(for: vaultID)],
+            "timestamp": Date().timeIntervalSince1970 * 1000,
+            "sessionId": "debug-session",
+            "runId": "run1",
+            "hypothesisId": "A"
+        ]
+        if let logJSON1 = try? JSONSerialization.data(withJSONObject: logData1),
+           let logString1 = String(data: logJSON1, encoding: .utf8) {
+            try? logString1.write(toFile: "/Users/jaideshmukh/Desktop/Khandoba Secure Docs/.cursor/debug.log", atomically: false, encoding: .utf8)
+        }
+        // #endregion
+        
         // Check if vault already has active session
         if vaultService.hasActiveSession(for: vaultID) {
             // Already unlocked, show nominee list and navigate directly
@@ -319,6 +397,21 @@ struct VaultListView: View {
                     selectedVault = vault
                     loadNomineesForVault(vault)
                 }
+                // #region agent log
+                let logData2: [String: Any] = [
+                    "location": "VaultListView.swift:384",
+                    "message": "Setting selectedVaultID for navigation",
+                    "data": ["vaultID": vaultID.uuidString, "selectedVaultID": selectedVaultID?.uuidString ?? "nil"],
+                    "timestamp": Date().timeIntervalSince1970 * 1000,
+                    "sessionId": "debug-session",
+                    "runId": "run1",
+                    "hypothesisId": "A"
+                ]
+                if let logJSON2 = try? JSONSerialization.data(withJSONObject: logData2),
+                   let logString2 = String(data: logJSON2, encoding: .utf8) {
+                    try? logString2.write(toFile: "/Users/jaideshmukh/Desktop/Khandoba Secure Docs/.cursor/debug.log", atomically: false, encoding: .utf8)
+                }
+                // #endregion
                 selectedVaultID = vaultID
                 pendingVaultID = nil
             }
@@ -351,6 +444,21 @@ struct VaultListView: View {
                                 selectedVault = vault
                                 
                                 // Navigate to vault detail with smooth transition
+                                // #region agent log
+                                let logData3: [String: Any] = [
+                                    "location": "VaultListView.swift:386",
+                                    "message": "Authentication successful - navigating to vault detail",
+                                    "data": ["vaultID": vaultID.uuidString, "selectedVaultID": selectedVaultID?.uuidString ?? "nil"],
+                                    "timestamp": Date().timeIntervalSince1970 * 1000,
+                                    "sessionId": "debug-session",
+                                    "runId": "run1",
+                                    "hypothesisId": "A"
+                                ]
+                                if let logJSON3 = try? JSONSerialization.data(withJSONObject: logData3),
+                                   let logString3 = String(data: logJSON3, encoding: .utf8) {
+                                    try? logString3.write(toFile: "/Users/jaideshmukh/Desktop/Khandoba Secure Docs/.cursor/debug.log", atomically: false, encoding: .utf8)
+                                }
+                                // #endregion
                                 withAnimation(AnimationStyles.spring) {
                                     selectedVaultID = vaultID
                                 }
@@ -415,6 +523,8 @@ struct CircularRolodexView: View {
     let cardNamespace: Namespace.ID
     @Binding var selectedVaultID: UUID? // This is actually pendingVaultID from parent
     let cardsAppeared: Bool
+    let onFrontCardTap: ((Vault) -> Void)? // Callback for front card tap
+    let onLongPress: ((Vault) -> Void)? // Callback for long press
     
     @State private var currentIndex: Int = 0
     @State private var dragOffset: CGFloat = 0
@@ -430,115 +540,13 @@ struct CircularRolodexView: View {
             ZStack {
                 // Render cards from back to front (so front card appears on top)
                 ForEach((0..<min(visibleCards, vaults.count)).reversed(), id: \.self) { offset in
-                    let index = (currentIndex + offset) % vaults.count
-                    let vault = vaults[index]
-                    
-                    // Position: 0 = front card, higher = behind
-                    let position = CGFloat(offset)
-                    let relativePosition = position + (dragOffset / cardHeight)
-                    let clamped = max(0, min(CGFloat(visibleCards - 1), relativePosition))
-                    
-                    // 3D rotation: cards tilt as they move behind
-                    let rotation = Double(-clamped * 20)
-                    
-                    // Scale: cards behind are smaller
-                    let scale = CGFloat(1.0 - clamped * 0.1)
-                    
-                    // Vertical offset: stack cards with overlap
-                    let offsetY = clamped * (cardHeight + cardSpacing)
-                    
-                    // Opacity: fade cards behind
-                    let opacity = Double(max(0.3, 1.0 - clamped * 0.25))
-                    
-                    // zIndex: front card (offset 0) has highest z, behind cards have lower z
-                    let z = Double(visibleCards - Int(clamped))
-                    
-                    WalletCard(
-                        vault: vault,
-                        index: index,
-                        totalCount: vaults.count,
-                        hasActiveSession: vaultService.hasActiveSession(for: vault.id),
-                        onTap: {
-                            // Front card (offset == 0) shows simplified contact selection
-                            // Other cards navigate to vault detail
-                            if offset == 0 {
-                                vaultForInvite = vault
-                                showSimplifiedContactSelection = true
-                            } else {
-                                selectedVaultID = vault.id
-                            }
-                        },
-                        onLongPress: {
-                            // Long press on front card opens vault detail
-                            if offset == 0 {
-                                selectedVaultID = vault.id
-                            }
-                        },
-                        rotation: rotation,
-                        scale: scale,
-                        yOffset: offsetY,
-                        z: z,
-                        opacity: opacity,
-                        namespace: cardNamespace,
-                        isFrontCard: offset == 0 // Only front card (offset 0) is source for matched geometry
-                    )
-                    .frame(height: cardHeight)
-                    .frame(width: geo.size.width - (UnifiedTheme.Spacing.lg * 2))
-                    .position(x: centerX, y: centerY + offsetY)
-                    .opacity(cardsAppeared ? opacity : 0)
-                    .scaleEffect(cardsAppeared ? scale : 0.8)
-                    .zIndex(z)
-                    .animation(
-                        AnimationStyles.spring,
-                        value: currentIndex
-                    )
-                    .animation(
-                        AnimationStyles.snap,
-                        value: dragOffset
-                    )
-                    .transition(
-                        .asymmetric(
-                            insertion: .scale(scale: 0.9).combined(with: .opacity),
-                            removal: .scale(scale: 1.1).combined(with: .opacity)
-                        )
-                    )
+                    cardView(for: offset, centerX: centerX, centerY: centerY)
                 }
             }
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture()
-                    .onChanged { dragValue in
-                        dragOffset = dragValue.translation.height
-                    }
-                    .onEnded { dragValue in
-                        let threshold: CGFloat = cardHeight * 0.25
-                        let translation = dragValue.translation.height
-                        let velocity = dragValue.predictedEndTranslation.height - translation
-                        
-                        // Determine if we should move to next/previous card
-                        let shouldMove = abs(translation) > threshold || abs(velocity) > 400
-                        
-                        if shouldMove {
-                            if translation > 0 {
-                                // Swipe down: move to next card (current goes behind)
-                                withAnimation(AnimationStyles.spring) {
-                                    currentIndex = (currentIndex + 1) % vaults.count
-                                    frontVaultIndex = currentIndex
-                                }
-                            } else {
-                                // Swipe up: move to previous card (bring previous forward)
-                                withAnimation(AnimationStyles.spring) {
-                                    currentIndex = (currentIndex - 1 + vaults.count) % vaults.count
-                                    frontVaultIndex = currentIndex
-                                }
-                            }
-                        }
-                        
-                        // Reset drag offset
-                        withAnimation(AnimationStyles.snap) {
-                            dragOffset = 0
-                        }
-                    }
+            .highPriorityGesture(
+                dragGesture,
+                including: .all
             )
             .onChange(of: currentIndex) { oldValue, newValue in
                 frontVaultIndex = newValue
@@ -547,6 +555,155 @@ struct CircularRolodexView: View {
                 frontVaultIndex = currentIndex
             }
         }
+    }
+    
+    @ViewBuilder
+    private func cardView(for offset: Int, centerX: CGFloat, centerY: CGFloat) -> some View {
+        GeometryReader { geo in
+            let index = (currentIndex + offset) % vaults.count
+            let vault = vaults[index]
+            
+            // Position: 0 = front card, higher = behind
+            let position = CGFloat(offset)
+            let relativePosition = position + (dragOffset / cardHeight)
+            let clamped = max(0, min(CGFloat(visibleCards - 1), relativePosition))
+            
+            // 3D rotation: cards tilt as they move behind
+            let rotation = Double(-clamped * 20)
+            
+            // Scale: cards behind are smaller
+            let scale = CGFloat(1.0 - clamped * 0.1)
+            
+            // Vertical offset: stack cards with overlap
+            let offsetY = clamped * (cardHeight + cardSpacing)
+            
+            // Opacity: fade cards behind
+            let opacity = Double(max(0.3, 1.0 - clamped * 0.25))
+            
+            // zIndex: front card (offset 0) has highest z, behind cards have lower z
+            let z = Double(visibleCards - Int(clamped))
+                        
+            WalletCard(
+                vault: vault,
+                index: index,
+                totalCount: vaults.count,
+                hasActiveSession: vaultService.hasActiveSession(for: vault.id),
+                onTap: {
+                    // Double-tap navigates to vault detail for all cards
+                    // #region agent log
+                    let logData: [String: Any] = [
+                        "location": "VaultListView.swift:511",
+                        "message": "Card double-tap detected",
+                        "data": ["vaultID": vault.id.uuidString, "vaultName": vault.name, "offset": offset, "isFrontCard": offset == 0],
+                        "timestamp": Date().timeIntervalSince1970 * 1000,
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "A"
+                    ]
+                    if let logJSON = try? JSONSerialization.data(withJSONObject: logData),
+                       let logString = String(data: logJSON, encoding: .utf8) {
+                        try? logString.write(toFile: "/Users/jaideshmukh/Desktop/Khandoba Secure Docs/.cursor/debug.log", atomically: false, encoding: .utf8)
+                    }
+                    // #endregion
+                    if offset == 0 {
+                        // Front card: navigate to vault detail
+                        onFrontCardTap?(vault)
+                    } else {
+                        // Other cards: navigate to vault detail
+                        selectedVaultID = vault.id
+                    }
+                },
+                onLongPress: {
+                    // Long press on front card opens vault detail
+                    if offset == 0 {
+                        onLongPress?(vault)
+                    }
+                },
+                rotation: rotation,
+                scale: scale,
+                yOffset: offsetY,
+                z: z,
+                opacity: opacity,
+                namespace: cardNamespace,
+                isFrontCard: offset == 0 // Only front card (offset 0) is source for matched geometry
+            )
+            .frame(height: cardHeight)
+            .frame(width: geo.size.width - (UnifiedTheme.Spacing.lg * 2))
+            .position(x: centerX, y: centerY + offsetY)
+            .opacity(cardsAppeared ? opacity : 0)
+            .scaleEffect(cardsAppeared ? scale : 0.8)
+            .zIndex(z)
+            .animation(
+                AnimationStyles.spring,
+                value: currentIndex
+            )
+            .animation(
+                AnimationStyles.snap,
+                value: dragOffset
+            )
+            .transition(
+                .asymmetric(
+                    insertion: .scale(scale: 0.9).combined(with: .opacity),
+                    removal: .scale(scale: 1.1).combined(with: .opacity)
+                )
+            )
+        }
+    }
+    
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onChanged { dragValue in
+                // Only respond to primarily vertical drags (rolodex rotation)
+                // Allow horizontal drags to pass through to WalletCard for flipping
+                let verticalMovement = abs(dragValue.translation.height)
+                let horizontalMovement = abs(dragValue.translation.width)
+                
+                // Only update if vertical movement is dominant
+                if verticalMovement > horizontalMovement {
+                    dragOffset = dragValue.translation.height
+                }
+            }
+            .onEnded { dragValue in
+                let verticalMovement = abs(dragValue.translation.height)
+                let horizontalMovement = abs(dragValue.translation.width)
+                
+                // Only process if vertical movement was dominant
+                guard verticalMovement > horizontalMovement else {
+                    // Horizontal drag - let WalletCard handle it, reset our offset
+                    withAnimation(AnimationStyles.snap) {
+                        dragOffset = 0
+                    }
+                    return
+                }
+                
+                let threshold: CGFloat = cardHeight * 0.25
+                let translation = dragValue.translation.height
+                let velocity = dragValue.predictedEndTranslation.height - translation
+                
+                // Determine if we should move to next/previous card
+                let shouldMove = abs(translation) > threshold || abs(velocity) > 400
+                
+                if shouldMove {
+                    if translation > 0 {
+                        // Swipe down: move to next card (current goes behind)
+                        withAnimation(AnimationStyles.spring) {
+                            currentIndex = (currentIndex + 1) % vaults.count
+                            frontVaultIndex = currentIndex
+                        }
+                    } else {
+                        // Swipe up: move to previous card (bring previous forward)
+                        withAnimation(AnimationStyles.spring) {
+                            currentIndex = (currentIndex - 1 + vaults.count) % vaults.count
+                            frontVaultIndex = currentIndex
+                        }
+                    }
+                }
+                
+                // Reset drag offset
+                withAnimation(AnimationStyles.snap) {
+                    dragOffset = 0
+                }
+            }
     }
 }
 
@@ -644,6 +801,8 @@ struct NomineeListSection: View {
     
     @State private var revokingNomineeID: UUID?
     @State private var showInviteSheet = false
+    @State private var selectedContactsForInvite: [CNContact] = []
+    @State private var showInvitationConfirmation = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -769,7 +928,27 @@ struct NomineeListSection: View {
                 }
             }
         }) {
-            NomineeInvitationView(vault: vault)
+            // Directly open contact picker - no intermediate view with vault card
+            ContactPickerView(
+                vault: vault,
+                onContactsSelected: { contacts in
+                    selectedContactsForInvite = contacts
+                    showInviteSheet = false
+                    // Show confirmation view with selected contacts
+                    showInvitationConfirmation = true
+                },
+                onDismiss: {
+                    showInviteSheet = false
+                }
+            )
+        }
+        .sheet(isPresented: $showInvitationConfirmation) {
+            if !selectedContactsForInvite.isEmpty {
+                SimplifiedContactSelectionView(
+                    vault: vault,
+                    preselectedContacts: selectedContactsForInvite
+                )
+            }
         }
     }
     

@@ -17,6 +17,7 @@ struct EmergencyAccessView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var reason = ""
     @State private var urgency: Urgency = .medium
@@ -131,7 +132,9 @@ struct EmergencyAccessView: View {
                         
                         // Submit
                         Button {
-                            submitRequest()
+                            Task {
+                                await submitRequest()
+                            }
                         } label: {
                             if isLoading {
                                 ProgressView()
@@ -168,29 +171,60 @@ struct EmergencyAccessView: View {
         }
     }
     
-    private func submitRequest() {
+    private func submitRequest() async {
         guard let requesterID = authService.currentUser?.id else { return }
         
-        isLoading = true
-        
-        let request = EmergencyAccessRequest(
-            reason: reason,
-            urgency: urgency.rawValue.lowercased()
-        )
-        request.vault = vault
-        request.requesterID = requesterID
-        
-        modelContext.insert(request)
-        
-        do {
-            try modelContext.save()
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
-            showError = true
+        await MainActor.run {
+            isLoading = true
         }
         
-        isLoading = false
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
+        
+        do {
+            if AppConfig.useSupabase {
+                // Supabase mode: Create emergency access request in Supabase
+                let supabaseRequest = SupabaseEmergencyAccessRequest(
+                    vaultID: vault.id,
+                    requesterID: requesterID,
+                    reason: reason,
+                    urgency: urgency.rawValue.lowercased()
+                )
+                
+                let _: SupabaseEmergencyAccessRequest = try await supabaseService.insert(
+                    "emergency_access_requests",
+                    values: supabaseRequest
+                )
+                
+                print("✅ Emergency access request created in Supabase")
+                
+                await MainActor.run {
+                    dismiss()
+                }
+            } else {
+                // SwiftData/CloudKit mode: Create request locally
+                let request = EmergencyAccessRequest(
+                    reason: reason,
+                    urgency: urgency.rawValue.lowercased()
+                )
+                request.vault = vault
+                request.requesterID = requesterID
+                
+                modelContext.insert(request)
+                try modelContext.save()
+                
+                await MainActor.run {
+                    dismiss()
+                }
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
     }
 }
-

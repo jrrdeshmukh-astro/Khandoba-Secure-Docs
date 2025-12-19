@@ -20,6 +20,10 @@ struct ClientMainView: View {
     @StateObject private var contentFilterService = ContentFilterService()
     @StateObject private var subscriptionService = SubscriptionService()
     
+    #if os(tvOS)
+    @StateObject private var focusCoordinator = FocusEngineCoordinator()
+    #endif
+    
     @State private var selectedTab = 0
     @AppStorage("hasCompletedClientOnboarding") private var hasCompletedOnboarding = false
     @State private var showOnboarding = false
@@ -28,6 +32,16 @@ struct ClientMainView: View {
     var body: some View {
         let colors = theme.colors(for: colorScheme)
         
+        #if os(tvOS)
+        // Apple TV: Use sidebar navigation instead of TabView
+        NavigationSplitView {
+            sidebarView(colors: colors)
+        } detail: {
+            detailView(colors: colors)
+        }
+        .environmentObject(focusCoordinator)
+        #else
+        // iOS/macOS: Use TabView
         TabView(selection: $selectedTab) {
             // Dashboard
             ClientDashboardView()
@@ -65,6 +79,7 @@ struct ClientMainView: View {
                 .tag(4)
         }
         .tint(colors.primary)
+        #endif
         .onAppear {
             configureServices()
             if !hasCompletedOnboarding {
@@ -96,6 +111,58 @@ struct ClientMainView: View {
             ClientOnboardingView()
         }
     }
+    
+    #if os(tvOS)
+    @ViewBuilder
+    private func sidebarView(colors: UnifiedTheme.ColorSet) -> some View {
+        List {
+            NavigationLink(value: 0) {
+                Label("Home", systemImage: "house.fill")
+                    .font(.title2)
+            }
+            NavigationLink(value: 1) {
+                Label("Vaults", systemImage: "lock.shield.fill")
+                    .font(.title2)
+            }
+            NavigationLink(value: 2) {
+                Label("Documents", systemImage: "doc.fill")
+                    .font(.title2)
+            }
+            NavigationLink(value: 3) {
+                Label("Triage", systemImage: "cross.case.fill")
+                    .font(.title2)
+            }
+            NavigationLink(value: 4) {
+                Label("Profile", systemImage: "person.circle.fill")
+                    .font(.title2)
+            }
+        }
+        .navigationTitle("Khandoba")
+    }
+    
+    @ViewBuilder
+    private func detailView(colors: UnifiedTheme.ColorSet) -> some View {
+        Group {
+            switch selectedTab {
+            case 0:
+                ClientDashboardView()
+            case 1:
+                VaultListView()
+            case 2:
+                DocumentSearchView()
+            case 3:
+                TriageView()
+            case 4:
+                ProfileView()
+            default:
+                ClientDashboardView()
+            }
+        }
+        .environmentObject(vaultService)
+        .environmentObject(documentService)
+        .environmentObject(chatService)
+    }
+    #endif
     
     private func configureServices() {
         guard let userID = authService.currentUser?.id else { return }

@@ -26,8 +26,6 @@ struct VaultRolodexView: View {
     private let maxVisibleCards = 3
     
     var body: some View {
-        let colors = theme.colors(for: colorScheme)
-        
         GeometryReader { geometry in
             ZStack {
                 // Background blur effect (PassKit style)

@@ -124,6 +124,7 @@ struct WelcomeView: View {
         case .failure(let error):
             // Provide more helpful error messages
             if let authError = error as? ASAuthorizationError {
+                // Switch is exhaustive with @unknown default - compiler warning may be false positive
                 switch authError.code {
                 case .unknown:
                     errorMessage = "Apple Sign In failed. Please ensure:\n• Your device is signed into iCloud\n• Two-factor authentication is enabled\n• Try testing on a real device (simulators have limitations)"

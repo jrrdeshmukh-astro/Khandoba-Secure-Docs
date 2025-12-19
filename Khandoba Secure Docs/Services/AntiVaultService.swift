@@ -47,37 +47,60 @@ final class AntiVaultService: ObservableObject {
     
     // MARK: - Anti-Vault Management
     
-    /// Create a new anti-vault for monitoring a vault
+    /// Create/update anti-vault for a vault (1:1 relationship)
+    /// With 1:1 structure, anti-vault properties are embedded in the vault
     func createAntiVault(monitoredVault: Vault, ownerID: UUID, settings: ThreatDetectionSettings? = nil) async throws -> AntiVault {
-        print("🛡️ Creating anti-vault for monitored vault: \(monitoredVault.name)")
+        print("🛡️ Creating/updating anti-vault for vault: \(monitoredVault.name)")
         
-        // Create the vault first (with isAntiVault = true)
-        let antiVaultVault = Vault(
-            name: "Anti-Vault: \(monitoredVault.name)",
-            vaultDescription: "Fraud detection vault for \(monitoredVault.name)",
-            status: "locked"
-        )
-        antiVaultVault.isAntiVault = true
-        antiVaultVault.monitoredVaultID = monitoredVault.id
-        
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            // Create vault in Supabase
-            let supabaseVault = SupabaseVault(from: antiVaultVault)
-            let createdVault: SupabaseVault = try await supabaseService.insert("vaults", values: supabaseVault)
-            antiVaultVault.id = createdVault.id
-        } else {
-            // Create vault in SwiftData
-            guard let modelContext = modelContext else {
-                throw AntiVaultError.contextNotAvailable
+        // Check if anti-vault already exists (1:1 relationship)
+        if let existingAntiVaultID = monitoredVault.antiVaultID {
+            // Update existing anti-vault
+            if AppConfig.useSupabase, let supabaseService = supabaseService {
+                // Update in Supabase
+                if let existingAntiVault: SupabaseAntiVault = try? await supabaseService.fetch("anti_vaults", id: existingAntiVaultID) {
+                    var updatedAntiVault = existingAntiVault
+                    if let settings = settings {
+                        updatedAntiVault.threatDetectionSettings = settings
+                    }
+                    updatedAntiVault.updatedAt = Date()
+                    _ = try await supabaseService.update("anti_vaults", id: existingAntiVaultID, values: updatedAntiVault)
+                    
+                    // Update vault's embedded properties
+                    monitoredVault.antiVaultStatus = updatedAntiVault.status
+                    monitoredVault.antiVaultThreatDetectionSettingsData = encodeThreatDetectionSettings(updatedAntiVault.threatDetectionSettings)
+                }
+            } else {
+                // Update in SwiftData
+                guard let modelContext = modelContext else {
+                    throw AntiVaultError.contextNotAvailable
+                }
+                let descriptor = FetchDescriptor<AntiVault>(
+                    predicate: #Predicate { $0.id == existingAntiVaultID }
+                )
+                if let existingAntiVault = try? modelContext.fetch(descriptor).first {
+                    if let settings = settings {
+                        existingAntiVault.threatDetectionSettings = settings
+                    }
+                    existingAntiVault.updatedAt = Date()
+                    
+                    // Update vault's embedded properties
+                    monitoredVault.antiVaultStatus = existingAntiVault.status
+                    monitoredVault.antiVaultThreatDetectionSettingsData = existingAntiVault.threatDetectionSettingsData
+                    
+                    try modelContext.save()
+                    return existingAntiVault
+                }
             }
-            modelContext.insert(antiVaultVault)
-            try modelContext.save()
         }
         
-        // Create anti-vault record
+        // Create new anti-vault (1:1 relationship - embedded in vault)
+        // Note: vault_id must reference an existing vault (foreign key constraint)
+        // For 1:1 relationship, vault_id = monitored_vault_id (the vault being monitored)
+        let antiVaultID = UUID()
         let antiVault = AntiVault(
-            vaultID: antiVaultVault.id,
-            monitoredVaultID: monitoredVault.id,
+            id: antiVaultID,
+            vaultID: monitoredVault.id, // Must reference existing vault (foreign key constraint)
+            monitoredVaultID: monitoredVault.id, // Monitors this vault (1:1 relationship)
             ownerID: ownerID,
             status: "locked"
         )
@@ -86,8 +109,20 @@ final class AntiVaultService: ObservableObject {
             antiVault.threatDetectionSettings = settings
         }
         
+        // Update vault with anti-vault properties (1:1 relationship)
+        monitoredVault.antiVaultID = antiVaultID
+        monitoredVault.antiVaultStatus = antiVault.status
+        monitoredVault.antiVaultCreatedAt = Date()
+        monitoredVault.antiVaultAutoUnlockPolicyData = encodeAutoUnlockPolicy(antiVault.autoUnlockPolicy)
+        monitoredVault.antiVaultThreatDetectionSettingsData = encodeThreatDetectionSettings(antiVault.threatDetectionSettings)
+        
         if AppConfig.useSupabase, let supabaseService = supabaseService {
             try await createAntiVaultInSupabase(antiVault: antiVault, ownerID: ownerID, supabaseService: supabaseService)
+            
+            // Update vault in Supabase with anti-vault ID
+            var supabaseVault = SupabaseVault(from: monitoredVault)
+            supabaseVault.antiVaultID = antiVaultID
+            _ = try await supabaseService.update("vaults", id: monitoredVault.id, values: supabaseVault)
         } else {
             guard let modelContext = modelContext else {
                 throw AntiVaultError.contextNotAvailable
@@ -97,8 +132,32 @@ final class AntiVaultService: ObservableObject {
             try modelContext.save()
         }
         
-        print("✅ Anti-vault created: \(antiVault.id)")
+        print("✅ Anti-vault created/updated: \(antiVault.id)")
         return antiVault
+    }
+    
+    // MARK: - Encoding Helpers
+    
+    private func encodeAutoUnlockPolicy(_ policy: AutoUnlockPolicy) -> Data? {
+        let json: [String: Any] = [
+            "unlockOnSessionNomination": policy.unlockOnSessionNomination,
+            "unlockOnSubsetNomination": policy.unlockOnSubsetNomination,
+            "requireApproval": policy.requireApproval,
+            "approvalUserIDs": policy.approvalUserIDs.map { $0.uuidString }
+        ]
+        return try? JSONSerialization.data(withJSONObject: json)
+    }
+    
+    private func encodeThreatDetectionSettings(_ settings: ThreatDetectionSettings) -> Data? {
+        let json: [String: Any] = [
+            "detectContentDiscrepancies": settings.detectContentDiscrepancies,
+            "detectMetadataMismatches": settings.detectMetadataMismatches,
+            "detectAccessPatternAnomalies": settings.detectAccessPatternAnomalies,
+            "detectGeographicInconsistencies": settings.detectGeographicInconsistencies,
+            "detectEditHistoryDiscrepancies": settings.detectEditHistoryDiscrepancies,
+            "minThreatSeverity": settings.minThreatSeverity
+        ]
+        return try? JSONSerialization.data(withJSONObject: json)
     }
     
     private func createAntiVaultInSupabase(antiVault: AntiVault, ownerID: UUID, supabaseService: SupabaseService) async throws {

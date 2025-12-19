@@ -17,7 +17,9 @@ struct VideoRecordingView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var documentService: DocumentService
     
+    #if !os(tvOS)
     @StateObject private var camera = CameraViewModel()
+    #endif
     @State private var isRecording = false
     @State private var showPreview = false
     @State private var recordedVideoURL: URL?
@@ -26,6 +28,9 @@ struct VideoRecordingView: View {
     @State private var showContentBlocked = false
     @State private var blockedContentReason: String?
     @State private var blockedContentCategories: [ContentCategory] = []
+    @State private var showFilePicker = false
+    
+    private var platform = Platform.current
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -34,29 +39,68 @@ struct VideoRecordingView: View {
             colors.background
                 .ignoresSafeArea()
             
-            VStack(spacing: 0) {
-                // Camera Preview - Shows LIVE feed immediately
-                ZStack {
-                    Color.black
-                    
-                    if camera.hasPermission && camera.preview != nil {
-                        CameraPreviewView(camera: camera)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        VStack(spacing: 16) {
-                            Image(systemName: "video.slash")
-                                .font(.system(size: 60))
-                                .foregroundColor(.white.opacity(0.5))
-                            Text(camera.hasPermission ? "Loading camera..." : "Camera access required")
-                                .font(theme.typography.body)
-                                .foregroundColor(.white.opacity(0.7))
-                        }
+            if platform.supportsCamera {
+                // Camera recording view (iOS and macOS)
+                cameraRecordingView(colors: colors)
+            } else {
+                // File upload view (tvOS)
+                fileUploadView(colors: colors)
+            }
+        }
+        #if os(macOS)
+        .fileImporter(
+            isPresented: $showFilePicker,
+            allowedContentTypes: [.movie, .video, .mpeg4Movie, .quickTimeMovie],
+            allowsMultipleSelection: false
+        ) { result in
+            handleFileSelection(result)
+        }
+        #endif
+    }
+    
+    @ViewBuilder
+    private func cameraRecordingView(colors: UnifiedTheme.ColorSet) -> some View {
+        #if !os(tvOS)
+        VStack(spacing: 0) {
+            // Camera Preview - Shows LIVE feed immediately
+            ZStack {
+                Color.black
+                
+                if camera.hasPermission && camera.preview != nil {
+                    CameraPreviewView(camera: camera)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    VStack(spacing: 16) {
+                        Image(systemName: "video.slash")
+                            .font(.system(size: 60))
+                            .foregroundColor(.white.opacity(0.5))
+                        Text(camera.hasPermission ? "Loading camera..." : "Camera access required")
+                            .font(theme.typography.body)
+                            .foregroundColor(.white.opacity(0.7))
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
                 // Controls
                 VStack(spacing: UnifiedTheme.Spacing.lg) {
+                    #if os(macOS)
+                    // macOS: Show file picker option
+                    Button {
+                        showFilePicker = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "folder")
+                            Text("Choose Video File")
+                        }
+                        .padding()
+                        .background(colors.primary)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                    .padding()
+                    #endif
+                    
                     // Recording Indicator with Timer
                     if isRecording {
                         VStack(spacing: 4) {
@@ -83,7 +127,8 @@ struct VideoRecordingView: View {
                         }
                     }
                     
-                    // Record Button
+                    // Record Button (iOS only, macOS uses file picker)
+                    #if os(iOS)
                     Button {
                         toggleRecording()
                     } label: {
@@ -103,6 +148,7 @@ struct VideoRecordingView: View {
                             }
                         }
                     }
+                    #endif
                     
                     // Cost Info
                     Text("Video Recording")
@@ -114,7 +160,9 @@ struct VideoRecordingView: View {
             }
         }
         .navigationTitle("Record Video")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Cancel") {
@@ -124,7 +172,9 @@ struct VideoRecordingView: View {
             }
         }
         .task {
+            #if !os(tvOS)
             await camera.checkPermissions()
+            #endif
         }
         .sheet(isPresented: $showPreview) {
             if let videoURL = recordedVideoURL {
@@ -160,7 +210,57 @@ struct VideoRecordingView: View {
         }
     }
     
+    @ViewBuilder
+    private func fileUploadView(colors: UnifiedTheme.ColorSet) -> some View {
+        // tvOS: File upload only
+        VStack(spacing: UnifiedTheme.Spacing.xl) {
+            Image(systemName: "video.badge.plus")
+                .font(.system(size: 80))
+                .foregroundColor(colors.primary)
+            
+            Text("Video Upload")
+                .font(theme.typography.title)
+                .foregroundColor(colors.textPrimary)
+            
+            Text("Camera recording is not available on Apple TV. Please use file upload to add videos.")
+                .font(theme.typography.body)
+                .foregroundColor(colors.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding()
+            
+            Button {
+                showFilePicker = true
+            } label: {
+                HStack {
+                    Image(systemName: "folder")
+                    Text("Choose Video File")
+                }
+                .padding()
+                .background(colors.primary)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+        }
+        .padding()
+    }
+    
+    #if os(macOS) || os(tvOS)
+    private func handleFileSelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            if let url = urls.first {
+                Task {
+                    await saveVideo(url)
+                }
+            }
+        case .failure(let error):
+            print("File selection failed: \(error)")
+        }
+    }
+    #endif
+    
     private func toggleRecording() {
+        #if !os(tvOS)
         if isRecording {
             // Stop recording and timer
             stopTimer()
@@ -175,6 +275,7 @@ struct VideoRecordingView: View {
             camera.startRecording()
         }
         isRecording.toggle()
+        #endif
     }
     
     private func startTimer() {
@@ -239,7 +340,7 @@ struct VideoRecordingView: View {
             dismiss()
         } catch let error as DocumentError {
             switch error {
-            case .contentBlocked(let _, let categories, let reason):
+            case .contentBlocked(_, let categories, let reason):
                 await MainActor.run {
                     blockedContentReason = reason
                     blockedContentCategories = categories

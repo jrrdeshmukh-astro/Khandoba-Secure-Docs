@@ -19,6 +19,7 @@ final class SupabaseService: ObservableObject {
     // Using old RealtimeChannel API for compatibility (RealtimeChannelV2 API not fully stable)
     // This deprecation warning is intentional - will migrate when RealtimeChannelV2 is stable
     // swiftlint:disable:next deprecated_member_use
+    @available(*, deprecated, message: "Using RealtimeChannel for compatibility - will migrate to RealtimeChannelV2 when stable")
     private var realtimeChannels: [RealtimeChannel] = []
     
     // Request deduplication cache
@@ -359,6 +360,7 @@ final class SupabaseService: ObservableObject {
         Task {
             for channelName in SupabaseConfig.realtimeChannels {
                 // Using old RealtimeChannel API for compatibility (RealtimeChannelV2 API not fully stable)
+                // swiftlint:disable:next deprecated_member_use
                 let channel = client.realtime.channel("\(channelName)-changes")
                 realtimeChannels.append(channel)
                 
@@ -434,10 +436,12 @@ final class SupabaseService: ObservableObject {
     }
     
     func unsubscribeAll() async {
+        // swiftlint:disable:next deprecated_member_use
         for channel in realtimeChannels {
             channel.unsubscribe()
         }
         await MainActor.run {
+            // swiftlint:disable:next deprecated_member_use
             realtimeChannels.removeAll()
         }
     }

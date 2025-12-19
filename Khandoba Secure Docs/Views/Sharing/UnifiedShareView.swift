@@ -335,7 +335,7 @@ struct UnifiedShareView: View {
                 // Use NomineeService to create nominee (supports both SwiftData and Supabase)
                 if AppConfig.useSupabase {
                     // Supabase mode - use NomineeService
-                    try await nomineeService.inviteNominee(
+                    _ = try await nomineeService.inviteNominee(
                         name: fullName,
                         phoneNumber: phoneNumber,
                         email: email,

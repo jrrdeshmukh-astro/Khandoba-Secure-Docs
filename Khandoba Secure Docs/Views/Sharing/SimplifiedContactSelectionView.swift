@@ -8,9 +8,11 @@
 import SwiftUI
 import Contacts
 import SwiftData
+import CloudKit
 
 struct SimplifiedContactSelectionView: View {
     let vault: Vault
+    let preselectedContacts: [CNContact]
     
     @Environment(\.unifiedTheme) var theme
     @Environment(\.colorScheme) var colorScheme
@@ -21,12 +23,22 @@ struct SimplifiedContactSelectionView: View {
     @EnvironmentObject var vaultService: VaultService
     
     @StateObject private var nomineeService = NomineeService()
+    @StateObject private var cloudKitSharing = CloudKitSharingService()
+    private let biometricAuth = BiometricAuthService.shared
+    
     @State private var showContactPicker = false
     @State private var selectedContacts: [CNContact] = []
-    @State private var showNomineeInvitation = false
     @State private var isProcessing = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showSuccess = false
+    @State private var showFaceID = false
+    @State private var showCloudKitSharing = false
+    
+    init(vault: Vault, preselectedContacts: [CNContact] = []) {
+        self.vault = vault
+        self.preselectedContacts = preselectedContacts
+    }
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -37,39 +49,22 @@ struct SimplifiedContactSelectionView: View {
                     .ignoresSafeArea()
                 
                 VStack(spacing: UnifiedTheme.Spacing.lg) {
-                    // Header
+                    // Header (minimal - just for context)
                     VStack(spacing: UnifiedTheme.Spacing.sm) {
                         Image(systemName: "person.2.fill")
                             .font(.system(size: 50))
                             .foregroundColor(colors.primary)
                         
-                        Text("Invite to Vault")
+                        Text("Select Contacts")
                             .font(theme.typography.title)
                             .foregroundColor(colors.textPrimary)
                         
-                        Text("Select contacts to invite to \(vault.name)")
+                        Text("Choose who to invite to \(vault.name)")
                             .font(theme.typography.body)
                             .foregroundColor(colors.textSecondary)
                             .multilineTextAlignment(.center)
                     }
                     .padding(.top, UnifiedTheme.Spacing.xl)
-                    
-                    // Select Contact Button
-                    Button {
-                        showContactPicker = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "person.crop.circle.badge.plus")
-                            Text("Select Contact")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(colors.primary)
-                        .foregroundColor(.white)
-                        .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                    }
-                    .disabled(isProcessing)
-                    .padding(.horizontal)
                     
                     // Selected Contacts
                     if !selectedContacts.isEmpty {
@@ -118,11 +113,18 @@ struct SimplifiedContactSelectionView: View {
                         
                         // Send Invitation Button
                         Button {
-                            showNomineeInvitation = true
+                            Task {
+                                await sendInvitations()
+                            }
                         } label: {
                             HStack {
-                                Image(systemName: "person.badge.plus")
-                                Text("Send Invitation")
+                                if isProcessing {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Image(systemName: "person.badge.plus")
+                                    Text("Send Invitation")
+                                }
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -130,14 +132,14 @@ struct SimplifiedContactSelectionView: View {
                             .foregroundColor(.white)
                             .cornerRadius(UnifiedTheme.CornerRadius.lg)
                         }
-                        .disabled(isProcessing)
+                        .disabled(isProcessing || selectedContacts.isEmpty)
                         .padding(.horizontal)
                     }
                     
                     Spacer()
                 }
             }
-            .navigationTitle("Invite to Vault")
+            .navigationTitle("Select Contacts")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -163,11 +165,20 @@ struct SimplifiedContactSelectionView: View {
                     }
                 )
             }
-            .sheet(isPresented: $showNomineeInvitation) {
-                NomineeInvitationView(vault: vault)
-            }
             .onAppear {
-                // Configure nominee service
+                // If contacts are preselected, use them; otherwise open contact picker
+                if !preselectedContacts.isEmpty {
+                    selectedContacts = preselectedContacts
+                } else {
+                    // Automatically open contact picker when view appears (only if no preselected contacts)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showContactPicker = true
+                    }
+                }
+                
+                // Configure services
+                cloudKitSharing.configure(modelContext: modelContext)
+                
                 if AppConfig.useSupabase {
                     if let userID = authService.currentUser?.id {
                         nomineeService.configure(supabaseService: supabaseService, currentUserID: userID, vaultService: vaultService)
@@ -178,11 +189,126 @@ struct SimplifiedContactSelectionView: View {
                     nomineeService.configure(modelContext: modelContext, vaultService: vaultService)
                 }
             }
+            .sheet(isPresented: $showCloudKitSharing) {
+                CloudKitSharingView(
+                    vault: vault,
+                    container: CKContainer(identifier: AppConfig.cloudKitContainer),
+                    isPresented: $showCloudKitSharing
+                )
+            }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage)
             }
+            .overlay {
+                if showFaceID {
+                    FaceIDOverlayView(
+                        biometricType: biometricAuth.biometricType(),
+                        onCancel: {
+                            showFaceID = false
+                        }
+                    )
+                }
+                
+                if showSuccess {
+                    SuccessOverlayView {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func sendInvitations() async {
+        guard !selectedContacts.isEmpty,
+              let userID = authService.currentUser?.id else {
+            await MainActor.run {
+                errorMessage = "Please select at least one contact"
+                showError = true
+            }
+            return
+        }
+        
+        // Show Face ID overlay
+        await MainActor.run {
+            showFaceID = true
+        }
+        
+        // Authenticate
+        do {
+            let success = try await biometricAuth.authenticate(reason: "Authenticate to send invitations")
+            
+            await MainActor.run {
+                showFaceID = false
+            }
+            
+            guard success else {
+                return // User cancelled
+            }
+            
+            // Process invitations
+            await MainActor.run {
+                isProcessing = true
+            }
+            
+            var successCount = 0
+            var failedContacts: [String] = []
+            
+            for contact in selectedContacts {
+                let contactName = "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces)
+                let phoneNumber = contact.phoneNumbers.first?.value.stringValue
+                let email = contact.emailAddresses.first?.value as String?
+                
+                // Validate contact has phone or email
+                guard !contact.phoneNumbers.isEmpty || !contact.emailAddresses.isEmpty else {
+                    failedContacts.append(contactName.isEmpty ? "Unknown" : contactName)
+                    continue
+                }
+                
+                do {
+                    _ = try await nomineeService.inviteNominee(
+                        name: contactName.isEmpty ? "Nominee" : contactName,
+                        phoneNumber: phoneNumber,
+                        email: email,
+                        to: vault,
+                        invitedByUserID: userID
+                    )
+                    successCount += 1
+                } catch {
+                    failedContacts.append(contactName.isEmpty ? "Unknown" : contactName)
+                }
+            }
+            
+            // Get or create CloudKit share for sharing
+            if successCount > 0 {
+                if let _ = try? await cloudKitSharing.getOrCreateShare(for: vault) {
+                    await MainActor.run {
+                        isProcessing = false
+                        showCloudKitSharing = true
+                    }
+                } else {
+                    await MainActor.run {
+                        isProcessing = false
+                        showSuccess = true
+                    }
+                }
+            } else {
+                await MainActor.run {
+                    isProcessing = false
+                    errorMessage = "Failed to send invitations. Please try again."
+                    showError = true
+                }
+            }
+            
+        } catch {
+            await MainActor.run {
+                showFaceID = false
+                isProcessing = false
+                errorMessage = error.localizedDescription
+                showError = true
+            }
         }
     }
 }
+

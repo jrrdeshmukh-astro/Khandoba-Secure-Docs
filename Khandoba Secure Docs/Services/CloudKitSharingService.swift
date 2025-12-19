@@ -39,8 +39,13 @@ final class CloudKitSharingService: ObservableObject {
     /// Create a CKShare for a vault to share with nominees
     /// Returns the share metadata URL that can be sent to the nominee
     func createShare(for vault: Vault) async throws -> URL {
-        print("🔗 Creating CloudKit share for vault: \(vault.name)")
+        // Skip CloudKit operations if Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            throw CloudKitSharingError.shareCreationFailed
+        }
         
+        print("🔗 Creating CloudKit share for vault: \(vault.name)")
+
         // Ensure vault is synced to CloudKit first
         try await ensureVaultSynced(vault)
         
@@ -90,6 +95,11 @@ final class CloudKitSharingService: ObservableObject {
     /// Ensure vault is synced to CloudKit before sharing
     /// This forces SwiftData to sync the vault to CloudKit
     private func ensureVaultSynced(_ vault: Vault) async throws {
+        // Skip CloudKit operations if Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            return
+        }
+        
         guard let modelContext = modelContext else {
             return
         }
@@ -360,8 +370,10 @@ final class CloudKitSharingService: ObservableObject {
         // 1. iOS < 16.0 (API not deprecated yet)
         // 2. hierarchicalRootRecordID is nil on iOS 16+ (can happen in some cases)
         // This deprecation warning is intentional and necessary for backward compatibility
-        // The warning appears on line 369 but is isolated to this helper function
-        return metadata.rootRecordID  // Deprecated in iOS 16.0, but needed for compatibility
+        // The warning appears on line 375 but is isolated to this helper function
+        // swiftlint:disable:next deprecated_member_use
+        // rootRecordID is deprecated in iOS 16.0, but needed for backward compatibility
+        return metadata.rootRecordID
     }
     
     func processShareInvitation(from metadata: CKShare.Metadata) async throws {
@@ -415,6 +427,12 @@ final class CloudKitSharingService: ObservableObject {
     /// Get all participants from a CloudKit share for a vault
     /// Returns an array of participant information
     func getShareParticipants(for vault: Vault) async throws -> [CKShare.Participant] {
+        // Skip CloudKit operations if Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            print("⚠️ CloudKit sharing disabled - using Supabase instead")
+            return []
+        }
+        
         print("👥 Getting CloudKit share participants for vault: \(vault.name)")
         
         // Ensure vault is synced to CloudKit first
@@ -444,6 +462,12 @@ final class CloudKitSharingService: ObservableObject {
     /// Get both the share and its participants for a vault
     /// Returns a tuple of (share, participants) for convenience
     func getShareAndParticipants(for vault: Vault) async throws -> (CKShare?, [CKShare.Participant]) {
+        // Skip CloudKit operations if Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            print("⚠️ CloudKit sharing disabled - using Supabase instead")
+            return (nil, [])
+        }
+        
         print("👥 Getting CloudKit share and participants for vault: \(vault.name)")
         
         // Ensure vault is synced to CloudKit first
@@ -471,6 +495,12 @@ final class CloudKitSharingService: ObservableObject {
     /// 
     /// NOTE: No server deployment needed - CloudKit is Apple's backend service
     func getOrCreateShare(for vault: Vault) async throws -> CKShare? {
+        // Skip CloudKit operations if Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            print("⚠️ CloudKit sharing disabled - using Supabase instead")
+            return nil
+        }
+        
         print("🔗 Getting or creating CloudKit share for vault: \(vault.name)")
         print("   ℹ️ Using SwiftData + CloudKit integration (no server needed)")
         
@@ -500,6 +530,12 @@ final class CloudKitSharingService: ObservableObject {
     
     /// Remove a share (revoke access for all participants)
     func removeShare(for vault: Vault) async throws {
+        // Skip CloudKit operations if Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            print("⚠️ CloudKit sharing disabled - using Supabase instead")
+            return
+        }
+        
         print("🔒 Removing CloudKit share for vault: \(vault.name)")
         
         guard let vaultRecordID = try await getVaultRecordID(vault),
@@ -518,6 +554,12 @@ final class CloudKitSharingService: ObservableObject {
     
     /// Remove a specific participant from a CloudKit share
     func removeParticipant(participantID: String?, from vault: Vault) async throws {
+        // Skip CloudKit operations if Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            print("⚠️ CloudKit sharing disabled - using Supabase instead")
+            return
+        }
+        
         print("🔒 Removing participant from CloudKit share for vault: \(vault.name)")
         
         guard let vaultRecordID = try await getVaultRecordID(vault),
@@ -556,6 +598,12 @@ final class CloudKitSharingService: ObservableObject {
     /// Note: CloudKit share ownership is typically managed by the system
     /// This method updates the share's owner participant
     func transferShareOwnership(for vault: Vault, to newOwnerUserID: UUID) async throws {
+        // Skip CloudKit operations if Supabase is enabled
+        guard !AppConfig.useSupabase else {
+            print("⚠️ CloudKit sharing disabled - using Supabase instead")
+            return
+        }
+        
         print("🔄 Transferring CloudKit share ownership for vault: \(vault.name)")
         
         guard let vaultRecordID = try await getVaultRecordID(vault),
