@@ -1,0 +1,29 @@
+//
+//  Test.xcconfig
+//  Khandoba Secure Docs - Test Configuration
+//
+
+// Test Environment Configuration
+PRODUCT_BUNDLE_IDENTIFIER = com.khandoba.securedocs.test
+PRODUCT_NAME = Khandoba Secure Docs Test
+MARKETING_VERSION = 1.0.1
+CURRENT_PROJECT_VERSION = 30
+
+// Test Settings
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG TEST
+GCC_PREPROCESSOR_DEFINITIONS = DEBUG=1 TEST=1
+
+// Code Signing
+CODE_SIGN_STYLE = Automatic
+DEVELOPMENT_TEAM = 
+PROVISIONING_PROFILE_SPECIFIER = 
+
+// Build Settings
+SWIFT_OPTIMIZATION_LEVEL = -O
+SWIFT_COMPILATION_MODE = wholemodule
+DEBUG_INFORMATION_FORMAT = dwarf-with-dsym
+
+// Info.plist
+INFOPLIST_KEY_CFBundleDisplayName = Khandoba Secure Docs Test
+INFOPLIST_KEY_CFBundleShortVersionString = $(MARKETING_VERSION)
+INFOPLIST_KEY_CFBundleVersion = $(CURRENT_PROJECT_VERSION)

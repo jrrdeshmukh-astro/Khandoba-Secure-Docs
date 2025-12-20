@@ -1,107 +1,235 @@
-# 📋 Scripts Directory
+# 🚀 Build & Deployment Scripts
 
-**Streamlined scripts for App Store submission**
+> Master scripts for productionization and deployment
 
 ---
 
-## 🚀 Main Scripts:
+## 🔧 Development Setup
 
-### `submit_to_appstore.sh` ⭐
-**Complete App Store submission workflow**
+**`setup_dev_environment.sh`** - Verify and set up development environment
 
 ```bash
-./scripts/submit_to_appstore.sh
+# Run setup verification
+./scripts/setup_dev_environment.sh
 ```
 
 **What it does:**
-- Prompts for Issuer ID
-- Opens App Store Connect
-- Shows all metadata to copy-paste
-- Guides through final submission
+- ✅ Checks prerequisites (Xcode, Java, .NET)
+- ✅ Verifies project structure
+- ✅ Checks documentation
+- ✅ Provides platform-specific setup guidance
 
-**Time:** 5 minutes + manual steps  
-**Use:** After build is in TestFlight
+**See also:** [Development Environment Guide](../docs/DEVELOPMENT_ENVIRONMENT.md)
 
 ---
 
-### `build_production.sh`
-**Build for production with Xcode CLI**
+## 🧹 Cleanup Script
+
+**`cleanup_remaining.sh`** - Removes orphaned/duplicate files and folders
 
 ```bash
-./scripts/build_production.sh
+# Preview what will be removed (safe, read-only)
+./scripts/cleanup_remaining.sh --preview
+
+# Run cleanup with automatic backup
+./scripts/cleanup_remaining.sh
+
+# Run cleanup without backup (faster)
+./scripts/cleanup_remaining.sh --no-backup
+
+# Force cleanup without confirmation prompts
+./scripts/cleanup_remaining.sh --force --no-backup
 ```
 
-**What it does:**
-- Cleans build folder
-- Builds for iOS Release configuration
-- Validates no errors
+**What it removes:**
+- `docs/archive/` - Old session documentation
+- `Archive/` - Root-level archive folder
+- `Khandoba Secure DocsTests/` - Orphaned test target folder
+- `platforms/apple/Khandoba Secure Docs/docs/` - Duplicate docs folder
+- `*.pbxproj.backup*` - Xcode backup files
 
-**Time:** 2-3 minutes  
-**Use:** Verify build before submission
+**Features:**
+- ✅ Preview mode (see what will be removed)
+- ✅ Automatic backup creation
+- ✅ Verification after cleanup
+- ✅ Color-coded output
+- ✅ Error handling
 
 ---
 
-### `final_submit.sh`
-**Final verification before clicking Submit**
+## 📋 Quick Reference
+
+### Productionization
+
+Prepares all platforms for production builds:
 
 ```bash
-./scripts/final_submit.sh
+# All platforms
+./master_productionize.sh
+
+# Specific platform
+./master_productionize.sh apple
+./master_productionize.sh android
+./master_productionize.sh windows
 ```
 
-**What it does:**
-- Interactive checklist
-- Confirms all requirements met
-- Opens browser to submission page
-- Guides final click
+### Deployment
 
-**Time:** 5 minutes  
-**Use:** After all metadata and screenshots are added
-
----
-
-## 📚 Documentation:
-
-All metadata and instructions are in the root folder:
-- `FINAL_SUBMISSION.md` - Copy-paste text
-- `AppStoreAssets/METADATA.md` - Complete metadata
-- `START_HERE.md` - Quick start
-
----
-
-## ✅ Complete Workflow:
+Builds and deploys production builds:
 
 ```bash
-# 1. Build for production (optional - verify build)
-./scripts/build_production.sh
+# Build all platforms
+./master_deploy.sh all build
 
-# 2. Submit to App Store (opens browser, shows metadata)
-./scripts/submit_to_appstore.sh
+# Build specific platform
+./master_deploy.sh apple build
+./master_deploy.sh android build
+./master_deploy.sh windows build
 
-# 3. Complete steps in browser (30 min)
-# - Add description, keywords, URLs
-# - Upload screenshots
-# - Create subscription
-# - Select build
-
-# 4. Final verification and submit
-./scripts/final_submit.sh
+# Upload (after build)
+./master_deploy.sh apple upload
+./master_deploy.sh android upload
 ```
-
-**Total Time:** ~40 minutes  
-**Result:** App submitted! 🎉
 
 ---
 
-## 🎯 Quick Submit:
+## 🍎 Apple Platform
 
-**If everything is ready:**
+### Productionization
+- Cleans build artifacts
+- Verifies production bundle ID
+- Checks code signing
+- Validates environment config
+- Runs build validation
+
+### Deployment
+- **Build:** Creates production archive and IPA
+- **Upload:** Uploads to App Store Connect (via Transporter or altool)
+- **Submit:** Instructions for App Store Connect submission
+
+### Output
+- IPA: `builds/apple/ipas/Khandoba Secure Docs.ipa`
+- Archive: `builds/apple/archives/KhandobaSecureDocs.xcarchive`
+
+---
+
+## 🤖 Android Platform
+
+### Productionization
+- Cleans build artifacts
+- Verifies production flavor configuration
+- Checks signing configuration
+- Validates environment config
+- Runs build validation
+
+### Deployment
+- **Build:** Creates production AAB and APK
+- **Upload:** Instructions for Google Play Console upload
+- **Submit:** Instructions for Play Console submission
+
+### Output
+- AAB: `builds/android/aabs/KhandobaSecureDocs-YYYYMMDD.aab`
+- APK: `builds/android/apks/KhandobaSecureDocs-YYYYMMDD.apk`
+
+---
+
+## 🪟 Windows Platform
+
+### Productionization
+- Cleans build artifacts
+- Verifies production configuration
+- Checks environment config
+- Runs build validation
+
+### Deployment
+- **Build:** Creates release package
+- **Upload:** Instructions for Visual Studio/Partner Center
+- **Submit:** Instructions for Microsoft Store submission
+
+### Output
+- Package: `platforms/windows/KhandobaSecureDocs/bin/Release/.../publish/`
+
+---
+
+## 📝 Usage Examples
+
+### Full Production Pipeline
 
 ```bash
-./scripts/final_submit.sh
+# 1. Productionize all platforms
+./master_productionize.sh all
+
+# 2. Build all platforms
+./master_deploy.sh all build
+
+# 3. Upload specific platform
+./master_deploy.sh apple upload
 ```
 
-**This is your FINAL command!**
+### Apple Only
+
+```bash
+# Productionize
+./master_productionize.sh apple
+
+# Build
+./master_deploy.sh apple build
+
+# Upload
+./master_deploy.sh apple upload
+```
+
+### Android Only
+
+```bash
+# Productionize
+./master_productionize.sh android
+
+# Build
+./master_deploy.sh android build
+
+# Then upload AAB via Google Play Console
+```
 
 ---
 
-**All scripts are ready to use!** 🚀
+## ⚙️ Configuration
+
+### Apple
+- Scheme: `Khandoba Secure Docs` (Production)
+- Configuration: `Release-Production`
+- Bundle ID: `com.khandoba.securedocs` (no suffix)
+
+### Android
+- Flavor: `prod`
+- Build Type: `release`
+- Application ID: `com.khandoba.securedocs` (no suffix)
+
+### Windows
+- Configuration: `Release`
+- Runtime: `win-x64`
+
+---
+
+## 🔐 Requirements
+
+### Apple
+- Xcode 15.0+
+- Apple Developer Account
+- Code signing configured
+- ExportOptions.plist configured
+
+### Android
+- Android SDK
+- Gradle
+- Signing keystore (for release builds)
+- Google Play Console account
+
+### Windows
+- .NET 8 SDK
+- Visual Studio 2022 (for packaging)
+- Microsoft Partner Center account
+
+---
+
+**Last Updated:** December 2024

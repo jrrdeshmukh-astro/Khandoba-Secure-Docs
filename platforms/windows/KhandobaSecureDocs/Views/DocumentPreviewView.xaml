@@ -1,0 +1,102 @@
+<Page x:Class="KhandobaSecureDocs.Views.DocumentPreviewView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="20">
+            <TextBlock x:Name="DocumentNameTextBlock"
+                       FontSize="24" 
+                       FontWeight="Bold"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,10"/>
+            <TextBlock x:Name="DocumentInfoTextBlock"
+                       FontSize="14" 
+                       Foreground="Gray"
+                       Margin="0,0,0,20"/>
+            
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Content="⬇ Download" 
+                        x:Name="DownloadButton"
+                        Click="OnDownloadClick"
+                        Padding="15,8"/>
+                <Button Content="🗑 Delete" 
+                        x:Name="DeleteButton"
+                        Click="OnDeleteClick"
+                        Padding="15,8"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Document Preview Area -->
+        <ScrollViewer Grid.Row="1" 
+                      Margin="20"
+                      ZoomMode="Enabled"
+                      HorizontalScrollMode="Enabled"
+                      VerticalScrollMode="Enabled">
+            <Grid>
+                <!-- Image Preview -->
+                <Image x:Name="ImagePreview"
+                       Stretch="Uniform"
+                       Visibility="Collapsed"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"/>
+
+                <!-- Text Preview -->
+                <TextBlock x:Name="TextPreview"
+                           TextWrapping="Wrap"
+                           FontSize="14"
+                           Visibility="Collapsed"
+                           Margin="10"/>
+
+                <!-- PDF Preview (placeholder - requires PDF.js or library) -->
+                <Border x:Name="PdfPreview"
+                        Visibility="Collapsed"
+                        BorderBrush="LightGray"
+                        BorderThickness="1"
+                        Background="White">
+                    <TextBlock Text="PDF preview requires PDF.js or a PDF viewer library"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Margin="20"
+                               Foreground="Gray"/>
+                </Border>
+
+                <!-- Loading Indicator -->
+                <ProgressRing x:Name="LoadingRing"
+                              IsActive="True"
+                              Width="50" 
+                              Height="50"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"/>
+
+                <!-- Error Message -->
+                <TextBlock x:Name="ErrorTextBlock"
+                           Text="Failed to load document preview"
+                           FontSize="16"
+                           Foreground="Red"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Visibility="Collapsed"
+                           TextWrapping="Wrap"
+                           Margin="20"/>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" 
+                BorderBrush="LightGray" 
+                BorderThickness="0,1,0,0"
+                Background="LightGray"
+                Padding="20,10">
+            <TextBlock x:Name="StatusTextBlock"
+                       FontSize="12"
+                       Foreground="DarkGray"/>
+        </Border>
+    </Grid>
+</Page>

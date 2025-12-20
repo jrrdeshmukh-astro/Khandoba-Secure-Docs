@@ -1,9 +1,8 @@
 # Xcode
-.DS_Store
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
 build/
-*.xcodeproj/xcuserdata/
-*.xcodeproj/project.xcworkspace/xcuserdata/
-*.xcworkspace/xcuserdata/
 DerivedData/
 *.moved-aside
 *.pbxuser
@@ -14,80 +13,115 @@ DerivedData/
 !default.mode2v3
 *.perspectivev3
 !default.perspectivev3
-xcuserdata/
-*.xccheckout
-*.xcscmblueprint
-
-# Swift Package Manager
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
 .build/
-Packages/
-Package.pins
-Package.resolved
-
-# CocoaPods
-Pods/
-*.xcworkspace
-
-# Carthage
 Carthage/Build/
-
-# Accio
-Dependencies/
-.accio/
-
-# fastlane
 fastlane/report.xml
 fastlane/Preview.html
-fastlane/screenshots
+fastlane/screenshots/**/*.png
 fastlane/test_output
+iOSInjectionProject/
 
-# Code coverage
-*.gcda
-*.gcno
+# Android
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+*.apk
+*.aar
+*.ap_
+*.aab
+*.kotlin_module
+*.class
 
-# Python virtual env
-.venv/
-venv/
-env/
+# Windows
+bin/
+obj/
+*.user
+*.suo
+*.sln.docstates
+*.cache
+.vs/
 
-# Temporary files
+# Build artifacts
+builds/
+*.ipa
+*.apk
+*.aab
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+
+# Environment-specific config (contains sensitive keys)
+platforms/apple/Configurations/*.xcconfig.local
+platforms/android/app/src/*/res/values/config.local.xml
+platforms/windows/**/*.config.local
+
+# API Keys (if stored locally)
+**/AuthKey_*.p8
+*.p8
+*.p12
+*.keystore
+*.jks
+
+# Supabase keys (if stored locally)
+**/supabase-keys.local.*
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
 *.swp
 *.swo
 *~
-.AppleDouble
-.LSOverride
 
-# Thumbnails
-._*
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
 
-# Files that might appear in the root
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
+# Xcode backup files
+*.pbxproj.backup*
 
-# Directories potentially created on remote AFP share
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Secrets (keep private keys private!)
-*.p8
-*.p12
-*.mobileprovision
-
-# Large build artifacts
-*.ipa
-*.dSYM.zip
-*.xcarchive
-
-# Keep documentation and scripts
-!*.md
-!scripts/*.sh
-!scripts/*.plist
-
+# Node (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

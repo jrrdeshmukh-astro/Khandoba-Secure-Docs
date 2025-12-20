@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">Khandoba Secure Docs</string>
-    <string name="welcome_title">Welcome to Khandoba</string>
-    <string name="sign_in_with_google">Sign in with Google</string>
-    <string name="vaults">Vaults</string>
-    <string name="documents">Documents</string>
-    <string name="profile">Profile</string>
-</resources>

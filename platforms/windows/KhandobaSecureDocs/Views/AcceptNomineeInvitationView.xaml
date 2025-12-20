@@ -1,0 +1,105 @@
+<Page x:Class="KhandobaSecureDocs.Views.AcceptNomineeInvitationView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,30" HorizontalAlignment="Center">
+            <SymbolIcon Symbol="Contact2" 
+                        FontSize="64" 
+                        Foreground="Blue"
+                        Margin="0,0,0,20"/>
+            <TextBlock Text="Vault Invitation" 
+                       FontSize="28" 
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,10"/>
+            <TextBlock Text="You've been invited to access a vault"
+                       FontSize="16"
+                       Foreground="Gray"
+                       HorizontalAlignment="Center"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Invitation Details -->
+        <Border Grid.Row="1" 
+                BorderBrush="LightGray" 
+                BorderThickness="1"
+                CornerRadius="5"
+                Padding="15"
+                Margin="0,0,0,20">
+            <StackPanel Spacing="15">
+                <StackPanel>
+                    <TextBlock Text="Vault Name" 
+                               FontSize="14" 
+                               Foreground="Gray"
+                               Margin="0,0,0,5"/>
+                    <TextBlock x:Name="VaultNameTextBlock"
+                               FontSize="18" 
+                               FontWeight="Bold"/>
+                </StackPanel>
+                
+                <Separator/>
+
+                <StackPanel>
+                    <TextBlock Text="Invited On" 
+                               FontSize="14" 
+                               Foreground="Gray"
+                               Margin="0,0,0,5"/>
+                    <TextBlock x:Name="InvitedAtTextBlock"
+                               FontSize="14"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Info Card -->
+        <Border Grid.Row="2" 
+                BorderBrush="LightBlue" 
+                BorderThickness="1"
+                Background="LightBlue"
+                CornerRadius="5"
+                Padding="15"
+                Margin="0,0,0,20">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <SymbolIcon Symbol="Info" 
+                            FontSize="24" 
+                            Foreground="Blue"/>
+                <TextBlock Text="When the vault owner unlocks the vault, you'll automatically have access to view and manage documents. The vault will be shared in real-time - no documents are copied."
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Action Buttons -->
+        <StackPanel Grid.Row="4" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Center"
+                    Spacing="10">
+            <Button Content="Decline" 
+                    Click="OnDeclineClick"
+                    Padding="20,10"/>
+            <Button Content="Accept" 
+                    x:Name="AcceptButton"
+                    Click="OnAcceptClick"
+                    Padding="20,10"/>
+        </StackPanel>
+
+        <!-- Progress Ring -->
+        <ProgressRing Grid.Row="0" 
+                      Grid.RowSpan="5"
+                      x:Name="LoadingRing"
+                      IsActive="False"
+                      Width="50" 
+                      Height="50"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"/>
+    </Grid>
+</Page>

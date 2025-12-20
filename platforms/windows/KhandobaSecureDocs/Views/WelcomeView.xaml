@@ -1,0 +1,23 @@
+<Page x:Class="KhandobaSecureDocs.Views.WelcomeView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="20">
+            <TextBlock Text="Welcome to Khandoba Secure Docs" 
+                       FontSize="32" 
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,10"/>
+            <TextBlock Text="Enterprise-grade secure document management" 
+                       FontSize="16" 
+                       Foreground="Gray"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,30"/>
+            <Button Content="Sign In with Microsoft" 
+                    Click="OnSignInClick"
+                    HorizontalAlignment="Center"
+                    Padding="20,10"
+                    FontSize="16"/>
+        </StackPanel>
+    </Grid>
+</Page>
