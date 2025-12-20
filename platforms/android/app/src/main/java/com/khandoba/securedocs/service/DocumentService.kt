@@ -19,7 +19,8 @@ class DocumentService(
     private val context: Context,
     private val documentRepository: DocumentRepository,
     private val supabaseService: SupabaseService,
-    private val encryptionService: EncryptionService
+    private val encryptionService: EncryptionService,
+    private val documentIndexingService: DocumentIndexingService? = null
 ) {
     private val _documents = MutableStateFlow<List<DocumentEntity>>(emptyList())
     val documents: StateFlow<List<DocumentEntity>> = _documents.asStateFlow()
@@ -80,6 +81,48 @@ class DocumentService(
                 else -> "other"
             }
             
+            // Create initial document entity for indexing (before encryption)
+            var documentName = name
+            var aiTags = emptyList<String>()
+            var extractedText: String? = null
+            
+            // Index document and generate intelligent name/tags (on unencrypted data)
+            if (documentIndexingService != null && documentType == "image") {
+                try {
+                    // For images, we need to create a bitmap for OCR
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                    inputStream?.close()
+                    
+                    if (bitmap != null) {
+                        // Index document to extract text and generate tags/name
+                        val indexedDoc = documentIndexingService.indexDocument(
+                            document = DocumentEntity(
+                                id = UUID.randomUUID(),
+                                name = name,
+                                fileExtension = fileExtension,
+                                mimeType = mimeType,
+                                documentType = documentType,
+                                extractedText = null,
+                                aiTags = emptyList()
+                            ),
+                            imageBitmap = bitmap
+                        )
+                        
+                        documentName = indexedDoc.name
+                        aiTags = indexedDoc.aiTags
+                        extractedText = indexedDoc.extractedText
+                        
+                        bitmap.recycle()
+                    }
+                } catch (e: Exception) {
+                    Log.e("DocumentService", "Indexing failed, using original name: ${e.message}")
+                    // Continue with original name if indexing fails
+                }
+            }
+            
+            _uploadProgress.value = 0.5
+            
             // Upload to Supabase Storage if enabled
             var storagePath: String? = null
             if (AppConfig.USE_SUPABASE) {
@@ -97,10 +140,10 @@ class DocumentService(
                 }
             }
             
-            // Create document entity
+            // Create document entity with intelligent name and tags
             val document = DocumentEntity(
                 id = UUID.randomUUID(),
-                name = name,
+                name = documentName, // Use intelligent name from indexing
                 fileExtension = fileExtension,
                 mimeType = mimeType,
                 fileSize = fileData.size.toLong(),
@@ -112,7 +155,9 @@ class DocumentService(
                 documentType = documentType,
                 status = "active",
                 vaultId = vaultId,
-                uploadedByUserID = uploadedByUserID
+                uploadedByUserID = uploadedByUserID,
+                aiTags = aiTags, // Use tags from indexing
+                extractedText = extractedText // Store extracted text for search
             )
             
             // Save to database

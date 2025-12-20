@@ -15,6 +15,7 @@ import com.khandoba.securedocs.data.supabase.SupabaseService
 import com.khandoba.securedocs.service.AuthenticationService
 import com.khandoba.securedocs.service.VaultService
 import com.khandoba.securedocs.service.DocumentService
+import com.khandoba.securedocs.service.DocumentIndexingService
 import com.khandoba.securedocs.service.EncryptionService
 import com.khandoba.securedocs.data.repository.DocumentRepository
 import com.khandoba.securedocs.data.repository.VaultRepository
@@ -92,14 +93,17 @@ fun ContentView(
         )
     }
     
-    val documentService = remember {
-        DocumentService(
-            context = context,
-            documentRepository = documentRepository,
-            supabaseService = supabaseService,
-            encryptionService = encryptionService
-        )
-    }
+            val documentIndexingService = remember { DocumentIndexingService() }
+            
+            val documentService = remember {
+                DocumentService(
+                    context = context,
+                    documentRepository = documentRepository,
+                    supabaseService = supabaseService,
+                    encryptionService = encryptionService,
+                    documentIndexingService = documentIndexingService
+                )
+            }
     
     val nomineeRepository = remember {
         com.khandoba.securedocs.data.repository.NomineeRepository(

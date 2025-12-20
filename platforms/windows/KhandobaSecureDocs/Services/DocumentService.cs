@@ -117,32 +117,43 @@ namespace KhandobaSecureDocs.Services
                     }
                 }
 
-                // Create document in Supabase
+                // Index document and generate intelligent name/tags (on unencrypted data)
+                string intelligentName = file.Name;
+                List<string> aiTags = new();
+                
+                if (!string.IsNullOrEmpty(extractedText))
+                {
+                    var index = await _indexingService.IndexDocumentAsync(extractedText, Guid.NewGuid());
+                    
+                    // Use suggested name if available
+                    if (!string.IsNullOrEmpty(index.SuggestedName))
+                    {
+                        intelligentName = index.SuggestedName;
+                    }
+                    
+                    // Use generated tags
+                    if (index.AiTags.Any())
+                    {
+                        aiTags = index.AiTags;
+                    }
+                }
+
+                // Create document in Supabase with intelligent name and tags
                 var supabaseDocument = new SupabaseDocument
                 {
                     Id = Guid.NewGuid(),
                     VaultID = vaultID,
-                    Name = file.Name,
+                    Name = intelligentName, // Use intelligent name from indexing
                     FileType = file.FileType,
                     FileSize = bytes.Length,
                     StoragePath = storagePath,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
-                    DocumentType = "source"
+                    DocumentType = "source",
+                    AiTags = aiTags.Any() ? string.Join(",", aiTags) : null // Store tags as comma-separated string
                 };
 
                 var created = await _supabaseService.InsertAsync("documents", supabaseDocument);
-
-                // Index document if text is available
-                if (!string.IsNullOrEmpty(extractedText))
-                {
-                    var index = await _indexingService.IndexDocumentAsync(extractedText, created.Id);
-                    if (index.AiTags.Any())
-                    {
-                        created.AiTags = string.Join(",", index.AiTags);
-                        await _supabaseService.UpdateAsync(created.Id, created);
-                    }
-                }
 
                 return ConvertToDomainDocument(created);
             }
