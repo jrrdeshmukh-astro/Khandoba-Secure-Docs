@@ -56,6 +56,20 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="khandoba" />
             </intent-filter>
+            
+            <!-- Share to Vault: Handle ACTION_SEND intents from other apps -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            
+            <!-- Share to Vault: Handle ACTION_SEND_MULTIPLE for multiple files -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
         </activity>
         
         <provider

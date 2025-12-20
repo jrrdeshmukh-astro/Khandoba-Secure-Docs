@@ -29,6 +29,18 @@ namespace KhandobaSecureDocs
             Task.Run(async () => await supabaseService.ConfigureAsync());
 
             _mainWindow = new MainWindow();
+            
+            // Handle share target activation
+            if (args.Kind == Windows.ApplicationModel.Activation.ActivationKind.ShareTarget)
+            {
+                var shareOperation = args as Windows.ApplicationModel.Activation.ShareTargetActivatedEventArgs;
+                if (shareOperation != null)
+                {
+                    // Handle share - this will be processed in MainWindow
+                    // Pass shareOperation to MainWindow or handle here
+                }
+            }
+            
             _mainWindow.Activate();
         }
 

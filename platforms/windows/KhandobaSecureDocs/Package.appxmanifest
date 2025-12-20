@@ -42,6 +42,43 @@
         <uap:Extension Category="windows.protocol">
           <uap:Protocol Name="khandoba-securedocs" />
         </uap:Extension>
+        
+        <!-- Share Target: Allow app to receive shared content from other apps -->
+        <uap:Extension Category="windows.shareTarget">
+          <uap:ShareTarget Description="Share to Khandoba Secure Docs Vault">
+            <uap:SupportedFileTypes>
+              <!-- Images -->
+              <uap:FileType>.jpg</uap:FileType>
+              <uap:FileType>.jpeg</uap:FileType>
+              <uap:FileType>.png</uap:FileType>
+              <uap:FileType>.gif</uap:FileType>
+              <uap:FileType>.bmp</uap:FileType>
+              <uap:FileType>.heic</uap:FileType>
+              <!-- Documents -->
+              <uap:FileType>.pdf</uap:FileType>
+              <uap:FileType>.doc</uap:FileType>
+              <uap:FileType>.docx</uap:FileType>
+              <uap:FileType>.xls</uap:FileType>
+              <uap:FileType>.xlsx</uap:FileType>
+              <uap:FileType>.ppt</uap:FileType>
+              <uap:FileType>.pptx</uap:FileType>
+              <uap:FileType>.txt</uap:FileType>
+              <!-- Video -->
+              <uap:FileType>.mp4</uap:FileType>
+              <uap:FileType>.mov</uap:FileType>
+              <uap:FileType>.avi</uap:FileType>
+              <!-- Audio -->
+              <uap:FileType>.mp3</uap:FileType>
+              <uap:FileType>.m4a</uap:FileType>
+              <uap:FileType>.wav</uap:FileType>
+            </uap:SupportedFileTypes>
+            <uap:DataFormat>File</uap:DataFormat>
+            <uap:DataFormat>Bitmap</uap:DataFormat>
+            <uap:DataFormat>Text</uap:DataFormat>
+            <uap:DataFormat>Uri</uap:DataFormat>
+            <uap:DataFormat>StorageItems</uap:DataFormat>
+          </uap:ShareTarget>
+        </uap:Extension>
       </Extensions>
     </Application>
   </Applications>
