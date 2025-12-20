@@ -350,14 +350,31 @@ class SupabaseService {
         val client = client ?: return
         
         try {
-            // Subscribe to vaults channel
+            // Subscribe to vaults channel - specifically for threat_index updates
             val vaultsChannel = client.realtime.createChannel("vaults") {
                 on("postgres_changes") { event ->
                     android.util.Log.d("SupabaseService", "Vault change received: ${event.type}")
-                    // Handle vault changes (INSERT, UPDATE, DELETE)
-                    // This would typically trigger a callback or update a Flow
+                    
+                    // Extract threat_index from update events
+                    if (event.type == "UPDATE") {
+                        try {
+                            val payload = event.payload as? Map<*, *>
+                            val newRecord = payload?.get("new") as? Map<*, *>
+                            val threatIndex = newRecord?.get("threat_index") as? Number
+                            val threatLevel = newRecord?.get("threat_level") as? String
+                            val vaultId = newRecord?.get("id") as? String
+                            
+                            if (threatIndex != null && vaultId != null) {
+                                android.util.Log.d("SupabaseService", "Threat index updated for vault $vaultId: $threatIndex ($threatLevel)")
+                                // TODO: Emit to a Flow or callback for UI updates
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("SupabaseService", "Error parsing vault update: ${e.message}")
+                        }
+                    }
                 }
             }
+            // Subscribe to vaults table changes, filtering for threat_index column updates
             vaultsChannel.subscribe()
             realtimeChannels["vaults"] = vaultsChannel
             

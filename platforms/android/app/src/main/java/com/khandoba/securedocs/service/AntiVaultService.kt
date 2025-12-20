@@ -4,6 +4,7 @@ import android.util.Log
 import com.khandoba.securedocs.data.entity.VaultEntity
 import com.khandoba.securedocs.data.supabase.SupabaseService
 import com.khandoba.securedocs.data.supabase.SupabaseAntiVault
+import com.khandoba.securedocs.data.supabase.SupabaseThreatEvent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -218,12 +219,41 @@ class AntiVaultService(
     
     suspend fun loadThreatsForAntiVault(antiVaultID: UUID) {
         try {
-            // Load threat events from database
-            // This would query the threat_events table filtered by vault_id
-            // For now, return empty list - implementation depends on threat_events table structure
-            _detectedThreats.value = emptyList()
+            // Load the anti-vault to get monitored vault ID
+            val antiVault = _antiVaults.value.firstOrNull { it.id == antiVaultID }
+            if (antiVault == null) {
+                _detectedThreats.value = emptyList()
+                return
+            }
+
+            // Load threat events from database for the monitored vault
+            // Note: fetchAll doesn't support IS NULL filters, so we filter in code
+            val allThreatEvents = supabaseService.fetchAll<SupabaseThreatEvent>(
+                table = "threat_events",
+                filters = mapOf("vault_id" to antiVault.monitoredVaultID.toString()),
+                orderBy = "detected_at",
+                ascending = false,
+                limit = 100 // Get more than needed, then filter
+            )
+            
+            // Filter for unresolved threats only
+            val threatEvents = allThreatEvents.filter { it.resolved_at == null }
+
+            val threats = threatEvents.map { evt ->
+                ThreatDetection(
+                    id = evt.id.toString(),
+                    detectedAt = parseDate(evt.detected_at) ?: Date(),
+                    type = evt.event_type,
+                    severity = evt.severity,
+                    description = evt.description ?: evt.event_type,
+                    vaultID = evt.vault_id
+                )
+            }
+
+            _detectedThreats.value = threats
         } catch (e: Exception) {
             Log.e("AntiVaultService", "Error loading threats", e)
+            _detectedThreats.value = emptyList()
         }
     }
     
@@ -237,17 +267,25 @@ class AntiVaultService(
             autoUnlockPolicy = decodeAutoUnlockPolicyFromJson(supabase.auto_unlock_policy),
             threatDetectionSettings = decodeThreatDetectionSettingsFromJson(supabase.threat_detection_settings),
             lastIntelReportID = supabase.last_intel_report_id,
-            createdAt = parseDate(supabase.created_at),
-            updatedAt = parseDate(supabase.updated_at),
+            createdAt = parseDate(supabase.created_at) ?: Date(),
+            updatedAt = parseDate(supabase.updated_at) ?: Date(),
             lastUnlockedAt = supabase.last_unlocked_at?.let { parseDate(it) }
         )
     }
     
-    private fun parseDate(dateString: String): Date {
+    private fun parseDate(dateString: String?): Date? {
+        if (dateString == null) return null
         return try {
-            dateFormat.parse(dateString) ?: Date()
+            dateFormat.parse(dateString)
         } catch (e: Exception) {
-            Date()
+            try {
+                // Try alternative format without milliseconds
+                val altFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                altFormat.parse(dateString)
+            } catch (e2: Exception) {
+                Log.e("AntiVaultService", "Error parsing date: $dateString", e2)
+                null
+            }
         }
     }
     
