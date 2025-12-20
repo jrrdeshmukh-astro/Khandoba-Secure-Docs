@@ -27,6 +27,9 @@ struct SupabaseVault: Codable, Identifiable {
     var antiVaultID: UUID? // 1:1 relationship with anti-vault
     var isBroadcast: Bool? // Broadcast vaults are publicly accessible
     var accessLevel: String? // "private", "public_read", "public_write", "moderated"
+    var threatIndex: Double? // Real-time threat index (0-100)
+    var threatLevel: String? // "low", "medium", "high", "critical"
+    var lastThreatAssessmentAt: Date? // Last time threat index was calculated
     var updatedAt: Date
     
     enum CodingKeys: String, CodingKey {
@@ -49,6 +52,9 @@ struct SupabaseVault: Codable, Identifiable {
         case antiVaultID = "anti_vault_id"
         case isBroadcast = "is_broadcast"
         case accessLevel = "access_level"
+        case threatIndex = "threat_index"
+        case threatLevel = "threat_level"
+        case lastThreatAssessmentAt = "last_threat_assessment_at"
         case updatedAt = "updated_at"
     }
     
@@ -73,6 +79,9 @@ struct SupabaseVault: Codable, Identifiable {
         self.antiVaultID = vault.antiVaultID
         self.isBroadcast = vault.isBroadcast
         self.accessLevel = vault.accessLevel
+        self.threatIndex = vault.threatIndex
+        self.threatLevel = vault.threatLevel
+        self.lastThreatAssessmentAt = vault.lastThreatAssessmentAt
         self.updatedAt = Date()
     }
     

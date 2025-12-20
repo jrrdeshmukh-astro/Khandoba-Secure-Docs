@@ -43,7 +43,10 @@ data class VaultEntity(
     val isEncrypted: Boolean = true,
     val isZeroKnowledge: Boolean = true,
     val ownerId: UUID? = null,
-    val relationshipOfficerID: UUID? = null
+    val relationshipOfficerID: UUID? = null,
+    val threatIndex: Double = 0.0,
+    val threatLevel: String = "low", // "low", "medium", "high", "critical"
+    val lastThreatAssessmentAt: Date? = null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

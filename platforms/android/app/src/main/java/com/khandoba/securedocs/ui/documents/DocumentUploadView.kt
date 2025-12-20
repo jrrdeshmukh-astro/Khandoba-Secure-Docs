@@ -61,39 +61,45 @@ fun DocumentUploadView(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Upload options
+                // Upload options - Filter by vault type
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Camera
-                    Button(
-                        onClick = {
-                            // Create a temporary file for the camera image
-                            val photoFile = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "temp_photo_${System.currentTimeMillis()}.jpg")
-                            val photoUri = FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                photoFile
-                            )
-                            cameraImageUri = photoUri
-                            cameraLauncher.launch(photoUri)
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Camera, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Camera")
+                    // Source options (Camera, Photos) - only for source/both vaults
+                    if (vault.vaultType == "source" || vault.vaultType == "both") {
+                        // Camera
+                        Button(
+                            onClick = {
+                                // Create a temporary file for the camera image
+                                val photoFile = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "temp_photo_${System.currentTimeMillis()}.jpg")
+                                val photoUri = FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    photoFile
+                                )
+                                cameraImageUri = photoUri
+                                cameraLauncher.launch(photoUri)
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Camera, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Camera")
+                        }
                     }
                     
-                    // File picker
-                    Button(
-                        onClick = { filePickerLauncher.launch("*/*") },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Folder, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Files")
+                    // Sink options (Files) - only for sink/both vaults
+                    if (vault.vaultType == "sink" || vault.vaultType == "both") {
+                        // File picker
+                        Button(
+                            onClick = { filePickerLauncher.launch("*/*") },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Folder, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Files")
+                        }
                     }
                 }
                 

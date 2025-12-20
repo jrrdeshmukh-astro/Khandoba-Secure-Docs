@@ -55,6 +55,9 @@ namespace KhandobaSecureDocs
             services.AddSingleton<EmergencyApprovalService>();
             services.AddSingleton<BroadcastVaultService>();
             services.AddSingleton<VaultTransferService>();
+            
+            // AntiVaultService will be created per-user (transient or scoped)
+            // Note: Requires currentUserID - will be configured after user login
 
             // ViewModels
             services.AddTransient<VaultViewModel>();

@@ -53,6 +53,9 @@ data class SupabaseVault(
     val is_anti_vault: Boolean = false,
     val monitored_vault_id: UUID? = null,
     val anti_vault_id: UUID? = null,
+    val threat_index: Double = 0.0,
+    val threat_level: String = "low", // "low", "medium", "high", "critical"
+    val last_threat_assessment_at: String? = null,
     val updated_at: String
 )
 

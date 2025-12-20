@@ -38,6 +38,34 @@ namespace KhandobaSecureDocs.Views
                 _vault = vault;
                 ViewModel.Vault = vault;
                 VaultNameTextBlock.Text = $"Vault: {vault.Name}";
+                
+                // Filter upload options based on vault type
+                UpdateUploadOptionsVisibility();
+            }
+        }
+
+        private void UpdateUploadOptionsVisibility()
+        {
+            if (_vault == null) return;
+
+            // Show source options (Camera, Photos) only for source/both vaults
+            if (_vault.VaultType == "source" || _vault.VaultType == "both")
+            {
+                SourceOptionsPanel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                SourceOptionsPanel.Visibility = Visibility.Collapsed;
+            }
+
+            // Show sink options (Files) only for sink/both vaults
+            if (_vault.VaultType == "sink" || _vault.VaultType == "both")
+            {
+                SinkOptionsPanel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                SinkOptionsPanel.Visibility = Visibility.Collapsed;
             }
         }
 

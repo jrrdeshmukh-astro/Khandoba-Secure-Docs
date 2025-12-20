@@ -37,6 +37,11 @@ final class Vault {
     var antiVaultLastUnlockedAt: Date?
     var antiVaultCreatedAt: Date?
     
+    // Real-time threat monitoring
+    var threatIndex: Double = 0.0 // 0-100 scale, calculated by database triggers
+    var threatLevel: String = "low" // "low", "medium", "high", "critical"
+    var lastThreatAssessmentAt: Date? // Last time threat index was calculated
+    
     // Encryption
     var encryptionKeyData: Data?
     var isEncrypted: Bool = true

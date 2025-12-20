@@ -82,6 +82,15 @@ namespace KhandobaSecureDocs.Models
         [Column("anti_vault_id")]
         public Guid? AntiVaultID { get; set; }
 
+        [Column("threat_index")]
+        public double ThreatIndex { get; set; } = 0.0;
+
+        [Column("threat_level")]
+        public string ThreatLevel { get; set; } = "low"; // "low", "medium", "high", "critical"
+
+        [Column("last_threat_assessment_at")]
+        public DateTime? LastThreatAssessmentAt { get; set; }
+
         [Column("updated_at")]
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
@@ -309,6 +318,44 @@ namespace KhandobaSecureDocs.Models
 
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    // Supabase Anti-Vault Model
+    [Table("anti_vaults")]
+    public class SupabaseAntiVault : BaseModel
+    {
+        [PrimaryKey("id")]
+        public Guid Id { get; set; }
+
+        [Column("vault_id")]
+        public Guid VaultID { get; set; }
+
+        [Column("monitored_vault_id")]
+        public Guid MonitoredVaultID { get; set; }
+
+        [Column("owner_id")]
+        public Guid OwnerID { get; set; }
+
+        [Column("status")]
+        public string Status { get; set; } = "locked"; // "locked", "active", "archived"
+
+        [Column("auto_unlock_policy")]
+        public string? AutoUnlockPolicy { get; set; } // JSONB
+
+        [Column("threat_detection_settings")]
+        public string? ThreatDetectionSettings { get; set; } // JSONB
+
+        [Column("last_intel_report_id")]
+        public Guid? LastIntelReportID { get; set; }
+
+        [Column("created_at")]
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [Column("updated_at")]
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+        [Column("last_unlocked_at")]
+        public DateTime? LastUnlockedAt { get; set; }
     }
 }
 

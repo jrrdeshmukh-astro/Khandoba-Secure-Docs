@@ -81,56 +81,62 @@ struct DocumentUploadView: View {
                         .foregroundColor(colors.textPrimary)
                         .padding(.top, UnifiedTheme.Spacing.xl)
                     
-                    // Upload Options
+                    // Upload Options - Filter by vault type
                     VStack(spacing: UnifiedTheme.Spacing.md) {
-                        // Camera (Source)
-                        Button {
-                            isShowingCamera = true
-                        } label: {
-                            UploadOptionCard(
-                                icon: "camera.fill",
-                                title: "Camera",
-                                subtitle: "Take photo (Source)",
-                                badge: "SOURCE",
-                                badgeColor: colors.info
-                            )
-                        }
-                        
-                        // Photos (Source)
-                        PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                            UploadOptionCard(
-                                icon: "photo.fill",
-                                title: "Photos",
-                                subtitle: "Select from library (Source)",
-                                badge: "SOURCE",
-                                badgeColor: colors.info
-                            )
-                        }
-                        .onChange(of: selectedPhoto) { oldValue, newValue in
-                            Task {
-                                if let data = try? await newValue?.loadTransferable(type: Data.self),
-                                   let fileName = await getFileName(from: newValue) {
-                                    await uploadDocument(
-                                        data: data,
-                                        name: fileName,
-                                        mimeType: "image/jpeg",
-                                        method: .photos
-                                    )
+                        // Source options (Camera, Photos, Voice, Video) - only for source/both vaults
+                        if vault.vaultType == "source" || vault.vaultType == "both" {
+                            // Camera (Source)
+                            Button {
+                                isShowingCamera = true
+                            } label: {
+                                UploadOptionCard(
+                                    icon: "camera.fill",
+                                    title: "Camera",
+                                    subtitle: "Take photo (Source)",
+                                    badge: "SOURCE",
+                                    badgeColor: colors.info
+                                )
+                            }
+                            
+                            // Photos (Source)
+                            PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                                UploadOptionCard(
+                                    icon: "photo.fill",
+                                    title: "Photos",
+                                    subtitle: "Select from library (Source)",
+                                    badge: "SOURCE",
+                                    badgeColor: colors.info
+                                )
+                            }
+                            .onChange(of: selectedPhoto) { oldValue, newValue in
+                                Task {
+                                    if let data = try? await newValue?.loadTransferable(type: Data.self),
+                                       let fileName = await getFileName(from: newValue) {
+                                        await uploadDocument(
+                                            data: data,
+                                            name: fileName,
+                                            mimeType: "image/jpeg",
+                                            method: .photos
+                                        )
+                                    }
                                 }
                             }
                         }
                         
-                        // Files (Sink)
-                        Button {
-                            isShowingDocumentPicker = true
-                        } label: {
-                            UploadOptionCard(
-                                icon: "folder.fill",
-                                title: "Files",
-                                subtitle: "Browse files (Sink)",
-                                badge: "SINK",
-                                badgeColor: colors.success
-                            )
+                        // Sink options (Files, URL Download) - only for sink/both vaults
+                        if vault.vaultType == "sink" || vault.vaultType == "both" {
+                            // Files (Sink)
+                            Button {
+                                isShowingDocumentPicker = true
+                            } label: {
+                                UploadOptionCard(
+                                    icon: "folder.fill",
+                                    title: "Files",
+                                    subtitle: "Browse files (Sink)",
+                                    badge: "SINK",
+                                    badgeColor: colors.success
+                                )
+                            }
                         }
                     }
                     .padding(.horizontal, UnifiedTheme.Spacing.xl)

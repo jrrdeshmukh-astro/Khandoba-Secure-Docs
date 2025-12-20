@@ -27,29 +27,33 @@
                        FontWeight="SemiBold"
                        Margin="0,0,0,10"/>
             
-            <!-- Camera Button -->
-            <Button x:Name="CameraButton"
-                    Content="📷 Camera (Source)"
-                    Click="OnCameraClick"
-                    HorizontalAlignment="Stretch"
-                    Padding="20,15"
-                    FontSize="16">
-                <Button.ToolTip>
-                    <ToolTip Content="Take a photo with your camera"/>
-                </Button.ToolTip>
-            </Button>
+            <!-- Source Options (Camera, Photos) - only for source/both vaults -->
+            <StackPanel x:Name="SourceOptionsPanel" Spacing="10">
+                <Button x:Name="CameraButton"
+                        Content="📷 Camera (Source)"
+                        Click="OnCameraClick"
+                        HorizontalAlignment="Stretch"
+                        Padding="20,15"
+                        FontSize="16">
+                    <Button.ToolTip>
+                        <ToolTip Content="Take a photo with your camera"/>
+                    </Button.ToolTip>
+                </Button>
+            </StackPanel>
 
-            <!-- File Picker Button -->
-            <Button x:Name="FilePickerButton"
-                    Content="📁 Files (Sink)"
-                    Click="OnFilePickerClick"
-                    HorizontalAlignment="Stretch"
-                    Padding="20,15"
-                    FontSize="16">
-                <Button.ToolTip>
-                    <ToolTip Content="Select files from your device"/>
-                </Button.ToolTip>
-            </Button>
+            <!-- Sink Options (Files) - only for sink/both vaults -->
+            <StackPanel x:Name="SinkOptionsPanel" Spacing="10">
+                <Button x:Name="FilePickerButton"
+                        Content="📁 Files (Sink)"
+                        Click="OnFilePickerClick"
+                        HorizontalAlignment="Stretch"
+                        Padding="20,15"
+                        FontSize="16">
+                    <Button.ToolTip>
+                        <ToolTip Content="Select files from your device"/>
+                    </Button.ToolTip>
+                </Button>
+            </StackPanel>
         </StackPanel>
 
         <!-- Selected File Info -->

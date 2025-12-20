@@ -37,6 +37,9 @@ namespace KhandobaSecureDocs.Models
         public bool IsAntiVault { get; set; } = false;
         public Guid? MonitoredVaultID { get; set; }
         public Guid? AntiVaultID { get; set; }
+        public double ThreatIndex { get; set; } = 0.0;
+        public string ThreatLevel { get; set; } = "low"; // "low", "medium", "high", "critical"
+        public DateTime? LastThreatAssessmentAt { get; set; }
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation properties
