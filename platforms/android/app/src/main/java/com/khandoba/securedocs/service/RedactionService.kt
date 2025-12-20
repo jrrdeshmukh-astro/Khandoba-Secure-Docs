@@ -76,9 +76,8 @@ class RedactionService(private val context: Context) {
                     val originalPage = document.getPage(pageIndex)
                     val pageRect = originalPage.mediaBox
                     
-                    // Render page to bitmap at high resolution (2x for quality)
-                    val scale = 2.0f
-                    val dpi = 144f * scale // Higher DPI for better quality
+                    // Render page to bitmap at high resolution (144 DPI for quality)
+                    val dpi = 144f
                     
                     // Render PDF page to bitmap
                     val bitmap = renderer.renderImageWithDPI(pageIndex, dpi)
@@ -92,6 +91,7 @@ class RedactionService(private val context: Context) {
                     }
                     
                     // Calculate scale factor for coordinate conversion
+                    // PDF coordinates are in points (72 DPI), bitmap is rendered at specified DPI
                     val bitmapWidth = bitmap.width.toFloat()
                     val bitmapHeight = bitmap.height.toFloat()
                     val pageWidth = pageRect.width
@@ -102,7 +102,7 @@ class RedactionService(private val context: Context) {
                     // Apply redactions for this page
                     val pageRedactions = redactionAreas.filter { it.pageIndex == pageIndex }
                     for (redaction in pageRedactions) {
-                        // Convert page coordinates to bitmap coordinates
+                        // Convert page coordinates (points) to bitmap coordinates (pixels)
                         val scaledRect = RectF(
                             redaction.rect.left * scaleX,
                             redaction.rect.top * scaleY,
@@ -118,7 +118,7 @@ class RedactionService(private val context: Context) {
                     
                     // Convert redacted bitmap back to PDF page
                     val newPage = PDPage(pageRect)
-                    val contentStream = PDPageContentStream(redactedDocument, newPage, PDPageContentStream.AppendMode.OVERWRITE, false)
+                    val contentStream = PDPageContentStream(redactedDocument, newPage)
                     
                     // Create image from bitmap
                     val byteArrayOutputStream = ByteArrayOutputStream()
