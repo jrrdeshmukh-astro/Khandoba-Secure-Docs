@@ -366,7 +366,12 @@ class SupabaseService {
                             
                             if (threatIndex != null && vaultId != null) {
                                 android.util.Log.d("SupabaseService", "Threat index updated for vault $vaultId: $threatIndex ($threatLevel)")
-                                // TODO: Emit to a Flow or callback for UI updates
+                                // Notify ThreatIndexService if available
+                                threatIndexUpdateCallback?.invoke(
+                                    UUID.fromString(vaultId),
+                                    threatIndex.toDouble(),
+                                    threatLevel ?: "low"
+                                )
                             }
                         } catch (e: Exception) {
                             android.util.Log.e("SupabaseService", "Error parsing vault update: ${e.message}")

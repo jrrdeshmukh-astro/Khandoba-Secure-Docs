@@ -17,12 +17,9 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
 import java.text.SimpleDateFormat
 import java.util.*
+import com.khandoba.securedocs.service.ThreatIndexDataPoint
 
-data class ThreatIndexDataPoint(
-    val timestamp: Date,
-    val threatIndex: Double,
-    val threatLevel: String // "low", "medium", "high", "critical"
-)
+// ThreatIndexDataPoint moved to ThreatIndexService.kt
 
 @Composable
 fun ThreatIndexChartView(

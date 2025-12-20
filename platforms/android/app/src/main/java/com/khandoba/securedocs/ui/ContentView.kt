@@ -120,6 +120,15 @@ fun ContentView(
         com.khandoba.securedocs.service.ThreatMonitoringService()
     }
     
+    val threatIndexService = remember {
+        com.khandoba.securedocs.service.ThreatIndexService(supabaseService).also { service ->
+            // Connect SupabaseService real-time updates to ThreatIndexService
+            supabaseService.threatIndexUpdateCallback = { vaultId, threatIndex, threatLevel ->
+                service.updateThreatIndex(vaultId, threatIndex, threatLevel)
+            }
+        }
+    }
+    
     val mlThreatAnalysisService = remember {
         com.khandoba.securedocs.service.MLThreatAnalysisService()
     }
