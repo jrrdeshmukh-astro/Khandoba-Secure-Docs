@@ -8,6 +8,7 @@
 #if os(iOS)
 import UIKit
 import UserNotifications
+import CloudKit
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
@@ -98,7 +99,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     ) {
         Task {
             let result = await PushNotificationService.shared.handleRemoteNotification(userInfo)
-            completionHandler(result)
+            completionHandler(result.uiBackgroundFetchResult)
         }
     }
     
@@ -121,10 +122,14 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     
     private func getRootRecordID(from metadata: CKShare.Metadata) -> CKRecord.ID {
         if #available(iOS 16.0, *) {
+            // Prefer hierarchicalRootRecordID on iOS 16+
             if let hierarchicalID = metadata.hierarchicalRootRecordID {
                 return hierarchicalID
             }
         }
+        // Fallback to rootRecordID when hierarchicalRootRecordID is unavailable
+        // Note: rootRecordID is deprecated in iOS 16+ but still functional and needed as fallback
+        // This is intentional fallback behavior per Apple's migration guidance
         return metadata.rootRecordID
     }
     

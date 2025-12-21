@@ -23,10 +23,10 @@ struct UnifiedShareView: View {
     let vault: Vault
     let mode: ShareMode
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var vaultService: VaultService
@@ -226,12 +226,21 @@ struct UnifiedShareView: View {
             .navigationTitle(mode == .nominee ? "Invite Nominees" : "Transfer Ownership")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .foregroundColor(colors.primary)
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+                #endif
             }
             .sheet(isPresented: $showContactPicker) {
                 ContactPickerView(
@@ -412,8 +421,8 @@ struct AccessLevelRow: View {
     let isSelected: Bool
     let action: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

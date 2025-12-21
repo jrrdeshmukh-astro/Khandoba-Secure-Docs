@@ -10,9 +10,9 @@ import SwiftData
 import Foundation
 
 struct AntiVaultManagementView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var vaultService: VaultService
@@ -55,7 +55,11 @@ struct AntiVaultManagementView: View {
                             }
                         }
                     }
-                    .listStyle(#if os(iOS) .insetGrouped #else .sidebar #endif)
+                    #if os(iOS)
+                    .listStyle(.insetGrouped)
+                    #else
+                    .listStyle(.sidebar)
+                    #endif
                     .scrollContentBackground(.hidden)
                     .background(colors.background)
                 }
@@ -65,7 +69,8 @@ struct AntiVaultManagementView: View {
             .navigationBarTitleDisplayMode(.large)
             #endif
             .toolbar {
-                ToolbarItem(placement: #if os(iOS) .topBarTrailing #else .automatic #endif) {
+                #if os(iOS)
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showCreateAntiVault = true
                     } label: {
@@ -73,6 +78,16 @@ struct AntiVaultManagementView: View {
                             .foregroundColor(colors.primary)
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showCreateAntiVault = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .foregroundColor(colors.primary)
+                    }
+                }
+                #endif
             }
             .sheet(isPresented: $showCreateAntiVault) {
                 CreateAntiVaultView(
@@ -212,10 +227,10 @@ struct StatusBadge: View {
 struct CreateAntiVaultView: View {
     let onCreated: (Vault) -> Void
     
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var vaultService: VaultService
@@ -270,13 +285,14 @@ struct CreateAntiVaultView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: #if os(iOS) .topBarLeading #else .automatic #endif) {
+                #if os(iOS)
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
                 
-                ToolbarItem(placement: #if os(iOS) .topBarTrailing #else .automatic #endif) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Create") {
                         Task {
                             await createAntiVault()
@@ -284,6 +300,22 @@ struct CreateAntiVaultView: View {
                     }
                     .disabled(selectedVault == nil || isLoading)
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .automatic) {
+                    Button("Create") {
+                        Task {
+                            await createAntiVault()
+                        }
+                    }
+                    .disabled(selectedVault == nil || isLoading)
+                }
+                #endif
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK") { }
@@ -380,8 +412,8 @@ struct CreateAntiVaultView: View {
 struct AntiVaultDetailView: View {
     let antiVault: AntiVault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var antiVaultService: AntiVaultService
     @EnvironmentObject var vaultService: VaultService
     

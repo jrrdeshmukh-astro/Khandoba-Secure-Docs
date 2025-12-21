@@ -16,9 +16,9 @@ struct BluetoothSessionNominationView: View {
     let selectedDocumentIDs: [UUID]?
     let sessionDuration: TimeInterval
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var authService: AuthenticationService
     
     @State private var isAdvertising = false
@@ -281,8 +281,11 @@ struct BluetoothSessionNominationView: View {
                 }
             }
             .navigationTitle("Bluetooth Sharing")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         bluetoothService.stopAdvertising()
@@ -291,6 +294,16 @@ struct BluetoothSessionNominationView: View {
                     }
                     .foregroundColor(colors.primary)
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        bluetoothService.stopAdvertising()
+                        bluetoothService.stopScanning()
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+                #endif
             }
             .alert("Invitation Sent", isPresented: $showInvitationSent) {
                 Button("OK", role: .cancel) {

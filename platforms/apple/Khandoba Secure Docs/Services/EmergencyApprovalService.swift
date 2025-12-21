@@ -354,7 +354,7 @@ final class EmergencyApprovalService: ObservableObject {
     // MARK: - Use Emergency Pass (Mark as Used)
     
     func useEmergencyPass(_ pass: EmergencyAccessPass) async throws {
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
+        if AppConfig.useSupabase, let _ = supabaseService {
             // Update in Supabase (would update emergency_access_passes table)
             // For now, we track usage in the request
             pass.usedAt = Date()

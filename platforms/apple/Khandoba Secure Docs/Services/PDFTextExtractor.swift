@@ -6,10 +6,12 @@
 //
 
 import Foundation
-import PDFKit
 import Vision
 #if os(iOS)
 import UIKit
+import PDFKit
+#elseif os(macOS)
+import AppKit
 #endif
 
 /// Extract text from various document formats
@@ -17,6 +19,7 @@ struct PDFTextExtractor {
     
     /// Extract text from PDF data
     static func extractFromPDF(data: Data) -> String {
+        #if os(iOS)
         guard let pdfDocument = PDFDocument(data: data) else {
             return ""
         }
@@ -31,6 +34,10 @@ struct PDFTextExtractor {
         }
         
         return fullText
+        #else
+        // PDFKit wrapper for macOS is not provided here; return empty text gracefully.
+        return ""
+        #endif
     }
     
     /// Extract text from image using OCR
@@ -90,7 +97,7 @@ struct PDFTextExtractor {
         }
         
         // Images
-        if fileType.contains("image") || fileType.contains("png") || 
+        if fileType.contains("image") || fileType.contains("png") ||
            fileType.contains("jpg") || fileType.contains("jpeg") {
             return (try? await extractFromImage(data: data)) ?? ""
         }

@@ -14,10 +14,10 @@ struct SimplifiedContactSelectionView: View {
     let vault: Vault
     let preselectedContacts: [CNContact]
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var vaultService: VaultService
@@ -142,12 +142,21 @@ struct SimplifiedContactSelectionView: View {
             .navigationTitle("Select Contacts")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .foregroundColor(colors.primary)
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+                #endif
             }
             .sheet(isPresented: $showContactPicker) {
                 ContactPickerView(

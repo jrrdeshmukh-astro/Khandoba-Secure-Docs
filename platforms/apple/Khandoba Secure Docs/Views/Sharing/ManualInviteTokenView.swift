@@ -9,10 +9,10 @@ import SwiftUI
 import SwiftData
 
 struct ManualInviteTokenView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     
@@ -80,8 +80,10 @@ struct ManualInviteTokenView: View {
                                 
                                 TextField("Paste token here", text: $tokenInput)
                                     .font(theme.typography.body)
+                                    #if os(iOS)
                                     .textInputAutocapitalization(.never)
                                     .autocorrectionDisabled()
+                                    #endif
                                     .padding(UnifiedTheme.Spacing.md)
                                     .background(colors.surface)
                                     .cornerRadius(UnifiedTheme.CornerRadius.md)
@@ -130,14 +132,25 @@ struct ManualInviteTokenView: View {
                 }
             }
             .navigationTitle("Accept Invitation")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .foregroundColor(colors.primary)
                 }
+                #else
+                ToolbarItem {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+                #endif
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }

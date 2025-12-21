@@ -11,9 +11,9 @@ import SwiftData
 struct VaultAccessControlView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     
     @State private var showAccessHistory = false
@@ -401,9 +401,9 @@ struct EmergencyAccessRow: View {
 struct VaultAccessHistoryView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) private var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) private var dismiss
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

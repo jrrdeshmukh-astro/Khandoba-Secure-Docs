@@ -11,18 +11,23 @@ import MapKit
 struct EnhancedThreatMonitorView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @StateObject private var mlService = MLThreatAnalysisService()
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
+    @StateObject private var formalLogicService = FormalLogicThreatInferenceService()
+    @SwiftUI.Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var documentService: DocumentService
     
     @State private var geoMetrics: GeoThreatMetrics?
     @State private var accessMetrics: AccessPatternMetrics?
     @State private var tagMetrics: TagThreatMetrics?
     @State private var overallRiskScore: Double = 0
     @State private var isAnalyzing = false
+    @State private var threatInferenceResult: ThreatInferenceResult?
+    @State private var showGranularDetails = false
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -33,12 +38,20 @@ struct EnhancedThreatMonitorView: View {
             
             ScrollView {
                 VStack(spacing: UnifiedTheme.Spacing.lg) {
-                    // Overall Risk Score
-                    OverallRiskCard(
-                        riskScore: overallRiskScore,
-                        level: riskLevel(for: overallRiskScore)
-                    )
-                    .padding(.horizontal)
+                    // Overall Risk Score with Granular Display
+                    if let result = threatInferenceResult {
+                        GranularThreatScoreCard(
+                            result: result,
+                            showDetails: $showGranularDetails
+                        )
+                        .padding(.horizontal)
+                    } else {
+                        OverallRiskCard(
+                            riskScore: overallRiskScore,
+                            level: riskLevel(for: overallRiskScore)
+                        )
+                        .padding(.horizontal)
+                    }
                     
                     // Geo-Classification Metrics
                     if let geo = geoMetrics {
@@ -69,6 +82,24 @@ struct EnhancedThreatMonitorView: View {
                         tagMetrics: tagMetrics
                     )
                     .padding(.horizontal)
+                    
+                    // Formal Logic Threat Inferences
+                    if let result = threatInferenceResult {
+                        FormalLogicThreatCard(result: result)
+                            .padding(.horizontal)
+                    }
+                    
+                    // Granular Score Breakdown
+                    if let result = threatInferenceResult, showGranularDetails {
+                        GranularScoreBreakdownCard(result: result)
+                            .padding(.horizontal)
+                    }
+                    
+                    // Recommendations
+                    if let result = threatInferenceResult, !result.recommendations.isEmpty {
+                        ThreatRecommendationsCard(recommendations: result.recommendations)
+                            .padding(.horizontal)
+                    }
                 }
                 .padding(.vertical)
             }
@@ -78,7 +109,9 @@ struct EnhancedThreatMonitorView: View {
             }
         }
         .navigationTitle("Threat Monitor")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             await analyzeThreats()
         }
@@ -90,24 +123,47 @@ struct EnhancedThreatMonitorView: View {
     private func analyzeThreats() async {
         isAnalyzing = true
         
-        // Configure ML service
+        // Configure services
         mlService.configure(vaultService: vaultService)
+        threatService.configure(vaultService: vaultService, supabaseService: supabaseService)
         
-        // Run ML analysis
+        // Configure formal logic service
+        let logicEngine = FormalLogicEngine()
+        formalLogicService.configure(
+            modelContext: modelContext,
+            formalLogicEngine: logicEngine,
+            threatMonitoringService: threatService,
+            mlThreatAnalysisService: mlService,
+            vaultService: vaultService,
+            documentService: documentService
+        )
+        
+        // Run formal logic threat inference
+        threatInferenceResult = await formalLogicService.analyzeVaultForThreats(vault: vault)
+        
+        // Update vault threat metrics
+        if let result = threatInferenceResult {
+            try? await formalLogicService.updateVaultThreatMetrics(vault: vault, result: result)
+        }
+        
+        // Run ML analysis (for ML insights card)
         geoMetrics = await mlService.analyzeGeoClassification(for: vault)
         accessMetrics = await mlService.analyzeAccessPatterns(for: vault)
         tagMetrics = mlService.analyzeTagPatterns(for: vault)
         
-        // Calculate overall risk
-        let geoRisk = geoMetrics?.riskScore ?? 0
-        let accessRisk = accessMetrics?.riskScore ?? 0
-        let tagRisk = tagMetrics?.riskScore ?? 0
-        
-        overallRiskScore = (geoRisk * 0.4 + accessRisk * 0.3 + tagRisk * 0.3)
+        // Use formal logic composite score if available, otherwise calculate from ML
+        if let result = threatInferenceResult {
+            overallRiskScore = result.granularScores.compositeScore / 100.0 // Convert 0-100 to 0-1
+        } else {
+            // Calculate overall risk from ML metrics
+            let geoRisk = geoMetrics?.riskScore ?? 0
+            let accessRisk = accessMetrics?.riskScore ?? 0
+            let tagRisk = tagMetrics?.riskScore ?? 0
+            overallRiskScore = (geoRisk * 0.4 + accessRisk * 0.3 + tagRisk * 0.3)
+        }
         
         // Run traditional threat analysis
         _ = await threatService.analyzeThreatLevel(for: vault)
-        // Note: generateThreatMetrics is now async - update call site if needed
         
         isAnalyzing = false
     }
@@ -141,8 +197,8 @@ struct OverallRiskCard: View {
     let riskScore: Double
     let level: String
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -215,8 +271,8 @@ struct OverallRiskCard: View {
 struct GeoThreatCard: View {
     let metrics: GeoThreatMetrics
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -295,8 +351,8 @@ struct GeoThreatCard: View {
 struct AccessPatternCard: View {
     let metrics: AccessPatternMetrics
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -402,8 +458,8 @@ struct AccessPatternCard: View {
 struct TagThreatCard: View {
     let metrics: TagThreatMetrics
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -498,8 +554,8 @@ struct TagThreatCard: View {
 struct ThreatTimelineCard: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
@@ -626,8 +682,8 @@ struct MLInsightsCard: View {
     let accessMetrics: AccessPatternMetrics?
     let tagMetrics: TagThreatMetrics?
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     private var insights: [(icon: String, text: String, confidence: Double)] {
         var result: [(icon: String, text: String, confidence: Double)] = []
@@ -756,8 +812,8 @@ struct MLInsightsCard: View {
 struct RiskBadge: View {
     let score: Double
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let level = score >= 0.75 ? "Critical" : score >= 0.5 ? "High" : score >= 0.25 ? "Medium" : "Low"
@@ -782,8 +838,8 @@ struct MetricRow: View {
     let value: String
     let iconColor: Color
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         HStack {
@@ -810,8 +866,8 @@ struct InsightBox: View {
     let message: String
     let color: Color
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         HStack(spacing: 12) {
@@ -835,8 +891,8 @@ struct InsightRow: View {
     let text: String
     let confidence: Double
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -860,6 +916,613 @@ struct InsightRow: View {
                         .fontWeight(.semibold)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Granular Threat Score Components
+
+struct GranularThreatScoreCard: View {
+    let result: ThreatInferenceResult
+    @Binding var showDetails: Bool
+    
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        let score = result.granularScores.compositeScore
+        let level = result.threatLevel
+        
+        StandardCard {
+            VStack(spacing: UnifiedTheme.Spacing.md) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Threat Level")
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textSecondary)
+                        
+                        Text(level.rawValue)
+                            .font(theme.typography.largeTitle)
+                            .foregroundColor(colorForLevel(level))
+                            .fontWeight(.bold)
+                        
+                        // Score with 2 decimal precision
+                        Text(String(format: "Score: %.2f/100", score))
+                            .font(theme.typography.caption)
+                            .foregroundColor(colors.textSecondary)
+                    }
+                    
+                    Spacer()
+                    
+                    // Circular progress indicator
+                    ZStack {
+                        Circle()
+                            .stroke(colors.textTertiary.opacity(0.3), lineWidth: 10)
+                            .frame(width: 100, height: 100)
+                        
+                        Circle()
+                            .trim(from: 0, to: score / 100.0)
+                            .stroke(colorForLevel(level), style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                            .frame(width: 100, height: 100)
+                            .rotationEffect(.degrees(-90))
+                        
+                        VStack(spacing: 2) {
+                            Text(String(format: "%.2f", score))
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(colorForLevel(level))
+                            
+                            Text("Score")
+                                .font(theme.typography.caption2)
+                                .foregroundColor(colors.textSecondary)
+                        }
+                    }
+                }
+                
+                // Score trend indicator
+                if let delta = result.granularScores.scoreDelta {
+                    HStack(spacing: 4) {
+                        Image(systemName: delta > 0 ? "arrow.up.right" : delta < 0 ? "arrow.down.right" : "minus")
+                            .foregroundColor(delta > 0 ? colors.error : delta < 0 ? colors.success : colors.textSecondary)
+                            .font(.caption)
+                        
+                        Text(String(format: "%.2f", abs(delta)))
+                            .font(theme.typography.caption)
+                            .foregroundColor(delta > 0 ? colors.error : delta < 0 ? colors.success : colors.textSecondary)
+                        
+                        Text("from last assessment")
+                            .font(theme.typography.caption2)
+                            .foregroundColor(colors.textTertiary)
+                    }
+                }
+                
+                // Details toggle
+                Button {
+                    showDetails.toggle()
+                } label: {
+                    HStack {
+                        Text(showDetails ? "Hide Details" : "Show Details")
+                            .font(theme.typography.subheadline)
+                            .foregroundColor(colors.primary)
+                        
+                        Spacer()
+                        
+                        Image(systemName: showDetails ? "chevron.up" : "chevron.down")
+                            .foregroundColor(colors.primary)
+                            .font(.caption)
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+    
+    private func colorForLevel(_ level: GranularThreatLevel) -> Color {
+        let colors = theme.colors(for: colorScheme)
+        switch level.numericValue {
+        case 9...10: return colors.error // Critical/Extreme
+        case 7...8: return .orange       // High/High-Critical
+        case 5...6: return colors.warning // Medium/Medium-High
+        case 3...4: return .yellow       // Low/Low-Medium
+        default: return colors.success    // Minimal/Very Low
+        }
+    }
+}
+
+struct GranularScoreBreakdownCard: View {
+    let result: ThreatInferenceResult
+    
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        StandardCard {
+            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                Text("Granular Score Breakdown")
+                    .font(theme.typography.headline)
+                    .foregroundColor(colors.textPrimary)
+                
+                Divider()
+                
+                // Logic Type Scores
+                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                    Text("Logic Type Scores")
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(colors.textSecondary)
+                        .fontWeight(.semibold)
+                    
+                    LogicScoreRow(
+                        label: "Deductive",
+                        score: result.logicBreakdown.deductiveScore,
+                        icon: "checkmark.seal.fill",
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    LogicScoreRow(
+                        label: "Inductive",
+                        score: result.logicBreakdown.inductiveScore,
+                        icon: "chart.bar.fill",
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    LogicScoreRow(
+                        label: "Abductive",
+                        score: result.logicBreakdown.abductiveScore,
+                        icon: "lightbulb.fill",
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    LogicScoreRow(
+                        label: "Statistical",
+                        score: result.logicBreakdown.statisticalScore,
+                        icon: "chart.line.uptrend.xyaxis",
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    LogicScoreRow(
+                        label: "Analogical",
+                        score: result.logicBreakdown.analogicalScore,
+                        icon: "arrow.triangle.2.circlepath",
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    LogicScoreRow(
+                        label: "Temporal",
+                        score: result.logicBreakdown.temporalScore,
+                        icon: "clock.fill",
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    LogicScoreRow(
+                        label: "Modal",
+                        score: result.logicBreakdown.modalScore,
+                        icon: "eye.fill",
+                        colors: colors,
+                        theme: theme
+                    )
+                }
+                
+                Divider()
+                
+                // Category Scores
+                VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                    Text("Category Scores")
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(colors.textSecondary)
+                        .fontWeight(.semibold)
+                    
+                    CategoryScoreRow(
+                        label: "Access Pattern",
+                        score: result.categoryBreakdown.accessPatternScore,
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    CategoryScoreRow(
+                        label: "Geographic",
+                        score: result.categoryBreakdown.geographicScore,
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    CategoryScoreRow(
+                        label: "Document Content",
+                        score: result.categoryBreakdown.documentContentScore,
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    CategoryScoreRow(
+                        label: "Behavioral",
+                        score: result.categoryBreakdown.behavioralScore,
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    CategoryScoreRow(
+                        label: "External Threat",
+                        score: result.categoryBreakdown.externalThreatScore,
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    CategoryScoreRow(
+                        label: "Compliance",
+                        score: result.categoryBreakdown.complianceScore,
+                        colors: colors,
+                        theme: theme
+                    )
+                    
+                    CategoryScoreRow(
+                        label: "Data Exfiltration",
+                        score: result.categoryBreakdown.dataExfiltrationScore,
+                        colors: colors,
+                        theme: theme
+                    )
+                }
+            }
+        }
+    }
+}
+
+struct LogicScoreRow: View {
+    let label: String
+    let score: Double
+    let icon: String
+    let colors: UnifiedTheme.Colors
+    let theme: UnifiedTheme
+    
+    var body: some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundColor(colors.primary)
+                .frame(width: 20)
+            
+            Text(label)
+                .font(theme.typography.body)
+                .foregroundColor(colors.textPrimary)
+            
+            Spacer()
+            
+            Text(String(format: "%.2f", score))
+                .font(theme.typography.subheadline)
+                .foregroundColor(colors.textSecondary)
+                .fontWeight(.semibold)
+            
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(colors.surface.opacity(0.5))
+                        .frame(height: 4)
+                    
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(colorForScore(score))
+                        .frame(width: geometry.size.width * (score / 100.0), height: 4)
+                }
+            }
+            .frame(width: 60, height: 4)
+        }
+    }
+    
+    private func colorForScore(_ score: Double) -> Color {
+        if score >= 75 {
+            return colors.error
+        } else if score >= 50 {
+            return .orange
+        } else if score >= 25 {
+            return colors.warning
+        } else {
+            return colors.success
+        }
+    }
+}
+
+struct CategoryScoreRow: View {
+    let label: String
+    let score: Double
+    let colors: UnifiedTheme.Colors
+    let theme: UnifiedTheme
+    
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(theme.typography.body)
+                .foregroundColor(colors.textPrimary)
+            
+            Spacer()
+            
+            Text(String(format: "%.2f", score))
+                .font(theme.typography.subheadline)
+                .foregroundColor(colors.textSecondary)
+                .fontWeight(.semibold)
+            
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(colors.surface.opacity(0.5))
+                        .frame(height: 4)
+                    
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(colorForScore(score))
+                        .frame(width: geometry.size.width * (score / 100.0), height: 4)
+                }
+            }
+            .frame(width: 80, height: 4)
+        }
+    }
+    
+    private func colorForScore(_ score: Double) -> Color {
+        if score >= 75 {
+            return colors.error
+        } else if score >= 50 {
+            return .orange
+        } else if score >= 25 {
+            return colors.warning
+        } else {
+            return colors.success
+        }
+    }
+}
+
+struct FormalLogicThreatCard: View {
+    let result: ThreatInferenceResult
+    
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        StandardCard {
+            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                HStack {
+                    Image(systemName: "brain.head.profile")
+                        .foregroundColor(colors.primary)
+                    
+                    Text("Formal Logic Threat Inferences")
+                        .font(theme.typography.headline)
+                        .foregroundColor(colors.textPrimary)
+                    
+                    Spacer()
+                    
+                    Text("\(result.threatInferences.count)")
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(colors.textSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(colors.surface)
+                        .cornerRadius(8)
+                }
+                
+                Divider()
+                
+                // Top contributing inferences
+                if !result.inferenceContributions.isEmpty {
+                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                        Text("Top Contributing Threats")
+                            .font(theme.typography.subheadline)
+                            .foregroundColor(colors.textSecondary)
+                            .fontWeight(.semibold)
+                        
+                        ForEach(Array(result.inferenceContributions.prefix(5)), id: \.inferenceID) { contribution in
+                            InferenceContributionRow(contribution: contribution, colors: colors, theme: theme)
+                        }
+                    }
+                } else {
+                    Text("No threat inferences generated")
+                        .font(theme.typography.body)
+                        .foregroundColor(colors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, UnifiedTheme.Spacing.md)
+                }
+            }
+        }
+    }
+}
+
+struct InferenceContributionRow: View {
+    let contribution: InferenceContribution
+    let colors: UnifiedTheme.Colors
+    let theme: UnifiedTheme
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Image(systemName: iconForLogicType(contribution.logicType))
+                    .foregroundColor(colorForImpact(contribution.impact))
+                    .frame(width: 20)
+                
+                Text(contribution.inference.conclusion)
+                    .font(theme.typography.body)
+                    .foregroundColor(colors.textPrimary)
+                    .lineLimit(2)
+                
+                Spacer()
+                
+                Text(String(format: "%.1f", contribution.contributionScore))
+                    .font(theme.typography.caption)
+                    .foregroundColor(colorForImpact(contribution.impact))
+                    .fontWeight(.bold)
+            }
+            
+            HStack(spacing: 8) {
+                Text(contribution.category.description)
+                    .font(theme.typography.caption2)
+                    .foregroundColor(colors.textTertiary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(colors.surface)
+                    .cornerRadius(4)
+                
+                Text(String(format: "%.0f%% confidence", contribution.confidence * 100))
+                    .font(theme.typography.caption2)
+                    .foregroundColor(colors.textTertiary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private func iconForLogicType(_ type: LogicType) -> String {
+        switch type {
+        case .deductive: return "checkmark.seal.fill"
+        case .inductive: return "chart.bar.fill"
+        case .abductive: return "lightbulb.fill"
+        case .statistical: return "chart.line.uptrend.xyaxis"
+        case .analogical: return "arrow.triangle.2.circlepath"
+        case .temporal: return "clock.fill"
+        case .modal: return "eye.fill"
+        }
+    }
+    
+    private func colorForImpact(_ impact: ThreatImpact) -> Color {
+        switch impact {
+        case .critical: return colors.error
+        case .high: return .orange
+        case .medium: return colors.warning
+        case .low: return colors.success
+        }
+    }
+}
+
+struct ThreatRecommendationsCard: View {
+    let recommendations: [ThreatRecommendation]
+    
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        let colors = theme.colors(for: colorScheme)
+        
+        StandardCard {
+            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
+                HStack {
+                    Image(systemName: "list.bullet.clipboard.fill")
+                        .foregroundColor(colors.primary)
+                    
+                    Text("Recommended Actions")
+                        .font(theme.typography.headline)
+                        .foregroundColor(colors.textPrimary)
+                }
+                
+                Divider()
+                
+                ForEach(Array(recommendations.enumerated()), id: \.offset) { index, recommendation in
+                    RecommendationRow(
+                        recommendation: recommendation,
+                        index: index + 1,
+                        colors: colors,
+                        theme: theme
+                    )
+                }
+            }
+        }
+    }
+}
+
+struct RecommendationRow: View {
+    let recommendation: ThreatRecommendation
+    let index: Int
+    let colors: UnifiedTheme.Colors
+    let theme: UnifiedTheme
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
+            HStack(alignment: .top, spacing: UnifiedTheme.Spacing.sm) {
+                // Priority number
+                ZStack {
+                    Circle()
+                        .fill(colorForUrgency(recommendation.urgency))
+                        .frame(width: 24, height: 24)
+                    
+                    Text("\(index)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(recommendation.action)
+                        .font(theme.typography.body)
+                        .foregroundColor(colors.textPrimary)
+                        .fontWeight(.semibold)
+                    
+                    Text(recommendation.rationale)
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textSecondary)
+                    
+                    HStack(spacing: 8) {
+                        // Urgency badge
+                        HStack(spacing: 4) {
+                            Image(systemName: urgencyIcon(recommendation.urgency))
+                                .font(.caption2)
+                            Text(urgencyText(recommendation.urgency))
+                                .font(theme.typography.caption2)
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(colorForUrgency(recommendation.urgency))
+                        .cornerRadius(4)
+                        
+                        // Expected impact
+                        Text(String(format: "Expected impact: -%.1f", recommendation.expectedImpact))
+                            .font(theme.typography.caption2)
+                            .foregroundColor(colors.textTertiary)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private func colorForUrgency(_ urgency: UrgencyLevel) -> Color {
+        switch urgency {
+        case .immediate: return colors.error
+        case .urgent: return .orange
+        case .important: return colors.warning
+        case .routine: return colors.success
+        }
+    }
+    
+    private func urgencyIcon(_ urgency: UrgencyLevel) -> String {
+        switch urgency {
+        case .immediate: return "bolt.fill"
+        case .urgent: return "exclamationmark.triangle.fill"
+        case .important: return "info.circle.fill"
+        case .routine: return "clock.fill"
+        }
+    }
+    
+    private func urgencyText(_ urgency: UrgencyLevel) -> String {
+        switch urgency {
+        case .immediate: return "Immediate"
+        case .urgent: return "Urgent"
+        case .important: return "Important"
+        case .routine: return "Routine"
+        }
+    }
+}
+
+// MARK: - Extensions
+
+extension ThreatCategory {
+    var description: String {
+        switch self {
+        case .accessPattern: return "Access Pattern"
+        case .geographic: return "Geographic"
+        case .documentContent: return "Document Content"
+        case .behavioral: return "Behavioral"
+        case .externalThreat: return "External Threat"
+        case .compliance: return "Compliance"
+        case .dataExfiltration: return "Data Exfiltration"
         }
     }
 }

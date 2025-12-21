@@ -9,8 +9,8 @@ import SwiftUI
 import CoreLocation
 
 struct PermissionsSetupView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var authService: AuthenticationService
     @AppStorage("permissions_setup_complete") private var permissionsComplete = false
     
@@ -185,7 +185,7 @@ struct PermissionReason: View {
     let description: String
     let colors: UnifiedTheme.Colors
     
-    @Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
     
     var body: some View {
         HStack(alignment: .top, spacing: UnifiedTheme.Spacing.md) {

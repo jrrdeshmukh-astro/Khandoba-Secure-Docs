@@ -11,8 +11,8 @@ import SwiftData
 struct ReasoningGraphView: View {
     let graph: ReasoningGraph
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @State private var selectedNode: ReasoningNode?
     @State private var layout: GraphLayout = .forceDirected
     

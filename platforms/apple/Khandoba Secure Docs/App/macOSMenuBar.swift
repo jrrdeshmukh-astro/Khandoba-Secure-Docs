@@ -14,7 +14,6 @@ func configureMacOSMenuBar() {
     let appMenu = NSMenu()
     
     // App menu
-    let appMenuItem = NSMenuItem()
     appMenu.addItem(withTitle: "About Khandoba", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
     appMenu.addItem(NSMenuItem.separator())
     appMenu.addItem(withTitle: "Preferences...", action: #selector(NSApplication.showPreferencesWindow), keyEquivalent: ",")

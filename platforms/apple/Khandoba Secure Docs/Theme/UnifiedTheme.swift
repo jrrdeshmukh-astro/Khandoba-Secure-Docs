@@ -45,47 +45,47 @@ struct UnifiedTheme {
         let profileColor: Color
         
         static let light = Colors(
-            primary: Color(hex: "E74A48"), // Coral red
-            secondary: Color(hex: "11A7C7"), // Cyan
-            tertiary: Color(hex: "E7A63A"), // Amber
-            background: Color(hex: "F5F2ED"), // Paper/cream
+            primary: Color(hex: "E8A87C"), // Warm muted orange/peach (temple structure)
+            secondary: Color(hex: "2D4A5F"), // Dark teal/blue-grey (temple base)
+            tertiary: Color(hex: "F5F0E8"), // Light cream/off-white (tower cap)
+            background: Color(hex: "FAF9F5"), // Light beige background
             surface: .white,
-            surfaceElevated: Color(hex: "FAF9F7"),
-            textPrimary: Color(hex: "141414"),
-            textSecondary: Color(hex: "4B4B4F"),
+            surfaceElevated: Color(hex: "FFFFFF"),
+            textPrimary: Color(hex: "1F1F1F"),
+            textSecondary: Color(hex: "4A4A4A"),
             textTertiary: Color(hex: "8E8E93"),
             success: Color(hex: "45C186"),
-            error: Color(hex: "E45858"),
+            error: Color(hex: "D97757"), // Warm orange-red for errors
             warning: Color(hex: "E7A63A"),
-            info: Color(hex: "11A7C7"),
-            clientColor: Color(hex: "11A7C7"),
-            adminColor: Color(hex: "E7A63A"),
-            dashboardColor: Color(hex: "E74A48"),
-            vaultsColor: Color(hex: "11A7C7"),
-            documentsColor: Color(hex: "6C63FF"),
+            info: Color(hex: "2D4A5F"), // Dark teal for info
+            clientColor: Color(hex: "2D4A5F"), // Dark teal-blue
+            adminColor: Color(hex: "E8A87C"), // Warm muted orange
+            dashboardColor: Color(hex: "E8A87C"), // Warm muted orange
+            vaultsColor: Color(hex: "2D4A5F"), // Dark teal-blue
+            documentsColor: Color(hex: "5A7A9A"), // Medium slate
             storeColor: Color(hex: "45C186"),
             profileColor: Color(hex: "8E8E93")
         )
         
         static let dark = Colors(
-            primary: Color(hex: "E74A48"), // Coral red
-            secondary: Color(hex: "11A7C7"), // Cyan
-            tertiary: Color(hex: "E7A63A"), // Amber
-            background: Color(hex: "1F2430"), // Dark charcoal
-            surface: Color(hex: "252C39"), // Dark surface
-            surfaceElevated: Color(hex: "2A303D"),
+            primary: Color(hex: "E8A87C"), // Warm muted orange/peach (temple structure)
+            secondary: Color(hex: "2D4A5F"), // Dark teal/blue-grey (temple base)
+            tertiary: Color(hex: "F5F0E8"), // Light cream/off-white (tower cap)
+            background: Color(hex: "1F1F1F"), // Dark grey base
+            surface: Color(hex: "2C2C2C"), // Dark grey surface
+            surfaceElevated: Color(hex: "3A3A3A"), // Elevated dark grey
             textPrimary: .white,
             textSecondary: Color(hex: "B8B8BD"),
             textTertiary: Color(hex: "8E8E93"),
             success: Color(hex: "45C186"),
-            error: Color(hex: "E45858"),
+            error: Color(hex: "D97757"), // Warm orange-red for errors
             warning: Color(hex: "E7A63A"),
-            info: Color(hex: "11A7C7"),
-            clientColor: Color(hex: "11A7C7"),
-            adminColor: Color(hex: "E7A63A"),
-            dashboardColor: Color(hex: "E74A48"),
-            vaultsColor: Color(hex: "11A7C7"),
-            documentsColor: Color(hex: "6C63FF"),
+            info: Color(hex: "2D4A5F"), // Dark teal for info
+            clientColor: Color(hex: "2D4A5F"), // Dark teal-blue
+            adminColor: Color(hex: "E8A87C"), // Warm muted orange
+            dashboardColor: Color(hex: "E8A87C"), // Warm muted orange
+            vaultsColor: Color(hex: "2D4A5F"), // Dark teal-blue
+            documentsColor: Color(hex: "5A7A9A"), // Medium slate
             storeColor: Color(hex: "45C186"),
             profileColor: Color(hex: "8E8E93")
         )

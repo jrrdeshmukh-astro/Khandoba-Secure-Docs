@@ -12,10 +12,10 @@ import CloudKit
 struct UnifiedAddNomineeView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     
@@ -65,14 +65,25 @@ struct UnifiedAddNomineeView: View {
                 }
             }
             .navigationTitle("Invite Nominee")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .foregroundColor(colors.primary)
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+                #endif
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
@@ -122,7 +133,6 @@ struct UnifiedAddNomineeView: View {
                     if AppConfig.useSupabase {
                         documentService.configure(supabaseService: supabaseService, userID: userID)
                     } else {
-                        // modelContext from @Environment is non-optional
                         documentService.configure(modelContext: modelContext, userID: userID)
                     }
                 }
@@ -184,7 +194,9 @@ struct UnifiedAddNomineeView: View {
                     
                     TextField("Enter nominee's name", text: $nomineeName)
                         .font(theme.typography.body)
+                        #if os(iOS)
                         .textInputAutocapitalization(.words)
+                        #endif
                         .padding(UnifiedTheme.Spacing.md)
                         .background(colors.surface)
                         .cornerRadius(UnifiedTheme.CornerRadius.md)
@@ -499,9 +511,15 @@ struct UnifiedAddNomineeView: View {
     private func copyInviteLink(nominee: Nominee) {
         let deepLink = "khandoba://invite?token=\(nominee.inviteToken)"
         let message = generateInvitationMessage(nominee: nominee, deepLink: deepLink)
-        
+        #if os(iOS)
         UIPasteboard.general.string = message
-        // Show toast or alert
+        #elseif os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(message, forType: .string)
+        #else
+        // Other platforms: no-op
+        #endif
+        // You can show a toast/alert on iOS/macOS if desired
     }
     
     private func generateInvitationMessage(nominee: Nominee, deepLink: String) -> String {
@@ -550,9 +568,9 @@ struct DocumentSelectionView: View {
     @Binding var selectedDocumentIDs: Set<UUID>
     @ObservedObject var documentService: DocumentService
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -579,14 +597,25 @@ struct DocumentSelectionView: View {
                 .listStyle(.insetGrouped)
             }
             .navigationTitle("Select Documents")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                     .foregroundColor(colors.primary)
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+                #endif
             }
         }
     }
@@ -597,8 +626,8 @@ struct DocumentSelectionRow: View {
     let isSelected: Bool
     let onToggle: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

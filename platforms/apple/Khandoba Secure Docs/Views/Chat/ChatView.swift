@@ -12,8 +12,8 @@ struct ChatView: View {
     let otherUserID: UUID
     let otherUserName: String
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var chatService: ChatService
     @EnvironmentObject var authService: AuthenticationService
     
@@ -125,8 +125,8 @@ struct ChatBubble: View {
     let message: ChatMessage
     let isFromCurrentUser: Bool
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

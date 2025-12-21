@@ -12,8 +12,8 @@ struct VaultCardView: View {
     let isSelected: Bool
     let onTap: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     @State private var cardScale: CGFloat = 1.0
     @State private var shadowRadius: CGFloat = 10

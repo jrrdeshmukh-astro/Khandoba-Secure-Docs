@@ -14,9 +14,9 @@ import UIKit
 #endif
 
 struct TriageView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     
     @EnvironmentObject var vaultService: VaultService
@@ -114,8 +114,11 @@ struct TriageView: View {
                 }
             }
             .navigationTitle("Triage")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Task {
@@ -126,6 +129,18 @@ struct TriageView: View {
                             .foregroundColor(colors.primary)
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        Task {
+                            await analyzeAllThreats()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .foregroundColor(colors.primary)
+                    }
+                }
+                #endif
             }
             .sheet(isPresented: $showRemediation) {
                 if let threat = selectedThreat {
@@ -662,8 +677,8 @@ struct OverallThreatStatusCard: View {
     let threats: [ThreatItem]
     let leaks: [DataLeak]
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -734,8 +749,8 @@ struct ThreatBadge: View {
     let count: Int
     let level: ThreatLevel
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         if count > 0 {
@@ -762,8 +777,8 @@ struct ThreatsSection: View {
     let onSelect: (ThreatItem) -> Void
     let onResolve: (ThreatItem) -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -798,8 +813,8 @@ struct ThreatRow: View {
     let onTap: () -> Void
     let onResolve: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -893,8 +908,8 @@ struct DataLeaksSection: View {
     let onSelect: (DataLeak) -> Void
     let onResolve: (DataLeak) -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -929,8 +944,8 @@ struct DataLeakRow: View {
     let onTap: () -> Void
     let onResolve: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -1022,8 +1037,8 @@ struct RemediationSuggestionsCard: View {
     let threats: [ThreatItem]
     let leaks: [DataLeak]
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var autoTriageService: AutomaticTriageService
     @StateObject private var aiService = ThreatRemediationAIService()
     @State private var remediations: [Remediation] = []
@@ -1332,8 +1347,8 @@ struct Remediation: Identifiable {
 struct RemediationRow: View {
     let remediation: Remediation
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -1409,8 +1424,8 @@ struct RemediationRow: View {
 // MARK: - Empty State
 
 struct EmptyTriageState: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -1440,9 +1455,9 @@ struct ThreatRemediationView: View {
     let threat: ThreatItem
     let onDismiss: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -1526,14 +1541,25 @@ struct ThreatRemediationView: View {
                 .padding(.vertical)
             }
             .navigationTitle("Threat Details")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                     .foregroundColor(colors.primary)
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+                #endif
             }
         }
     }
@@ -1543,8 +1569,8 @@ struct ThreatRemediationView: View {
 struct AvailableActionsCard: View {
     let threat: ThreatItem
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var autoTriageService: AutomaticTriageService
     @State private var availableActions: [RemediationAction] = []
     @State private var isLoading = true
@@ -1686,8 +1712,8 @@ struct AvailableActionsCard: View {
 struct RemediationStepsCard: View {
     let threat: ThreatItem
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @StateObject private var aiService = ThreatRemediationAIService()
     @State private var steps: [String] = []
     @State private var isLoading = true
@@ -2034,8 +2060,8 @@ struct AutomaticTriageResultsSection: View {
     let results: [TriageResult]
     let onStartRemediation: (TriageResult) -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -2071,8 +2097,8 @@ struct AutomaticTriageResultRow: View {
     let result: TriageResult
     let onStartRemediation: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

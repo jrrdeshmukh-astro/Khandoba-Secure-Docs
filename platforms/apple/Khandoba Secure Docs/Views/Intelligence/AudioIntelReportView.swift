@@ -13,10 +13,10 @@ import AVFoundation
 struct AudioIntelReportView: View {
     let documents: [Document]
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.dismiss) private var dismiss
     @EnvironmentObject var vaultService: VaultService
     
     @StateObject private var audioIntel = AudioIntelligenceService()
@@ -294,7 +294,7 @@ struct VaultPickerSheet: View {
     let colors: UnifiedTheme.Colors
     let theme: UnifiedTheme
     
-    @Environment(\.dismiss) private var dismiss
+    @SwiftUI.Environment(\.dismiss) private var dismiss
     
     var body: some View {
         NavigationStack {

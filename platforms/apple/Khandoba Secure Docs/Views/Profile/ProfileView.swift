@@ -14,8 +14,8 @@ import AppKit
 #endif
 
 struct ProfileView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var authService: AuthenticationService
     
     @State private var showSignOutConfirmation = false
@@ -38,56 +38,66 @@ struct ProfileView: View {
                         HStack(spacing: UnifiedTheme.Spacing.md) {
                             // Avatar
                             #if os(iOS)
-                            if let imageData = authService.currentUser?.profilePictureData,
-                               let uiImage = UIImage(data: imageData) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 60, height: 60)
-                                    .clipShape(Circle())
-                            } else {
-                                Image(systemName: "person.circle.fill")
-                                    .font(.system(size: 60))
-                                    .foregroundColor(colors.textTertiary)
-                            }
-                            #elseif os(macOS)
-                            if let imageData = authService.currentUser?.profilePictureData,
-                               let nsImage = NSImage(data: imageData) {
-                                Image(nsImage: nsImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 60, height: 60)
-                                    .clipShape(Circle())
-                            } else {
-                                Image(systemName: "person.circle.fill")
-                                    .font(.system(size: 60))
-                                    .foregroundColor(colors.textTertiary)
-                            }
-                            #else
-                            Image(systemName: "person.circle.fill")
-                                .font(.system(size: 60))
-                                .foregroundColor(colors.textTertiary)
-                            #endif
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 60, height: 60)
-                                    .clipShape(Circle())
-                                    .overlay(
-                                        Circle()
-                                            .stroke(roleColor, lineWidth: 2)
-                                    )
-                            } else {
-                                ZStack {
-                                    Circle()
-                                        .fill(roleColor.opacity(0.2))
+                            Group {
+                                if let imageData = authService.currentUser?.profilePictureData,
+                                   let uiImage = UIImage(data: imageData) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
                                         .frame(width: 60, height: 60)
-                                    
-                                    // Show person/face icon
-                                    Image(systemName: "person.circle.fill")
-                                        .font(.system(size: 50))
-                                        .foregroundColor(roleColor)
+                                        .clipShape(Circle())
+                                        .overlay(
+                                            Circle()
+                                                .stroke(roleColor, lineWidth: 2)
+                                        )
+                                } else {
+                                    ZStack {
+                                        Circle()
+                                            .fill(roleColor.opacity(0.2))
+                                            .frame(width: 60, height: 60)
+                                        
+                                        Image(systemName: "person.circle.fill")
+                                            .font(.system(size: 50))
+                                            .foregroundColor(roleColor)
+                                    }
                                 }
                             }
+                            #elseif os(macOS)
+                            Group {
+                                if let imageData = authService.currentUser?.profilePictureData,
+                                   let nsImage = NSImage(data: imageData) {
+                                    Image(nsImage: nsImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 60, height: 60)
+                                        .clipShape(Circle())
+                                        .overlay(
+                                            Circle()
+                                                .stroke(roleColor, lineWidth: 2)
+                                        )
+                                } else {
+                                    ZStack {
+                                        Circle()
+                                            .fill(roleColor.opacity(0.2))
+                                            .frame(width: 60, height: 60)
+                                        
+                                        Image(systemName: "person.circle.fill")
+                                            .font(.system(size: 50))
+                                            .foregroundColor(roleColor)
+                                    }
+                                }
+                            }
+                            #else
+                            ZStack {
+                                Circle()
+                                    .fill(roleColor.opacity(0.2))
+                                    .frame(width: 60, height: 60)
+                                
+                                Image(systemName: "person.circle.fill")
+                                    .font(.system(size: 50))
+                                    .foregroundColor(roleColor)
+                            }
+                            #endif
                             
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(authService.currentUser?.fullName ?? "User")
@@ -253,7 +263,11 @@ struct ProfileView: View {
                         .listRowBackground(colors.surface)
                     }
                 }
+                #if os(iOS)
                 .listStyle(.insetGrouped)
+                #else
+                .listStyle(.sidebar)
+                #endif
                 .scrollContentBackground(.hidden)
                 .background(colors.background)
                 .tint(colors.primary) // Override iOS default tint

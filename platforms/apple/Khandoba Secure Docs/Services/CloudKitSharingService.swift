@@ -372,10 +372,16 @@ final class CloudKitSharingService: ObservableObject {
         // 1. iOS < 16.0 (API not deprecated yet)
         // 2. hierarchicalRootRecordID is nil on iOS 16+ (can happen in some cases)
         // This deprecation warning is intentional and necessary for backward compatibility
-        // The warning appears on line 375 but is isolated to this helper function
-        // swiftlint:disable:next deprecated_member_use
-        // rootRecordID is deprecated in iOS 16.0, but needed for backward compatibility
+        // Use hierarchicalRootRecordID on iOS 16+ and fall back to rootRecordID for compatibility
+        #if swift(>=5.7)
+        if #available(iOS 16.0, macOS 13.0, *) {
+            return metadata.hierarchicalRootRecordID ?? metadata.rootRecordID
+        } else {
+            return metadata.rootRecordID
+        }
+        #else
         return metadata.rootRecordID
+        #endif
     }
     
     func processShareInvitation(from metadata: CKShare.Metadata) async throws {

@@ -27,6 +27,44 @@ final class ThreatMonitoringService: ObservableObject {
         self.supabaseService = supabaseService
     }
     
+    /// Incorporate logical threat inferences into threat analysis
+    func incorporateLogicalThreats(vault: Vault, logicalThreats: [LogicalInference]) async -> ThreatLevel {
+        // Enhance threat detection with formal logic inferences
+        // High-confidence logical inferences can override or augment existing threat detection
+        
+        var threatScore = 0.0
+        
+        // Check for critical logical threats
+        for inference in logicalThreats {
+            if inference.confidence >= 0.9 {
+                // Critical threat from formal logic
+                if inference.conclusion.contains("compromise") || inference.conclusion.contains("breach") {
+                    threatScore += 30
+                } else if inference.conclusion.contains("unauthorized") || inference.conclusion.contains("attack") {
+                    threatScore += 20
+                } else {
+                    threatScore += 10
+                }
+            } else if inference.confidence >= 0.7 {
+                threatScore += 5
+            }
+        }
+        
+        // Combine with existing threat analysis
+        let existingLevel = await analyzeThreatLevel(for: vault)
+        
+        // If logical threats push score high, escalate threat level
+        if threatScore >= 30 && existingLevel != .critical {
+            return .critical
+        } else if threatScore >= 20 && existingLevel != .high && existingLevel != .critical {
+            return .high
+        } else if threatScore >= 10 && existingLevel == .low {
+            return .medium
+        }
+        
+        return existingLevel
+    }
+    
     /// Analyze vault access patterns for threats
     func analyzeThreatLevel(for vault: Vault) async -> ThreatLevel {
         // Load access logs (from Supabase or SwiftData)

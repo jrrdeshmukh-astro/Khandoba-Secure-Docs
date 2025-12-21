@@ -12,15 +12,17 @@ import CloudKit
 
 #if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
 #endif
 
 struct TransferOwnershipView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var nomineeService = NomineeService()
@@ -69,14 +71,25 @@ struct TransferOwnershipView: View {
                 }
             }
             .navigationTitle("Transfer Ownership")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .foregroundColor(colors.primary)
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+                #endif
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
@@ -88,9 +101,11 @@ struct TransferOwnershipView: View {
             } message: {
                 Text("Transfer link copied to clipboard")
             }
+            #if os(iOS)
             .sheet(isPresented: $showShareSheet) {
                 ShareSheet(activityItems: shareItems)
             }
+            #endif
             .sheet(isPresented: $showCloudKitSharing) {
                 if let share = cloudKitShare {
                     CloudKitSharingView(
@@ -205,7 +220,9 @@ struct TransferOwnershipView: View {
                         
                         TextField("Enter new owner's name", text: $newOwnerName)
                             .font(theme.typography.body)
+                            #if os(iOS)
                             .textInputAutocapitalization(.words)
+                            #endif
                             .padding(UnifiedTheme.Spacing.md)
                             .background(colors.surface)
                             .cornerRadius(UnifiedTheme.CornerRadius.md)
@@ -222,7 +239,9 @@ struct TransferOwnershipView: View {
                         
                         TextField("(555) 123-4567", text: $phoneNumber)
                             .font(theme.typography.body)
+                            #if os(iOS)
                             .keyboardType(.phonePad)
+                            #endif
                             .padding(UnifiedTheme.Spacing.md)
                             .background(colors.surface)
                             .cornerRadius(UnifiedTheme.CornerRadius.md)
@@ -239,8 +258,10 @@ struct TransferOwnershipView: View {
                         
                         TextField("newowner@example.com", text: $email)
                             .font(theme.typography.body)
+                            #if os(iOS)
                             .keyboardType(.emailAddress)
                             .textInputAutocapitalization(.never)
+                            #endif
                             .autocorrectionDisabled()
                             .padding(UnifiedTheme.Spacing.md)
                             .background(colors.surface)
@@ -544,7 +565,14 @@ struct TransferOwnershipView: View {
     
     private func copyTransferLink(request: VaultTransferRequest) {
         let message = generateTransferMessage(request: request)
+        #if os(iOS)
         UIPasteboard.general.string = message
+        #elseif os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(message, forType: .string)
+        #else
+        // Other platforms: no-op
+        #endif
         showCopiedAlert = true
     }
     
@@ -572,8 +600,12 @@ struct TransferOwnershipView: View {
     
     private func shareTransferLink(request: VaultTransferRequest) {
         let message = generateTransferMessage(request: request)
+        #if os(iOS)
         shareItems = [message]
         showShareSheet = true
+        #else
+        // Other platforms: could implement platform-specific share; for now no-op
+        #endif
     }
     
     private func generateTransferURL(request: VaultTransferRequest) -> URL {
@@ -624,14 +656,18 @@ struct TransferOwnershipView: View {
             } else {
                 print("   ⚠️ Could not create CloudKit share - using fallback")
                 await MainActor.run {
-                    copyTransferLink(request: createdRequest!)
+                    if let createdRequest {
+                        copyTransferLink(request: createdRequest)
+                    }
                     showCopiedAlert = true
                 }
             }
         } catch {
             print("   ❌ Failed to prepare CloudKit share: \(error.localizedDescription)")
             await MainActor.run {
-                copyTransferLink(request: createdRequest!)
+                if let createdRequest {
+                    copyTransferLink(request: createdRequest)
+                }
                 showCopiedAlert = true
             }
         }
@@ -670,4 +706,3 @@ enum TransferError: LocalizedError {
         }
     }
 }
-

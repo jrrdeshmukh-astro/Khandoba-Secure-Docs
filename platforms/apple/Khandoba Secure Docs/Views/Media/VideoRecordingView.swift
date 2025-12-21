@@ -7,14 +7,15 @@
 
 import SwiftUI
 @preconcurrency import AVFoundation
+import AVKit
 import Combine
 
 struct VideoRecordingView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var documentService: DocumentService
     
     #if !os(tvOS)
@@ -63,12 +64,21 @@ struct VideoRecordingView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
-            ToolbarItem(placement: #if os(iOS) .topBarLeading #else .automatic #endif) {
+            #if os(iOS)
+            ToolbarItem(placement: .topBarLeading) {
                 Button("Cancel") {
                     dismiss()
                 }
                 .foregroundColor(.white)
             }
+            #else
+            ToolbarItem(placement: .automatic) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .foregroundColor(.white)
+            }
+            #endif
         }
         .task {
             #if !os(tvOS)
@@ -527,8 +537,8 @@ struct VideoPreviewView: View {
     let onSave: (URL) async -> Void
     let onDiscard: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @StateObject private var playerViewModel = VideoPlayerViewModel()
     @State private var isPlaying = false
     
@@ -548,14 +558,6 @@ struct VideoPreviewView: View {
                 Text("Video preview not available")
                     .foregroundColor(.white)
                 #endif
-            }
-            .onAppear {
-                playerViewModel.loadVideo(url: videoURL)
-                playerViewModel.play()
-            }
-            .onDisappear {
-                playerViewModel.pause()
-            }
                 
                 // Play/Pause Overlay
                 if !isPlaying {
@@ -571,6 +573,13 @@ struct VideoPreviewView: View {
                             .foregroundColor(.white.opacity(0.8))
                     }
                 }
+            }
+            .onAppear {
+                playerViewModel.loadVideo(url: videoURL)
+                playerViewModel.play()
+            }
+            .onDisappear {
+                playerViewModel.pause()
             }
             
             // Actions

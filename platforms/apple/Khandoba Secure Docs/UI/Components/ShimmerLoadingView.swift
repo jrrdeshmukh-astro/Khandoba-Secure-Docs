@@ -12,8 +12,8 @@ struct ShimmerLoadingView: View {
     let message: String?
     let itemCount: Int
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     init(message: String? = nil, itemCount: Int = 3) {
         self.message = message

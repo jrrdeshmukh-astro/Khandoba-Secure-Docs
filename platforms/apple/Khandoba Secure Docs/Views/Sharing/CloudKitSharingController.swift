@@ -20,7 +20,7 @@ struct CloudKitSharingView: UIViewControllerRepresentable {
     let share: CKShare?
     let container: CKContainer
     @Binding var isPresented: Bool
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     
     init(vault: Vault, share: CKShare? = nil, container: CKContainer, isPresented: Binding<Bool>) {
         self.vault = vault

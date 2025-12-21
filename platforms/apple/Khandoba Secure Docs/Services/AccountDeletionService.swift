@@ -398,7 +398,7 @@ final class AccountDeletionService: ObservableObject {
             for log in accessLogs {
                 var updatedLog = log
                 updatedLog.userName = (log.userName ?? "User") + " (Account Deleted)"
-                try await supabaseService.update("vault_access_logs", id: log.id, values: updatedLog)
+                _ = try await supabaseService.update("vault_access_logs", id: log.id, values: updatedLog)
                 print("   📋 Preserved access log entry: \(log.accessType) at \(log.timestamp)")
             }
             
@@ -411,7 +411,7 @@ final class AccountDeletionService: ObservableObject {
             for session in sessions {
                 var updatedSession = session
                 updatedSession.isActive = false
-                try await supabaseService.update("vault_sessions", id: session.id, values: updatedSession)
+                _ = try await supabaseService.update("vault_sessions", id: session.id, values: updatedSession)
                 print("   🔒 Closed vault session for vault: \(nominee.vaultID)")
             }
             

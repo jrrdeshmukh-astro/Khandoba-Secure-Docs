@@ -14,7 +14,9 @@ import UIKit
 import AppKit
 #endif
 import AVFoundation
+#if os(iOS)
 import Speech
+#endif
 
 class NLPTaggingService {
     
@@ -1365,19 +1367,14 @@ class NLPTaggingService {
             let time = CMTime(seconds: interval * Double(i), preferredTimescale: 600)
             // Use async API for iOS 18+
             if #available(iOS 18.0, *) {
-                // generateCGImageAsynchronously doesn't throw, and the completion handler is async
                 generator.generateCGImageAsynchronously(for: time) { image, actualTime, error in
                     if let image = image {
-                        #if os(iOS)
                         images.append(UIImage(cgImage: image))
-                        #endif
                     }
                 }
             } else {
-            if let cgImage = try? generator.copyCGImage(at: time, actualTime: nil) {
-                #if os(iOS)
-                images.append(UIImage(cgImage: cgImage))
-                #endif
+                if let cgImage = try? generator.copyCGImage(at: time, actualTime: nil) {
+                    images.append(UIImage(cgImage: cgImage))
                 }
             }
         }
@@ -1425,6 +1422,7 @@ class NLPTaggingService {
     
     // MARK: - Audio AI Helpers
     
+    #if os(iOS)
     private static func transcribeAudio(url: URL) async -> String? {
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
             print("   Speech recognition not authorized")
@@ -1448,5 +1446,10 @@ class NLPTaggingService {
             }
         }
     }
+    #else
+    private static func transcribeAudio(url: URL) async -> String? {
+        return nil
+    }
+    #endif
 }
 

@@ -10,13 +10,19 @@ import SwiftUI
 import Contacts
 import SwiftData
 
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
+
 struct ContactGridSelectionView: View {
     let onContactSelected: (CNContact, Bool) -> Void // Contact + isExistingUser
     let onDismiss: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     
     @StateObject private var contactStore = ContactStore()
     @StateObject private var discoveryService = ContactDiscoveryService()
@@ -116,9 +122,12 @@ struct ContactGridSelectionView: View {
                 }
             }
             .navigationTitle("Select Contacts")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .searchable(text: $searchText, prompt: "Search contacts")
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         onDismiss()
@@ -128,6 +137,17 @@ struct ContactGridSelectionView: View {
                             .foregroundColor(colors.textTertiary)
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(colors.textTertiary)
+                    }
+                }
+                #endif
             }
         }
         .task {
@@ -212,14 +232,25 @@ struct ContactGridCard: View {
                         )
                         .frame(width: 60, height: 60)
                     
-                    if let imageData = contact.thumbnailImageData,
-                       let uiImage = UIImage(data: imageData) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 60, height: 60)
-                            .clipShape(Circle())
-                    } else {
+                    if let imageData = contact.thumbnailImageData {
+                        #if os(iOS)
+                        if let uiImage = UIImage(data: imageData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 60, height: 60)
+                                .clipShape(Circle())
+                        }
+                        #elseif os(macOS)
+                        if let nsImage = NSImage(data: imageData) {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 60, height: 60)
+                                .clipShape(Circle())
+                        }
+                        #endif
+                        } else {
                         // Initials
                         if !fullName.isEmpty {
                             Text(String(fullName.prefix(1)).uppercased())
@@ -314,9 +345,15 @@ struct PermissionDeniedView: View {
                 .padding(.horizontal)
             
             Button {
+                #if os(iOS)
                 if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(settingsURL)
                 }
+                #elseif os(macOS)
+                if let settingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts") {
+                    NSWorkspace.shared.open(settingsURL)
+                }
+                #endif
             } label: {
                 Text("Open Settings")
                     .font(theme.typography.subheadline)

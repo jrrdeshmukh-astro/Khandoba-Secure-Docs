@@ -13,8 +13,8 @@ struct ProgressRingView: View {
     let lineWidth: CGFloat
     let message: String?
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @State private var animatedProgress: Double = 0
     
     init(progress: Double, lineWidth: CGFloat = 8, message: String? = nil) {

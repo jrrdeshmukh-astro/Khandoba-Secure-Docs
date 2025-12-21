@@ -261,7 +261,7 @@ final class DataMigrationService: ObservableObject {
                 selectedDocumentIDs: nominee.selectedDocumentIDs,
                 sessionExpiresAt: nominee.sessionExpiresAt,
                 isSubsetAccess: nominee.isSubsetAccess,
-                createdAt: nominee.invitedAt ?? Date(),
+                createdAt: nominee.invitedAt,
                 updatedAt: Date()
             )
             _ = try await supabaseService.insert("nominees", values: supabaseNominee)

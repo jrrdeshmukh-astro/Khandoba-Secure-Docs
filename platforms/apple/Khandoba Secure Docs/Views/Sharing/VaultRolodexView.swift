@@ -12,8 +12,8 @@ struct VaultRolodexView: View {
     @Binding var selectedVault: Vault?
     let onVaultSelected: (Vault) -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     @State private var dragOffset: CGFloat = 0
     @State private var currentIndex: Int = 0

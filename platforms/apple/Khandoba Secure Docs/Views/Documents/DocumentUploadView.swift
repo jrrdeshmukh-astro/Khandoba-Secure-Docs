@@ -13,9 +13,9 @@ import Combine
 struct DocumentUploadView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var documentService: DocumentService
     
     @State private var selectedPhoto: PhotosPickerItem?
@@ -370,8 +370,8 @@ struct UploadOptionCard: View {
     var badge: String? = nil
     var badgeColor: Color? = nil
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

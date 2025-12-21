@@ -10,9 +10,9 @@ import StoreKit
 import Combine
 
 struct SubscriptionRequiredView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @StateObject private var abService = ABTestingService.shared
     @StateObject private var subscriptionService = SubscriptionService()
@@ -390,7 +390,7 @@ struct PremiumFeature: View {
     let title: String
     let description: String
     let colors: UnifiedTheme.Colors
-    @Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {

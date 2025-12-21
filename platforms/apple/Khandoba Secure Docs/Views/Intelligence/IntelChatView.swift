@@ -10,8 +10,8 @@ import SwiftUI
 struct IntelChatView: View {
     @ObservedObject var chatService: IntelChatService
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @State private var inputText: String = ""
     
     var body: some View {

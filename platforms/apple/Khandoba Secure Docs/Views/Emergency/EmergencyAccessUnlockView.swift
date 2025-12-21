@@ -12,10 +12,10 @@ import LocalAuthentication
 struct EmergencyAccessUnlockView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var vaultService: VaultService
@@ -230,10 +230,7 @@ struct EmergencyAccessUnlockView: View {
                 return
             }
             
-            // Step 3: Mark pass as used (optional - can allow multiple uses until expiry)
-            // try await emergencyService.useEmergencyPass(pass)
-            
-            // Step 4: Grant access
+            // Step 3: Grant access (show success alert; actual open happens on button tap)
             await MainActor.run {
                 accessPass = pass
                 showSuccess = true

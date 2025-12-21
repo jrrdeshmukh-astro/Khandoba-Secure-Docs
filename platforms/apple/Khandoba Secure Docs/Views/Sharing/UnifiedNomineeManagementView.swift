@@ -12,9 +12,9 @@ import CloudKit
 struct UnifiedNomineeManagementView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var chatService: ChatService
     @EnvironmentObject var supabaseService: SupabaseService
@@ -240,8 +240,11 @@ struct UnifiedNomineeManagementView: View {
             }
         }
         .navigationTitle("Nominees")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
+            #if os(iOS)
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showAddNominee = true
@@ -250,6 +253,16 @@ struct UnifiedNomineeManagementView: View {
                         .foregroundColor(colors.primary)
                 }
             }
+            #else
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    showAddNominee = true
+                } label: {
+                    Image(systemName: "plus")
+                        .foregroundColor(colors.primary)
+                }
+            }
+            #endif
         }
         .sheet(isPresented: $showAddNominee) {
             NomineeInvitationView(vault: vault)

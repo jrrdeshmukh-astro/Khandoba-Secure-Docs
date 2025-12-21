@@ -317,6 +317,7 @@ final class AutomaticTriageService: ObservableObject {
             isCaptured = UIScreen.main.isCaptured
         }
         #else
+        // Screen capture detection not available on this platform
         isCaptured = false
         #endif
         if isCaptured {

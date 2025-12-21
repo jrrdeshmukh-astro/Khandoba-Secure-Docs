@@ -11,8 +11,8 @@ struct SessionTimerView: View {
     let session: VaultSession
     let onExtend: () async -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @State private var timeRemaining: TimeInterval = 0
     @State private var timer: Timer?
     

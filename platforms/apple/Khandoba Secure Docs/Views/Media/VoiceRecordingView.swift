@@ -12,9 +12,9 @@ import Combine
 struct VoiceRecordingView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var documentService: DocumentService
     
     #if !os(tvOS)
@@ -59,11 +59,45 @@ struct VoiceRecordingView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
-            ToolbarItem(placement: #if os(iOS) .topBarLeading #else .automatic #endif) {
+            #if os(iOS)
+            ToolbarItem(placement: .topBarLeading) {
                 Button("Cancel") {
                     dismiss()
                 }
                 .foregroundColor(colors.primary)
+            }
+            #else
+            ToolbarItem(placement: .automatic) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .foregroundColor(colors.primary)
+            }
+            #endif
+        }
+        .confirmationDialog("Save Recording", isPresented: $showSaveConfirm) {
+            Button("Save") {
+                saveRecording()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Save this voice recording to the vault?")
+        }
+        .alert("Content Blocked", isPresented: $showContentBlocked) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("This audio cannot be saved due to inappropriate content.")
+                
+                if let reason = blockedContentReason {
+                    Text("\nReason: \(reason)")
+                        .font(.caption)
+                }
+                
+                if !blockedContentCategories.isEmpty {
+                    Text("\nCategories: \(blockedContentCategories.map { $0.rawValue.replacingOccurrences(of: "_", with: " ").capitalized }.joined(separator: ", "))")
+                        .font(.caption)
+                }
             }
         }
     }
@@ -173,31 +207,6 @@ struct VoiceRecordingView: View {
         // tvOS fallback - should not reach here due to platform check in body
         Text("Voice recording not available")
         #endif
-        .confirmationDialog("Save Recording", isPresented: $showSaveConfirm) {
-            Button("Save") {
-                saveRecording()
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Save this voice recording to the vault?")
-        }
-        .alert("Content Blocked", isPresented: $showContentBlocked) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("This audio cannot be saved due to inappropriate content.")
-                
-                if let reason = blockedContentReason {
-                    Text("\nReason: \(reason)")
-                        .font(.caption)
-                }
-                
-                if !blockedContentCategories.isEmpty {
-                    Text("\nCategories: \(blockedContentCategories.map { $0.rawValue.replacingOccurrences(of: "_", with: " ").capitalized }.joined(separator: ", "))")
-                        .font(.caption)
-                }
-            }
-        }
     }
     
     @ViewBuilder

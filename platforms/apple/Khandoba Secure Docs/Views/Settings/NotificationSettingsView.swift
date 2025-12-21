@@ -8,9 +8,9 @@ import SwiftUI
 import UserNotifications
 
 struct NotificationSettingsView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var pushNotificationService: PushNotificationService
     
     @State private var pushNotificationsEnabled = false
@@ -182,30 +182,47 @@ struct NotificationSettingsView: View {
                     }
                     .listRowBackground(colors.surface)
                 }
+                #if os(iOS)
                 .listStyle(.insetGrouped)
+                #else
+                .listStyle(.sidebar)
+                #endif
                 .scrollContentBackground(.hidden)
             }
             .navigationTitle("Notifications")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         savePreferences()
                         dismiss()
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        savePreferences()
+                        dismiss()
+                    }
+                }
+                #endif
             }
             .task {
                 await checkNotificationPermission()
                 loadPreferences()
                 updateDeviceTokenStatus()
             }
+            #if os(iOS)
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                 Task {
                     await checkNotificationPermission()
                     updateDeviceTokenStatus()
                 }
             }
+            #endif
         }
     }
     
@@ -266,12 +283,14 @@ struct NotificationSettingsView: View {
     }
     
     private func openAppSettings() {
+        #if os(iOS)
         if let url = URL(string: UIApplication.openSettingsURLString) {
             // Only open settings in main app, not in extensions
             #if !APP_EXTENSION
             UIApplication.shared.open(url)
             #endif
         }
+        #endif
     }
     
     private func updateDeviceTokenStatus() {
@@ -309,8 +328,8 @@ struct NotificationToggle: View {
     @Binding var isEnabled: Bool
     let isDisabled: Bool
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

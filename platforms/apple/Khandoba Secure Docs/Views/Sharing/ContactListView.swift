@@ -9,12 +9,18 @@ import SwiftUI
 import Contacts
 import Combine
 
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
+
 struct ContactListView: View {
     let onContactSelected: (CNContact) -> Void
     let onDismiss: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     @StateObject private var contactStore = ContactStore()
     @State private var searchText = ""
@@ -80,9 +86,15 @@ struct ContactListView: View {
                             .padding(.horizontal)
                         
                         Button {
+                            #if os(iOS)
                             if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
                                 UIApplication.shared.open(settingsURL)
                             }
+                            #elseif os(macOS)
+                            if let settingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts") {
+                                NSWorkspace.shared.open(settingsURL)
+                            }
+                            #endif
                         } label: {
                             Text("Open Settings")
                                 .font(theme.typography.subheadline)
@@ -142,9 +154,12 @@ struct ContactListView: View {
                 }
             }
             .navigationTitle("Select Contact")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .searchable(text: $searchText, prompt: "Search contacts")
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         onDismiss()
@@ -154,6 +169,17 @@ struct ContactListView: View {
                             .foregroundColor(colors.textTertiary)
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(colors.textTertiary)
+                    }
+                }
+                #endif
             }
         }
         .task {
@@ -255,8 +281,8 @@ struct ContactListRow: View {
     let contact: CNContact
     let onTap: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -279,13 +305,24 @@ struct ContactListRow: View {
                         )
                         .frame(width: 50, height: 50)
                     
-                    if let imageData = contact.thumbnailImageData,
-                       let uiImage = UIImage(data: imageData) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 50, height: 50)
-                            .clipShape(Circle())
+                    if let imageData = contact.thumbnailImageData {
+                        #if os(iOS)
+                        if let uiImage = UIImage(data: imageData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 50, height: 50)
+                                .clipShape(Circle())
+                        }
+                        #elseif os(macOS)
+                        if let nsImage = NSImage(data: imageData) {
+                            Image(nsImage: nsImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 50, height: 50)
+                                .clipShape(Circle())
+                        }
+                        #endif
                     } else {
                         // Initials or icon
                         if !fullName.isEmpty {

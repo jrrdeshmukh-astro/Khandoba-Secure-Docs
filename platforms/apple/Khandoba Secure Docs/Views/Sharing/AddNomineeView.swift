@@ -11,15 +11,17 @@ import CloudKit
 
 #if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
 #endif
 
 struct AddNomineeView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     
@@ -60,14 +62,25 @@ struct AddNomineeView: View {
                 }
             }
             .navigationTitle("Invite Nominee")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .foregroundColor(colors.primary)
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+                #endif
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
@@ -79,6 +92,7 @@ struct AddNomineeView: View {
             } message: {
                 Text("Invitation link copied to clipboard")
             }
+            #if os(iOS)
             .sheet(isPresented: $showCloudKitSharing) {
                 CloudKitSharingView(
                     vault: vault,
@@ -86,6 +100,7 @@ struct AddNomineeView: View {
                     isPresented: $showCloudKitSharing
                 )
             }
+            #endif
             .onAppear {
                 if AppConfig.useSupabase {
                     if let userID = authService.currentUser?.id {
@@ -151,7 +166,9 @@ struct AddNomineeView: View {
                         
                         TextField("Enter nominee's name", text: $nomineeName)
                             .font(theme.typography.body)
+                            #if os(iOS)
                             .textInputAutocapitalization(.words)
+                            #endif
                             .padding(UnifiedTheme.Spacing.md)
                             .background(colors.surface)
                             .cornerRadius(UnifiedTheme.CornerRadius.md)
@@ -168,7 +185,9 @@ struct AddNomineeView: View {
                         
                         TextField("(555) 123-4567", text: $phoneNumber)
                             .font(theme.typography.body)
+                            #if os(iOS)
                             .keyboardType(.phonePad)
+                            #endif
                             .padding(UnifiedTheme.Spacing.md)
                             .background(colors.surface)
                             .cornerRadius(UnifiedTheme.CornerRadius.md)
@@ -185,8 +204,12 @@ struct AddNomineeView: View {
                         
                         TextField("nominee@example.com", text: $email)
                             .font(theme.typography.body)
+                            #if os(iOS)
                             .keyboardType(.emailAddress)
+                            #endif
+                            #if os(iOS)
                             .textInputAutocapitalization(.never)
+                            #endif
                             .autocorrectionDisabled()
                             .padding(UnifiedTheme.Spacing.md)
                             .background(colors.surface)
@@ -424,7 +447,12 @@ struct AddNomineeView: View {
         let deepLink = "khandoba://invite?token=\(nominee.inviteToken)"
         let message = generateInvitationMessage(nominee: nominee, deepLink: deepLink)
         
+        #if os(iOS)
         UIPasteboard.general.string = message
+        #elseif os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(message, forType: .string)
+        #endif
         showCopiedAlert = true
     }
     

@@ -12,8 +12,8 @@ import Combine
 struct ThreatDashboardView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
@@ -135,7 +135,9 @@ struct ThreatDashboardView: View {
             }
         }
         .navigationTitle("Threat Dashboard")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             // Configure threat service
             threatService.configure(vaultService: vaultService, supabaseService: supabaseService)
@@ -153,8 +155,8 @@ struct ThreatDashboardView: View {
 struct ThreatEventRow: View {
     let threat: ThreatEvent
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

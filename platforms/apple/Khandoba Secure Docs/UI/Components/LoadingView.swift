@@ -11,8 +11,8 @@ struct LoadingView: View {
     let message: String
     let progress: Double?
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     init(_ message: String = "Loading...", progress: Double? = nil) {
         self.message = message
@@ -55,8 +55,8 @@ struct LoadingOverlay: View {
     let progress: Double?
     let onCancel: (() -> Void)?
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @State private var isVisible = false
     
     enum LoadingStyle {
@@ -151,8 +151,8 @@ struct EmptyStateView: View {
     let actionTitle: String?
     let action: (() -> Void)?
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     init(
         icon: String,

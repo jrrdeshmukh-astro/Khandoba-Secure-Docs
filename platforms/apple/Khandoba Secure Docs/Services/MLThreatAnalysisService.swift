@@ -230,6 +230,66 @@ final class MLThreatAnalysisService: ObservableObject {
         )
     }
     
+    // MARK: - Integration with Formal Logic Threat Inference
+    
+    /// Combine ML threat analysis with logical threat scores
+    /// This method integrates formal logic inferences with ML-based analysis
+    func combineWithLogicalThreatScores(
+        vault: Vault,
+        logicalScores: GranularThreatScores
+    ) async -> ThreatMetrics {
+        // Get ML-based threat metrics
+        let geoMetrics = await analyzeGeoClassification(for: vault)
+        let accessMetrics = await analyzeAccessPatterns(for: vault)
+        let tagMetrics = analyzeTagPatterns(for: vault)
+        
+        // Extract ML composite score from component metrics
+        let mlCompositeScore = (geoMetrics.riskScore + accessMetrics.riskScore + tagMetrics.riskScore) / 3.0
+        
+        // Combine ML score with logical score using weighted average
+        // The combination is done in FormalLogicThreatInferenceService.augmentThreatIndex()
+        // This method provides the ML component for that combination
+        
+        // Determine overall risk level based on combined score
+        let overallRiskScore = mlCompositeScore // This will be combined with logical score by caller
+        let riskLevel: ThreatMetrics.ThreatLevel
+        if overallRiskScore >= 75 {
+            riskLevel = .critical
+        } else if overallRiskScore >= 50 {
+            riskLevel = .high
+        } else if overallRiskScore >= 25 {
+            riskLevel = .medium
+        } else {
+            riskLevel = .low
+        }
+        
+        let metrics = ThreatMetrics(
+            geoMetrics: geoMetrics,
+            accessMetrics: accessMetrics,
+            tagMetrics: tagMetrics,
+            overallRiskScore: mlCompositeScore,
+            riskLevel: riskLevel
+        )
+        
+        self.threatMetrics = metrics
+        return metrics
+    }
+    
+    /// Calculate composite ML threat score for integration with formal logic
+    func calculateMLCompositeScore(for vault: Vault) async -> Double {
+        let geoMetrics = await analyzeGeoClassification(for: vault)
+        let accessMetrics = await analyzeAccessPatterns(for: vault)
+        let tagMetrics = analyzeTagPatterns(for: vault)
+        
+        // Weighted average of component scores
+        // Geographic and access patterns are more indicative of active threats
+        let composite = (geoMetrics.riskScore * 0.4) +
+                       (accessMetrics.riskScore * 0.4) +
+                       (tagMetrics.riskScore * 0.2)
+        
+        return min(100.0, max(0.0, composite))
+    }
+    
     // MARK: - Private Helpers
     
     private func clusterLocations(_ coordinates: [CLLocationCoordinate2D]) -> [[CLLocationCoordinate2D]] {

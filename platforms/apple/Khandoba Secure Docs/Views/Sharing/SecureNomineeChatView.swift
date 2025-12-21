@@ -16,10 +16,10 @@ struct SecureNomineeChatView: View {
     let vault: Vault
     let nominee: Nominee
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var chatService: ChatService
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
@@ -93,7 +93,9 @@ struct SecureNomineeChatView: View {
                 )
             }
         }
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .onAppear {
             // Configure chat service
             if let userID = authService.currentUser?.id {
@@ -199,8 +201,8 @@ struct SecureNomineeChatView: View {
 // MARK: - Security Warning Banner
 
 struct SecurityWarningBanner: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -233,8 +235,8 @@ struct ChatHeaderView: View {
     let vaultName: String
     let isSecure: Bool
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -295,8 +297,8 @@ struct SecureChatBubble: View {
     let conversationID: String
     let isFromCurrentUser: Bool
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var chatService: ChatService
     
     @State private var decryptedContent: String?
@@ -376,8 +378,8 @@ struct SecureMessageInputView: View {
     let onSend: () -> Void
     let isScreenCaptured: Bool
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

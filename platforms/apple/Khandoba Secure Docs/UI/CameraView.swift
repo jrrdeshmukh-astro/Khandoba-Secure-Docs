@@ -13,7 +13,7 @@ import UIKit
 
 struct CameraView: UIViewControllerRepresentable {
     var onCapture: (UIImage) -> Void
-    @Environment(\.dismiss) private var dismiss
+    @SwiftUI.Environment(\.dismiss) private var dismiss
     
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
@@ -58,7 +58,7 @@ import Combine
 
 struct CameraView: View {
     var onCapture: (NSImage) -> Void
-    @Environment(\.dismiss) private var dismiss
+    @SwiftUI.Environment(\.dismiss) private var dismiss
     @StateObject private var coordinator = Coordinator()
     
     var body: some View {
@@ -148,7 +148,7 @@ class Coordinator: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
         
         // Discover available video devices (including external USB cameras)
         let discoverySession = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInWideAngleCamera, .externalUnknown],
+            deviceTypes: [.builtInWideAngleCamera, .external],
             mediaType: .video,
             position: .unspecified
         )
@@ -238,7 +238,7 @@ class Coordinator: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
 // tvOS - Camera not available
 struct CameraView: View {
     var onCapture: (Never) -> Void
-    @Environment(\.dismiss) private var dismiss
+    @SwiftUI.Environment(\.dismiss) private var dismiss
     
     var body: some View {
         VStack(spacing: 20) {

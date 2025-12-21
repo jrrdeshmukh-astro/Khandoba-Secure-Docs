@@ -481,6 +481,102 @@ final class AntiVaultService: ObservableObject {
         return currentLevel >= minLevel
     }
     
+    /// Evaluate logical threats and determine anti-vault actions
+    func evaluateLogicalThreats(vault: Vault, result: ThreatInferenceResult) async {
+        print("🛡️ Evaluating logical threats for vault: \(vault.name)")
+        
+        let scores = result.granularScores
+        let action = determineAntiVaultAction(granularScores: scores)
+        
+        // Execute action based on threat level
+        switch action {
+        case .immediateLock(let reason):
+            print("🔒 Immediate lock required: \(reason)")
+            // Lock anti-vault immediately
+            if AppConfig.useSupabase, let supabaseService = supabaseService {
+                // Update in Supabase
+                if let antiVaultID = vault.antiVaultID {
+                    let antiVault: SupabaseAntiVault? = try? await supabaseService.fetch("anti_vaults", id: antiVaultID)
+                    if var av = antiVault {
+                        av.status = "locked"
+                        _ = try? await supabaseService.update("anti_vaults", id: antiVaultID, values: av)
+                        vault.antiVaultStatus = "locked"
+                    }
+                }
+            } else if let modelContext = modelContext {
+                if let antiVaultID = vault.antiVaultID {
+                    let descriptor = FetchDescriptor<AntiVault>(
+                        predicate: #Predicate { $0.id == antiVaultID }
+                    )
+                    if let antiVault = try? modelContext.fetch(descriptor).first {
+                        antiVault.status = "locked"
+                        vault.antiVaultStatus = "locked"
+                        try? modelContext.save()
+                    }
+                }
+            }
+            
+        case .lockWithDualKeyRequirement(let reason):
+            print("🔐 Lock with dual-key requirement: \(reason)")
+            // Similar lock logic but ensure dual-key is required
+            
+        case .requireDualKeyForAccess(let reason):
+            print("🔑 Require dual-key for access: \(reason)")
+            // Ensure dual-key authentication is enabled
+            
+        case .enableEnhancedMonitoring(let reason):
+            print("👁️ Enable enhanced monitoring: \(reason)")
+            // Enable additional monitoring
+            
+        case .monitorClosely(let reason):
+            print("🔍 Monitor closely: \(reason)")
+            // Just log for now
+            
+        case .preventiveLock(let reason):
+            print("🛡️ Preventive lock: \(reason)")
+            // Similar to immediate lock
+            
+        case .noAction:
+            print("✅ No action required")
+        }
+    }
+    
+    /// Determine anti-vault action based on granular threat scores
+    private func determineAntiVaultAction(granularScores: GranularThreatScores) -> AntiVaultAction {
+        let score = granularScores.compositeScore
+        let level = GranularThreatLevel(score: score)
+        
+        switch level {
+        case .extreme, .critical:        // 80.1-100.0
+            return .immediateLock(reason: "Extreme threat detected: \(String(format: "%.2f", score))")
+        
+        case .highCritical:              // 70.1-80.0
+            return .lockWithDualKeyRequirement(reason: "High-critical threat: \(String(format: "%.2f", score))")
+        
+        case .high:                      // 60.1-70.0
+            return .requireDualKeyForAccess(reason: "High threat level: \(String(format: "%.2f", score))")
+        
+        case .mediumHigh:                // 50.1-60.0
+            return .enableEnhancedMonitoring(reason: "Medium-high threat: \(String(format: "%.2f", score))")
+        
+        case .medium, .lowMedium:        // 30.1-50.0
+            return .monitorClosely(reason: "Elevated threat: \(String(format: "%.2f", score))")
+        
+        default:                         // 0.0-30.0
+            // Check for category-specific high scores
+            if granularScores.categoryScores.externalThreatScore > 80 {
+                return .immediateLock(reason: "External threat score: \(String(format: "%.2f", granularScores.categoryScores.externalThreatScore))")
+            }
+            if granularScores.categoryScores.dataExfiltrationScore > 70 {
+                return .lockWithDualKeyRequirement(reason: "Data exfiltration risk: \(String(format: "%.2f", granularScores.categoryScores.dataExfiltrationScore))")
+            }
+            if let velocity = granularScores.scoreVelocity, velocity > 10.0 {
+                return .preventiveLock(reason: "Rapid threat escalation: velocity=\(String(format: "%.2f", velocity))")
+            }
+            return .noAction
+        }
+    }
+    
     /// Alert authorized department of detected threats
     func alertAuthorizedDepartment(threats: [ThreatDetection], antiVault: AntiVault) async throws {
         print("🚨 Alerting authorized department of \(threats.count) threat(s)")

@@ -17,10 +17,10 @@ import MessageUI
 struct VaultDetailView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var documentService: DocumentService
     @EnvironmentObject var chatService: ChatService
@@ -933,8 +933,8 @@ struct VaultDetailView: View {
 struct DocumentRow: View {
     let document: Document
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

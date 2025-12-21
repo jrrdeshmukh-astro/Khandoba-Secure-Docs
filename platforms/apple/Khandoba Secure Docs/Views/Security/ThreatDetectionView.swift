@@ -10,9 +10,9 @@ import SwiftUI
 struct ThreatDetectionView: View {
     let threats: [ThreatDetection]
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     
     @State private var selectedThreat: ThreatDetection?
     @State private var showThreatDetails = false
@@ -86,20 +86,34 @@ struct ThreatDetectionView: View {
                                 }
                             }
                         }
+                        #if os(iOS)
                         .listStyle(.insetGrouped)
+                        #else
+                        .listStyle(.sidebar)
+                        #endif
                         .scrollContentBackground(.hidden)
                         .background(colors.background)
                     }
                 }
             }
             .navigationTitle("Threat Detection")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+                #endif
             }
             .sheet(isPresented: $showThreatDetails) {
                 if let threat = selectedThreat {
@@ -211,9 +225,9 @@ struct FilterButton: View {
 struct ThreatDetailView: View {
     let threat: ThreatDetection
     
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -336,13 +350,23 @@ struct ThreatDetailView: View {
             }
             .background(colors.background)
             .navigationTitle("Threat Details")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+                #endif
             }
         }
     }

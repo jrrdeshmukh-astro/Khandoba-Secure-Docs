@@ -71,8 +71,8 @@ struct DocumentPickerView: UIViewControllerRepresentable {
 struct DocumentImportButton: View {
     let vault: Vault
     @EnvironmentObject var documentService: DocumentService
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     @State private var showPicker = false
     @State private var isUploading = false

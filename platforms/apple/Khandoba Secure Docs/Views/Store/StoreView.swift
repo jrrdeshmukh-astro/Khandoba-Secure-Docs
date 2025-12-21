@@ -10,9 +10,9 @@ import SwiftUI
 import StoreKit
 
 struct StoreView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @StateObject private var subscriptionService = SubscriptionService()
     
@@ -355,8 +355,8 @@ struct FeatureRow: View {
     let title: String
     let description: String
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         HStack(spacing: UnifiedTheme.Spacing.md) {

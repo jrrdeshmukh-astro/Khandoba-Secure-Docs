@@ -12,9 +12,9 @@ struct GuidedRemediationWizard: View {
     @ObservedObject var triageService: AutomaticTriageService
     let onComplete: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     
     @State private var currentAnswer = ""
     @State private var isExecutingAction = false
@@ -96,8 +96,11 @@ struct GuidedRemediationWizard: View {
                 }
             }
             .navigationTitle("Guided Remediation")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Skip") {
                         dismiss()
@@ -114,6 +117,24 @@ struct GuidedRemediationWizard: View {
                     .foregroundColor(colors.primary)
                     .disabled(hasMoreQuestions)
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Skip") {
+                        dismiss()
+                        onComplete()
+                    }
+                    .foregroundColor(colors.textSecondary)
+                }
+                
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        dismiss()
+                        onComplete()
+                    }
+                    .foregroundColor(colors.primary)
+                    .disabled(hasMoreQuestions)
+                }
+                #endif
             }
             .alert("Execute Action", isPresented: $showActionConfirmation) {
                 Button("Cancel", role: .cancel) { }
@@ -200,8 +221,8 @@ struct GuidedRemediationWizard: View {
 struct ThreatSummaryCard: View {
     let result: TriageResult
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -291,8 +312,8 @@ struct ProgressIndicator: View {
     let currentStep: Int
     let totalSteps: Int
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -335,8 +356,8 @@ struct QuestionCard: View {
     @Binding var answer: String
     let onAnswer: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -386,8 +407,8 @@ struct RecommendedActionsCard: View {
     let completedActions: [RemediationAction]
     let onExecute: (RemediationAction) -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -431,8 +452,8 @@ struct ActionRow: View {
     let action: RemediationAction
     let onExecute: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -543,8 +564,8 @@ struct ActionRow: View {
 struct CompletedActionsCard: View {
     let actions: [RemediationAction]
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

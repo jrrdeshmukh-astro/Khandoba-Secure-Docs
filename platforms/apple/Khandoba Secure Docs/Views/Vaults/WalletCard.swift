@@ -27,8 +27,8 @@ struct WalletCard: View {
     // Whether this card is the front card (only front card should be source for matched geometry)
     var isFrontCard: Bool = false
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     @State private var isPressed = false
     @State private var flipAngle: Double = 0 // 0 = front, 180 = back

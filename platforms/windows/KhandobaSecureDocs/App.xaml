@@ -7,6 +7,48 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+            
+            <!-- Image-inspired Color Palette -->
+            <!-- Warm Terracotta Orange (Primary) -->
+            <Color x:Key="KhandobaOrange">#FFD97757</Color>
+            <SolidColorBrush x:Key="KhandobaOrangeBrush" Color="{StaticResource KhandobaOrange}"/>
+            
+            <!-- Deep Teal-Blue (Secondary) -->
+            <Color x:Key="KhandobaBlue">#FF3A6B8A</Color>
+            <SolidColorBrush x:Key="KhandobaBlueBrush" Color="{StaticResource KhandobaBlue}"/>
+            
+            <!-- Medium Slate Blue (Tertiary) -->
+            <Color x:Key="KhandobaSlate">#FF5A7A9A</Color>
+            <SolidColorBrush x:Key="KhandobaSlateBrush" Color="{StaticResource KhandobaSlate}"/>
+            
+            <!-- Dark Grey Base -->
+            <Color x:Key="KhandobaDark">#FF1F1F1F</Color>
+            <SolidColorBrush x:Key="KhandobaDarkBrush" Color="{StaticResource KhandobaDark}"/>
+            
+            <!-- Dark Grey Surface -->
+            <Color x:Key="KhandobaGrey">#FF3A3A3A</Color>
+            <SolidColorBrush x:Key="KhandobaGreyBrush" Color="{StaticResource KhandobaGrey}"/>
+            
+            <!-- Light Background -->
+            <Color x:Key="KhandobaLight">#FFF5F5F5</Color>
+            <SolidColorBrush x:Key="KhandobaLightBrush" Color="{StaticResource KhandobaLight}"/>
+            
+            <!-- Semantic Colors -->
+            <Color x:Key="KhandobaSuccess">#FF45C186</Color>
+            <SolidColorBrush x:Key="KhandobaSuccessBrush" Color="{StaticResource KhandobaSuccess}"/>
+            
+            <Color x:Key="KhandobaWarning">#FFE7A63A</Color>
+            <SolidColorBrush x:Key="KhandobaWarningBrush" Color="{StaticResource KhandobaWarning}"/>
+            
+            <!-- Text Colors -->
+            <Color x:Key="KhandobaTextPrimary">#FF1F1F1F</Color>
+            <SolidColorBrush x:Key="KhandobaTextPrimaryBrush" Color="{StaticResource KhandobaTextPrimary}"/>
+            
+            <Color x:Key="KhandobaTextSecondary">#FF4A4A4A</Color>
+            <SolidColorBrush x:Key="KhandobaTextSecondaryBrush" Color="{StaticResource KhandobaTextSecondary}"/>
+            
+            <Color x:Key="KhandobaTextTertiary">#FF8E8E93</Color>
+            <SolidColorBrush x:Key="KhandobaTextTertiaryBrush" Color="{StaticResource KhandobaTextTertiary}"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

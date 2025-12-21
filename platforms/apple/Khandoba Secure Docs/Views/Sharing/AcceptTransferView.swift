@@ -11,10 +11,10 @@ import SwiftData
 struct AcceptTransferView: View {
     let transferToken: String
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     
@@ -52,14 +52,25 @@ struct AcceptTransferView: View {
                 }
             }
             .navigationTitle("Transfer Ownership")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .foregroundColor(colors.primary)
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(colors.primary)
+                }
+                #endif
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
@@ -288,9 +299,7 @@ struct AcceptTransferView: View {
         do {
             // Supabase mode - exclusive use when enabled
             if AppConfig.useSupabase {
-                guard let supabaseService = supabaseService else {
-                    throw TransferError.serviceNotConfigured
-                }
+                // supabaseService is @EnvironmentObject, so it's always available
                 
                 // Fetch transfer request from Supabase
                 let filters: [String: Any] = ["transfer_token": transferToken]
@@ -350,10 +359,10 @@ struct AcceptTransferView: View {
                 let vault = Vault(
                     name: supabaseVault.name,
                     vaultDescription: supabaseVault.vaultDescription,
-                    isDualKey: supabaseVault.isDualKey,
-                    ownerID: supabaseVault.ownerID
+                    keyType: supabaseVault.keyType
                 )
                 vault.id = supabaseVault.id
+                // Note: owner relationship would be set via User lookup if needed
                 request.vault = vault
                 
                 await MainActor.run {
@@ -431,34 +440,76 @@ struct AcceptTransferView: View {
             do {
                 // Supabase mode - exclusive use when enabled
                 if AppConfig.useSupabase {
-                    guard let supabaseService = supabaseService else {
-                        throw TransferError.serviceNotConfigured
-                    }
+                    // supabaseService is @EnvironmentObject, so it's always available
                     
                     print("🔄 Accepting transfer in Supabase mode...")
                     
-                    // Update vault owner in Supabase
-                    let vaultUpdate: [String: Any] = [
-                        "owner_id": currentUser.id.uuidString,
-                        "updated_at": ISO8601DateFormatter().string(from: Date())
-                    ]
+                    // Fetch current vault to update
+                    let vaultFilters: [String: Any] = ["id": vault.id.uuidString]
+                    let currentVaults: [SupabaseVault] = try await supabaseService.fetchAll(
+                        "vaults",
+                        filters: vaultFilters
+                    )
+                    
+                    guard let currentVault = currentVaults.first else {
+                        throw TransferError.serviceNotConfigured
+                    }
+                    
+                    // Create updated vault with new owner (ownerID is let, so we need to create new instance)
+                    // Use the standard initializer with all required fields
+                    let vaultToUpdate = SupabaseVault(
+                        id: currentVault.id,
+                        name: currentVault.name,
+                        vaultDescription: currentVault.vaultDescription,
+                        ownerID: currentUser.id, // Updated owner
+                        createdAt: currentVault.createdAt,
+                        lastAccessedAt: currentVault.lastAccessedAt,
+                        status: currentVault.status,
+                        keyType: currentVault.keyType,
+                        vaultType: currentVault.vaultType,
+                        isSystemVault: currentVault.isSystemVault,
+                        encryptionKeyData: currentVault.encryptionKeyData,
+                        isEncrypted: currentVault.isEncrypted,
+                        isZeroKnowledge: currentVault.isZeroKnowledge,
+                        relationshipOfficerID: currentVault.relationshipOfficerID,
+                        isAntiVault: currentVault.isAntiVault,
+                        monitoredVaultID: currentVault.monitoredVaultID,
+                        antiVaultID: currentVault.antiVaultID,
+                        isBroadcast: currentVault.isBroadcast,
+                        accessLevel: currentVault.accessLevel,
+                        updatedAt: Date() // Updated timestamp
+                    )
+                    // Note: threatIndex, threatLevel, and lastThreatAssessmentAt are optional
+                    // and will be preserved by the database if not explicitly set
+                    
                     let _: SupabaseVault = try await supabaseService.update(
                         "vaults",
-                        id: vault.id.uuidString,
-                        values: vaultUpdate
+                        id: vault.id,
+                        values: vaultToUpdate
                     )
                     
                     // Update transfer request status in Supabase
-                    let requestUpdate: [String: Any] = [
-                        "status": "completed",
-                        "new_owner_id": currentUser.id.uuidString,
-                        "approved_at": ISO8601DateFormatter().string(from: Date()),
-                        "updated_at": ISO8601DateFormatter().string(from: Date())
-                    ]
+                    // Fetch current request to update
+                    let requestFilters: [String: Any] = ["id": request.id.uuidString]
+                    let currentRequests: [SupabaseVaultTransferRequest] = try await supabaseService.fetchAll(
+                        "vault_transfer_requests",
+                        filters: requestFilters
+                    )
+                    
+                    guard var requestToUpdate = currentRequests.first else {
+                        throw TransferError.serviceNotConfigured
+                    }
+                    
+                    // Update request fields
+                    requestToUpdate.status = "completed"
+                    requestToUpdate.newOwnerID = currentUser.id
+                    requestToUpdate.approvedAt = Date()
+                    requestToUpdate.updatedAt = Date()
+                    
                     let _: SupabaseVaultTransferRequest = try await supabaseService.update(
                         "vault_transfer_requests",
-                        id: request.id.uuidString,
-                        values: requestUpdate
+                        id: request.id,
+                        values: requestToUpdate
                     )
                     
                     // Update nominees to inactive (new owner will need to re-invite)
@@ -469,14 +520,15 @@ struct AcceptTransferView: View {
                     )
                     
                     for nominee in nominees {
-                        let nomineeUpdate: [String: Any] = [
-                            "status": "inactive",
-                            "updated_at": ISO8601DateFormatter().string(from: Date())
-                        ]
+                        // Update nominee status to inactive
+                        var updatedNominee = nominee
+                        updatedNominee.status = "inactive"
+                        updatedNominee.updatedAt = Date()
+                        
                         let _: SupabaseNominee = try await supabaseService.update(
                             "nominees",
-                            id: nominee.id.uuidString,
-                            values: nomineeUpdate
+                            id: nominee.id,
+                            values: updatedNominee
                         )
                     }
                     

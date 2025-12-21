@@ -15,15 +15,16 @@ import AVKit
 
 #if os(iOS)
 import UIKit
+import PDFKit
 #endif
 
 struct DocumentPreviewView: View {
     let document: Document
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var documentService: DocumentService
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
@@ -74,12 +75,24 @@ struct DocumentPreviewView: View {
                                 ProgressView("Loading video...")
                             }
                         } else {
-                            // Other file types (PDF, images, etc.) use QuickLook with secure preview
+                            #if os(iOS)
                             QuickLookPreviewView(url: previewURL)
                                 .overlay(
                                     // Screenshot prevention overlay (monitors continuously)
                                     SecurePreviewOverlay(isScreenCaptured: $isScreenCaptured)
                                 )
+                            #else
+                            // QuickLook wrapper not available on macOS in this file; show simple message
+                            VStack(spacing: UnifiedTheme.Spacing.md) {
+                                Image(systemName: "doc.text.magnifyingglass")
+                                    .font(.system(size: 48))
+                                Text("Preview available on iOS")
+                                Text(previewURL.lastPathComponent)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            #endif
                         }
                     } else {
                         // Secure overlay - content hidden (only for non-audio/video files)
@@ -121,8 +134,11 @@ struct DocumentPreviewView: View {
             }
         }
         .navigationTitle(document.name)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
+            #if os(iOS)
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     // Print option (only export allowed)
@@ -165,6 +181,7 @@ struct DocumentPreviewView: View {
                         .foregroundColor(colors.primary)
                 }
             }
+            #endif
         }
         .sheet(isPresented: $showRenameSheet) {
             RenameDocumentView(document: document)
@@ -317,16 +334,17 @@ struct DocumentPreviewView: View {
         if AppConfig.useSupabase {
             var accessLog = SupabaseVaultAccessLog(
                 vaultID: vault.id,
+                userID: authService.currentUser?.id ?? UUID(),
+                userName: authService.currentUser?.fullName,
+                timestamp: Date(),
                 accessType: "previewed",
-                userID: authService.currentUser?.id,
+                deviceInfo: nil,
+                locationLatitude: location?.coordinate.latitude,
+                locationLongitude: location?.coordinate.longitude,
+                ipAddress: nil,
                 documentID: document.id,
                 documentName: document.name
             )
-            
-            if let location = location {
-                accessLog.locationLatitude = location.coordinate.latitude
-                accessLog.locationLongitude = location.coordinate.longitude
-            }
             
             do {
                 let _: SupabaseVaultAccessLog = try await supabaseService.insert(
@@ -448,15 +466,9 @@ struct DocumentPreviewView: View {
             // screen is not optional in UIWindowScene, so we can access it directly
             captured = windowScene.screen.isCaptured
         } else {
-            // Fallback for older iOS versions (pre-iOS 13) or if window scene is unavailable
-            // Note: UIScreen.main is deprecated in iOS 26, but we need it for older versions
-            // Use availability check to suppress deprecation warning on older iOS versions
             if #available(iOS 26.0, *) {
-                // In iOS 26+, we should have window scene, but if not, we can't detect capture
-                // This should rarely happen as window scenes are available in iOS 13+
                 captured = false
             } else {
-                // Safe to use UIScreen.main on iOS < 26
                 captured = UIScreen.main.isCaptured
             }
         }
@@ -509,6 +521,7 @@ struct ImagePreviewView: View {
     
     var body: some View {
         GeometryReader { geometry in
+            #if os(iOS)
             if let data = document.encryptedFileData,
                let uiImage = UIImage(data: data) {
                 Image(uiImage: uiImage)
@@ -549,6 +562,48 @@ struct ImagePreviewView: View {
             } else {
                 ProgressView("Loading image...")
             }
+            #else
+            if let data = document.encryptedFileData,
+               let nsImage = NSImage(data: data) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFit()
+                    .scaleEffect(scale)
+                    .offset(offset)
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                scale = lastScale * value
+                            }
+                            .onEnded { _ in
+                                lastScale = scale
+                                if scale < 1.0 {
+                                    withAnimation {
+                                        scale = 1.0
+                                        lastScale = 1.0
+                                        offset = .zero
+                                        lastOffset = .zero
+                                    }
+                                }
+                            }
+                    )
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                offset = CGSize(
+                                    width: lastOffset.width + value.translation.width,
+                                    height: lastOffset.height + value.translation.height
+                                )
+                            }
+                            .onEnded { _ in
+                                lastOffset = offset
+                            }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ProgressView("Loading image...")
+            }
+            #endif
         }
     }
 }
@@ -558,11 +613,17 @@ struct PDFDocumentPreviewView: View {
     let document: Document
     
     var body: some View {
+        #if os(iOS)
         if let data = document.encryptedFileData {
             PDFKitView(data: data)
         } else {
             ProgressView("Loading PDF...")
         }
+        #else
+        // macOS fallback
+        Text("PDF preview available on iOS")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #endif
     }
 }
 
@@ -629,8 +690,8 @@ struct AudioPlayerPreviewView: View {
     let document: Document
     let audioData: Data // Decrypted audio data
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @State private var player: AVAudioPlayer?
     @State private var isPlaying = false
     @State private var currentTime: TimeInterval = 0
@@ -777,8 +838,8 @@ struct MarkdownPreviewView: View {
 struct UnsupportedDocPreviewView: View {
     let document: Document
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -829,8 +890,8 @@ struct UnsupportedDocPreviewView: View {
 struct DocumentInfoBar: View {
     let document: Document
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -908,10 +969,10 @@ struct DocumentInfoBar: View {
 struct RenameDocumentView: View {
     let document: Document
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var documentService: DocumentService
     
     @State private var newName: String
@@ -943,8 +1004,11 @@ struct RenameDocumentView: View {
                 .padding(.top)
             }
             .navigationTitle("Rename Document")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
@@ -957,6 +1021,15 @@ struct RenameDocumentView: View {
                     }
                     .disabled(newName.isEmpty || newName == document.name || isLoading)
                 }
+                #else
+                ToolbarItem {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem {
+                    Button("Save") { saveRename() }
+                        .disabled(newName.isEmpty || newName == document.name || isLoading)
+                }
+                #endif
             }
         }
     }
@@ -1000,8 +1073,8 @@ struct SecurePreviewOverlay: View {
     var onShowContent: (() -> Void)?
     var showButton: Bool = true
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @State private var showGrepButton = false
     
     var body: some View {

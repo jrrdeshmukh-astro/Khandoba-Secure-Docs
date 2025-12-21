@@ -481,6 +481,26 @@ final class VaultService: ObservableObject {
         return vault
     }
     
+    /// Update vault threat index with formal logic analysis results
+    func updateThreatIndexWithLogic(vault: Vault, result: ThreatInferenceResult) async throws {
+        // This method is a convenience wrapper that calls the FormalLogicThreatInferenceService
+        // to update vault threat metrics. The actual update logic is in FormalLogicThreatInferenceService.
+        // This method can be called from VaultService to trigger threat analysis updates.
+        
+        // The vault's threatIndex and threatLevel are updated by FormalLogicThreatInferenceService.updateVaultThreatMetrics()
+        // This method exists for integration purposes and can trigger additional vault-related updates if needed.
+        
+        print("📊 VaultService: Updating threat index with logical analysis for vault: \(vault.name)")
+        
+        // If using SwiftData, save the context after threat metrics update
+        if let modelContext = modelContext {
+            try modelContext.save()
+        }
+        
+        // Reload vaults to refresh the UI
+        try await loadVaults()
+    }
+    
     /// Create vault in Supabase
     private func createVaultInSupabase(
         name: String,
@@ -2070,32 +2090,6 @@ final class VaultService: ObservableObject {
         ]
         return try? JSONSerialization.data(withJSONObject: json)
     }
-}
-
-enum VaultError: LocalizedError {
-    case contextNotAvailable
-    case serviceNotConfigured
-    case userNotFound
-    case awaitingApproval
-    case accessDenied
-    case transferOwnershipRestricted(String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .contextNotAvailable:
-            return "Database context not available"
-        case .serviceNotConfigured:
-            return "Service not configured. Please ensure Supabase is properly initialized."
-        case .userNotFound:
-            return "Current user not found"
-        case .accessDenied:
-            return "Access denied by security system"
-        case .awaitingApproval:
-            return "Vault requires admin approval. Request has been submitted."
-        case .transferOwnershipRestricted(let message):
-            return message
-        }
-    }
     
     // MARK: - Broadcast Vault: Open Street
     
@@ -2104,7 +2098,7 @@ enum VaultError: LocalizedError {
     func createOrGetOpenStreetVault() async throws -> Vault {
         // Supabase mode
         if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else {
+            guard let supabaseService = self.supabaseService else {
                 throw VaultError.serviceNotConfigured
             }
             
@@ -2122,10 +2116,10 @@ enum VaultError: LocalizedError {
             }
             
             // Create "Open Street" vault
-            var openStreetVault = SupabaseVault(
+            let openStreetVault = SupabaseVault(
                 name: "Open Street",
                 vaultDescription: "A public vault for everyone to share and access documents",
-                ownerID: currentUserID ?? UUID(),
+                ownerID: self.currentUserID ?? UUID(),
                 status: "active",
                 keyType: "single",
                 vaultType: "both",
@@ -2147,14 +2141,14 @@ enum VaultError: LocalizedError {
             vault.accessLevel = created.accessLevel ?? "public_read"
             
             // Reload vaults to include the new broadcast vault
-            try await loadVaults()
+            try await self.loadVaults()
             
             print("✅ Created 'Open Street' broadcast vault: \(vault.id)")
             return vault
         }
         
         // SwiftData/CloudKit mode
-        guard let modelContext = modelContext else {
+        guard let modelContext = self.modelContext else {
             throw VaultError.contextNotAvailable
         }
         
@@ -2181,7 +2175,7 @@ enum VaultError: LocalizedError {
         openStreetVault.status = "active"
         
         // Set owner (use current user or leave nil for system vault)
-        if let currentUserID = currentUserID {
+        if let currentUserID = self.currentUserID {
             let userDescriptor = FetchDescriptor<User>(
                 predicate: #Predicate { $0.id == currentUserID }
             )
@@ -2194,9 +2188,35 @@ enum VaultError: LocalizedError {
         try modelContext.save()
         
         // Reload vaults
-        try await loadVaults()
+        try await self.loadVaults()
         
         print("✅ Created 'Open Street' broadcast vault: \(openStreetVault.id)")
         return openStreetVault
+    }
+}
+
+enum VaultError: LocalizedError {
+    case contextNotAvailable
+    case serviceNotConfigured
+    case userNotFound
+    case awaitingApproval
+    case accessDenied
+    case transferOwnershipRestricted(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .contextNotAvailable:
+            return "Database context not available"
+        case .serviceNotConfigured:
+            return "Service not configured. Please ensure Supabase is properly initialized."
+        case .userNotFound:
+            return "Current user not found"
+        case .accessDenied:
+            return "Access denied by security system"
+        case .awaitingApproval:
+            return "Vault requires admin approval. Request has been submitted."
+        case .transferOwnershipRestricted(let message):
+            return message
+        }
     }
 }

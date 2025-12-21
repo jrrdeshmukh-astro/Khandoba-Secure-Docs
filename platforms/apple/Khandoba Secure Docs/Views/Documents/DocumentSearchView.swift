@@ -8,8 +8,8 @@
 import SwiftUI
 
 struct DocumentSearchView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var documentService: DocumentService
     

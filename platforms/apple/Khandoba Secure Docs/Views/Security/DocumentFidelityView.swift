@@ -16,8 +16,8 @@ import UIKit
 struct DocumentFidelityView: View {
     let document: Document
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var fidelityService: DocumentFidelityService
     
     @State private var fidelityReport: FidelityReport?
@@ -570,9 +570,9 @@ extension MKCoordinateRegion {
 
 struct TransferHistoryView: View {
     let transfers: [TransferEvent]
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -613,11 +613,19 @@ struct TransferHistoryView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: #if os(iOS) .topBarTrailing #else .automatic #endif) {
+                #if os(iOS)
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+                #endif
             }
         }
     }
@@ -625,9 +633,9 @@ struct TransferHistoryView: View {
 
 struct EditHistoryView: View {
     let edits: [EditEvent]
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -668,11 +676,19 @@ struct EditHistoryView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: #if os(iOS) .topBarTrailing #else .automatic #endif) {
+                #if os(iOS)
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+                #endif
             }
         }
     }
@@ -680,9 +696,9 @@ struct EditHistoryView: View {
 
 struct ThreatDetailsView: View {
     let threats: [ThreatIndicator]
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -733,11 +749,19 @@ struct ThreatDetailsView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: #if os(iOS) .topBarTrailing #else .automatic #endif) {
+                #if os(iOS)
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+                #endif
             }
         }
     }

@@ -12,8 +12,8 @@ struct DotsLoadingView: View {
     let message: String?
     let dotCount: Int
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @State private var animationPhase: Double = 0
     
     init(message: String? = nil, dotCount: Int = 3) {

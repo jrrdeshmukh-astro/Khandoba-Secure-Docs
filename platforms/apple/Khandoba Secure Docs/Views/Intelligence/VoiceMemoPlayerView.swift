@@ -12,9 +12,9 @@ import Combine
 struct VoiceMemoPlayerView: View {
     let document: Document
     @StateObject private var player = VoiceMemoPlayer()
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) private var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) private var dismiss
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -156,14 +156,25 @@ struct VoiceMemoPlayerView: View {
                 }
                 .padding(UnifiedTheme.Spacing.xl)
             }
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         player.stop()
                         dismiss()
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button("Done") {
+                        player.stop()
+                        dismiss()
+                    }
+                }
+                #endif
             }
             .onAppear {
                 loadAudio()
@@ -357,8 +368,8 @@ struct WaveformView: View {
 struct MiniVoiceMemoPlayer: View {
     let document: Document
     @StateObject private var player = VoiceMemoPlayer()
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     @State private var showFullPlayer = false
     

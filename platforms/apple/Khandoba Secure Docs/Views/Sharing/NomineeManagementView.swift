@@ -11,9 +11,9 @@ import SwiftData
 struct NomineeManagementView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var chatService: ChatService
     @EnvironmentObject var supabaseService: SupabaseService
@@ -55,8 +55,11 @@ struct NomineeManagementView: View {
             }
         }
         .navigationTitle("Nominees")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
+            #if os(iOS)
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showAddNominee = true
@@ -65,6 +68,16 @@ struct NomineeManagementView: View {
                         .foregroundColor(colors.primary)
                 }
             }
+            #else
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    showAddNominee = true
+                } label: {
+                    Image(systemName: "plus")
+                        .foregroundColor(colors.primary)
+                }
+            }
+            #endif
         }
         .sheet(isPresented: $showAddNominee) {
             NomineeInvitationView(vault: vault)
@@ -126,11 +139,11 @@ struct NomineeRow: View {
     let vault: Vault
     let onRemove: () async -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var chatService: ChatService
     @EnvironmentObject var vaultService: VaultService
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     

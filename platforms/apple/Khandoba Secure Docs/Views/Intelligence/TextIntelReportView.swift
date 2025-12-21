@@ -12,10 +12,10 @@ import Combine
 struct TextIntelReportView: View {
     let documents: [Document]
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.dismiss) private var dismiss
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var authService: AuthenticationService
     

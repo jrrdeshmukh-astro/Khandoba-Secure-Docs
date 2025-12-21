@@ -14,10 +14,10 @@ import CloudKit
 struct NomineeInvitationView: View {
     let vault: Vault?
     
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.dismiss) private var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var supabaseService: SupabaseService

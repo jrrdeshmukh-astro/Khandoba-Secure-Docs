@@ -34,8 +34,8 @@ struct StandardButton: View {
         self.isEnabled = isEnabled
     }
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         Button(action: action) {

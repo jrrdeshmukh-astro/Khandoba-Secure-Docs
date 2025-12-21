@@ -7,9 +7,9 @@
 import SwiftUI
 
 struct ClientOnboardingView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @AppStorage("hasCompletedClientOnboarding") private var hasCompleted = false
     
     @State private var currentPage = 0
@@ -61,7 +61,11 @@ struct ClientOnboardingView: View {
                     )
                     .tag(3)
                 }
-                .tabViewStyle(.page(indexDisplayMode: #if os(iOS) .never #else .automatic #endif))
+                #if os(iOS)
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                #else
+                .tabViewStyle(.automatic)
+                #endif
                 
                 // Buttons
                 VStack(spacing: UnifiedTheme.Spacing.md) {
@@ -112,8 +116,8 @@ struct OnboardingPage: View {
     let title: String
     let description: String
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         VStack(spacing: UnifiedTheme.Spacing.xl) {

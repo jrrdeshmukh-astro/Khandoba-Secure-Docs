@@ -6,19 +6,25 @@
 //
 
 import SwiftUI
-import PhotosUI
 import UniformTypeIdentifiers
 import PDFKit
+
+#if os(iOS)
+import PhotosUI
+import UIKit
+#endif
 
 struct BulkUploadView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var documentService: DocumentService
     
+    #if os(iOS)
     @State private var selectedPhotos: [PhotosPickerItem] = []
+    #endif
     @State private var selectedFiles: [URL] = []
     @State private var selectedFileData: [URL: Data] = [:] // Store file data for preview
     @State private var isShowingFilePicker = false
@@ -65,7 +71,11 @@ struct BulkUploadView: View {
     }
     
     private var totalSelectedCount: Int {
+        #if os(iOS)
         selectedPhotos.count + selectedFiles.count
+        #else
+        selectedFiles.count
+        #endif
     }
     
     var body: some View {
@@ -78,7 +88,8 @@ struct BulkUploadView: View {
                 
                 ScrollView {
                     VStack(spacing: UnifiedTheme.Spacing.lg) {
-                        // Photo Picker
+                        // Photo Picker (iOS only)
+                        #if os(iOS)
                         PhotosPicker(
                             selection: $selectedPhotos,
                             maxSelectionCount: 20,
@@ -103,6 +114,7 @@ struct BulkUploadView: View {
                             }
                         }
                         .padding(.horizontal)
+                        #endif
                         
                         // File Picker
                         Button {
@@ -133,19 +145,27 @@ struct BulkUploadView: View {
                             StandardCard {
                                 VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
                                     HStack {
-                                        Image(systemName: totalSelectedCount == selectedPhotos.count ? "photo.stack" : "doc.on.doc.fill")
-                                            .foregroundColor(colors.info)
+                                        Image(systemName:
+                                                #if os(iOS)
+                                                totalSelectedCount == selectedPhotos.count ? "photo.stack" : "doc.on.doc.fill"
+                                                #else
+                                                "doc.on.doc.fill"
+                                                #endif
+                                        )
+                                        .foregroundColor(colors.info)
                                         
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text("\(totalSelectedCount) item\(totalSelectedCount == 1 ? "" : "s") selected")
                                                 .font(theme.typography.subheadline)
                                                 .foregroundColor(colors.textPrimary)
                                             
-                                            if selectedPhotos.count > 0 && selectedFiles.count > 0 {
+                                            #if os(iOS)
+                                            if !selectedPhotos.isEmpty && !selectedFiles.isEmpty {
                                                 Text("\(selectedPhotos.count) photos, \(selectedFiles.count) files")
                                                     .font(theme.typography.caption)
                                                     .foregroundColor(colors.textSecondary)
                                             }
+                                            #endif
                                         }
                                         
                                         Spacer()
@@ -206,7 +226,8 @@ struct BulkUploadView: View {
                                         }
                                     }
                                     
-                                    // Photo Count (if any)
+                                    // Photo Count (if any, iOS only)
+                                    #if os(iOS)
                                     if !selectedPhotos.isEmpty {
                                         if !selectedFiles.isEmpty {
                                             Divider()
@@ -220,6 +241,7 @@ struct BulkUploadView: View {
                                                 .foregroundColor(colors.textSecondary)
                                         }
                                     }
+                                    #endif
                                 }
                             }
                             .padding(.horizontal)
@@ -260,6 +282,7 @@ struct BulkUploadView: View {
                 }
             }
             .navigationTitle("Bulk Upload")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -269,6 +292,15 @@ struct BulkUploadView: View {
                     .foregroundColor(colors.primary)
                 }
             }
+            #else
+            .toolbar {
+                ToolbarItem {
+                    Button(isUploading ? "Cancel Upload" : "Close") {
+                        dismiss()
+                    }
+                }
+            }
+            #endif
             .fileImporter(
                 isPresented: $isShowingFilePicker,
                 allowedContentTypes: allowedFileTypes,
@@ -339,7 +371,8 @@ struct BulkUploadView: View {
         failedUploads = 0
         
         Task {
-            // Upload photos
+            // Upload photos (iOS only)
+            #if os(iOS)
             for (index, photo) in selectedPhotos.enumerated() {
                 do {
                     if let data = try await photo.loadTransferable(type: Data.self) {
@@ -360,6 +393,7 @@ struct BulkUploadView: View {
                     print("Upload failed for photo \(index): \(error)")
                 }
             }
+            #endif
             
             // Upload files
             for (index, url) in selectedFiles.enumerated() {
@@ -508,9 +542,9 @@ struct FilePreviewSheet: View {
     let fileURL: URL
     let fileName: String
     
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     @State private var fileData: Data?
     @State private var isLoading = true
@@ -562,6 +596,7 @@ struct FilePreviewSheet: View {
                             
                             // Preview based on file type
                             if fileName.lowercased().hasSuffix(".pdf") {
+                                #if os(iOS)
                                 if PDFDocument(data: data) != nil {
                                     PDFKitView(data: data)
                                         .frame(height: 600)
@@ -569,14 +604,22 @@ struct FilePreviewSheet: View {
                                     Text("Unable to load PDF")
                                         .foregroundColor(colors.error)
                                 }
-                            } else if let image = UIImage(data: data) {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(maxHeight: 400)
+                                #else
+                                VStack(spacing: UnifiedTheme.Spacing.md) {
+                                    Image(systemName: "doc.text.magnifyingglass")
+                                        .font(.system(size: 48))
+                                    Text("PDF preview available on iOS")
+                                }
+                                .padding()
+                                #endif
                             } else {
-                                // Text preview
-                                if let text = String(data: data, encoding: .utf8) {
+                                #if os(iOS)
+                                if let image = UIImage(data: data) {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(maxHeight: 400)
+                                } else if let text = String(data: data, encoding: .utf8) {
                                     Text(text)
                                         .font(theme.typography.body)
                                         .foregroundColor(colors.textPrimary)
@@ -586,6 +629,18 @@ struct FilePreviewSheet: View {
                                         .foregroundColor(colors.textSecondary)
                                         .padding()
                                 }
+                                #else
+                                if let text = String(data: data, encoding: .utf8) {
+                                    Text(text)
+                                        .font(theme.typography.body)
+                                        .foregroundColor(colors.textPrimary)
+                                        .padding()
+                                } else {
+                                    Text("Preview not available on this platform")
+                                        .foregroundColor(colors.textSecondary)
+                                        .padding()
+                                }
+                                #endif
                             }
                         }
                         .padding(.vertical)
@@ -593,6 +648,7 @@ struct FilePreviewSheet: View {
                 }
             }
             .navigationTitle("Preview")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -602,6 +658,13 @@ struct FilePreviewSheet: View {
                     .foregroundColor(colors.primary)
                 }
             }
+            #else
+            .toolbar {
+                ToolbarItem {
+                    Button("Done") { dismiss() }
+                }
+            }
+            #endif
             .task {
                 await loadFileData()
             }

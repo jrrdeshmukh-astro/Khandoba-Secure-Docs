@@ -9,9 +9,9 @@ import SwiftUI
 import SwiftData
 
 struct VaultRequestsListView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     
@@ -67,8 +67,11 @@ struct VaultRequestsListView: View {
                 }
             }
             .navigationTitle("Vault Requests")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Task {
@@ -78,6 +81,17 @@ struct VaultRequestsListView: View {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        Task {
+                            try? await requestService.loadRequests()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                #endif
             }
         }
         .task {
@@ -156,8 +170,8 @@ struct VaultRequestsListView: View {
 // MARK: - Request Row View
 
 struct RequestRowView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     let request: VaultAccessRequest
     @ObservedObject var requestService: VaultRequestService

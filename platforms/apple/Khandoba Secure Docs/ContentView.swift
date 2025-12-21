@@ -10,7 +10,7 @@ import SwiftData
 import CloudKit
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     

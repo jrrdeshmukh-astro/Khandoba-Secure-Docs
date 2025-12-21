@@ -559,6 +559,8 @@ final class FormalLogicEngine: ObservableObject {
         let abductive = applyAbductiveReasoning()
         let analogical = applyAnalogicalReasoning()
         let statistical = applyStatisticalReasoning()
+        let temporal = applyTemporalLogic()
+        let modal = applyModalLogic()
         
         let report = LogicalAnalysisReport(
             deductiveInferences: deductive,
@@ -566,8 +568,10 @@ final class FormalLogicEngine: ObservableObject {
             abductiveInferences: abductive,
             analogicalInferences: analogical,
             statisticalInferences: statistical,
+            temporalInferences: temporal,
+            modalInferences: modal,
             totalInferences: deductive.count + inductive.count + abductive.count + 
-                            analogical.count + statistical.count
+                            analogical.count + statistical.count + temporal.count + modal.count
         )
         
         print(" Complete analysis: \(report.totalInferences) total inferences")
@@ -576,6 +580,8 @@ final class FormalLogicEngine: ObservableObject {
         print("   Abductive: \(abductive.count) (best explanation)")
         print("   Analogical: \(analogical.count) (similarity)")
         print("   Statistical: \(statistical.count) (probability)")
+        print("   Temporal: \(temporal.count) (time-based)")
+        print("   Modal: \(modal.count) (possibility/necessity)")
         
         return report
     }
@@ -653,11 +659,13 @@ struct LogicalAnalysisReport {
     let abductiveInferences: [LogicalInference]
     let analogicalInferences: [LogicalInference]
     let statisticalInferences: [LogicalInference]
+    let temporalInferences: [LogicalInference]
+    let modalInferences: [LogicalInference]
     let totalInferences: Int
     
     var allInferences: [LogicalInference] {
         deductiveInferences + inductiveInferences + abductiveInferences + 
-        analogicalInferences + statisticalInferences
+        analogicalInferences + statisticalInferences + temporalInferences + modalInferences
     }
     
     var certainInferences: [LogicalInference] {

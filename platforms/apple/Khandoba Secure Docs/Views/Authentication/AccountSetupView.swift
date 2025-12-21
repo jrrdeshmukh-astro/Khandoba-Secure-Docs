@@ -13,8 +13,8 @@ import UIKit
 #endif
 
 struct AccountSetupView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var authService: AuthenticationService
     
     @State private var fullName = ""

@@ -323,9 +323,9 @@ enum SchedulerError: LocalizedError {
 struct ScheduleReviewView: View {
     let vault: Vault
     @StateObject private var scheduler = SecurityReviewScheduler()
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) private var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) private var dismiss
     
     @State private var selectedFrequency: ReviewFrequency = .monthly
     @State private var startDate = Date()

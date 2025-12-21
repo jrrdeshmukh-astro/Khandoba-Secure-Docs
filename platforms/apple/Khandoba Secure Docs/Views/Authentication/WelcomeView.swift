@@ -9,8 +9,8 @@ import SwiftUI
 import AuthenticationServices
 
 struct WelcomeView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var authService: AuthenticationService
     
     @State private var isLoading = false
@@ -124,7 +124,8 @@ struct WelcomeView: View {
         case .failure(let error):
             // Provide more helpful error messages
             if let authError = error as? ASAuthorizationError {
-                // Switch is exhaustive with @unknown default - compiler warning may be false positive
+                // Handle all known ASAuthorizationError.Code cases
+                // @unknown default ensures exhaustiveness for all current and future cases
                 switch authError.code {
                 case .unknown:
                     errorMessage = "Apple Sign In failed. Please ensure:\n• Your device is signed into iCloud\n• Two-factor authentication is enabled\n• Try testing on a real device (simulators have limitations)"
@@ -139,6 +140,8 @@ struct WelcomeView: View {
                 case .notInteractive:
                     errorMessage = "Sign in is not available. Please try again."
                 @unknown default:
+                    // This case handles any future cases that may be added to ASAuthorizationError.Code
+                    // The @unknown default attribute makes this switch exhaustive
                     errorMessage = "Apple Sign In error: \(authError.localizedDescription)\n\nTip: Ensure your device is signed into iCloud."
                 }
             } else {

@@ -9,9 +9,9 @@ import SwiftUI
 import SwiftData
 
 struct ClientDashboardView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var authService: AuthenticationService
@@ -282,8 +282,8 @@ struct ClientDashboardView: View {
 struct ActivityRow: View {
     let log: VaultAccessLog
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

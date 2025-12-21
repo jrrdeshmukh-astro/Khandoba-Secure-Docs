@@ -9,8 +9,8 @@ import SwiftUI
 import Combine
 
 struct SupportChatView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     @StateObject private var chatService = SupportChatService()
     @State private var messageText = ""

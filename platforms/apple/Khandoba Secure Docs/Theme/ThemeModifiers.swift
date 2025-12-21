@@ -10,8 +10,8 @@ import Combine
 
 // MARK: - Card Modifier
 struct CardModifier: ViewModifier {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     func body(content: Content) -> some View {
         let colors = theme.colors(for: colorScheme)
@@ -26,9 +26,9 @@ struct CardModifier: ViewModifier {
 
 // MARK: - Primary Button Style
 struct PrimaryButtonStyle: ButtonStyle {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.isEnabled) var isEnabled
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.isEnabled) var isEnabled
     
     func makeBody(configuration: Configuration) -> some View {
         let colors = theme.colors(for: colorScheme)
@@ -50,8 +50,8 @@ struct PrimaryButtonStyle: ButtonStyle {
 
 // MARK: - Secondary Button Style
 struct SecondaryButtonStyle: ButtonStyle {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     func makeBody(configuration: Configuration) -> some View {
         let colors = theme.colors(for: colorScheme)

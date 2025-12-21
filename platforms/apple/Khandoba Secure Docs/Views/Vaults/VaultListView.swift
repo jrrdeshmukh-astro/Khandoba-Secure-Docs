@@ -10,10 +10,10 @@ import Combine
 import Contacts
 
 struct VaultListView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var vaultService: VaultService
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     
@@ -661,8 +661,8 @@ private struct FaceIDPromptOverlay: View {
     let isAuthenticating: Bool
     let onCancel: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @State private var pulseScale: CGFloat = 1.0
     
     var body: some View {
@@ -744,8 +744,8 @@ struct NomineeListSection: View {
     let colors: UnifiedTheme.Colors
     let theme: UnifiedTheme
     
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     
     @State private var revokingNomineeID: UUID?

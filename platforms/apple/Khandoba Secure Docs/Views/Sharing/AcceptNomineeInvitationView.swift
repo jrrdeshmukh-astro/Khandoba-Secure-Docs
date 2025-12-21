@@ -11,10 +11,10 @@ import SwiftData
 struct AcceptNomineeInvitationView: View {
     let inviteToken: String
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     
@@ -211,7 +211,9 @@ struct AcceptNomineeInvitationView: View {
                 }
             }
             .navigationTitle("Accept Invitation")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
             } message: {

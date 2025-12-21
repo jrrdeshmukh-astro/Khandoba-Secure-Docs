@@ -12,10 +12,10 @@ import Contacts
 struct GameCenterStyleNomineeView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var vaultService: VaultService
@@ -177,8 +177,11 @@ struct GameCenterStyleNomineeView: View {
                 }
             }
             .navigationTitle("Nominees")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+            #endif
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showContactPicker = true
@@ -187,6 +190,16 @@ struct GameCenterStyleNomineeView: View {
                             .foregroundColor(colors.primary)
                     }
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showContactPicker = true
+                    } label: {
+                        Image(systemName: "person.badge.plus")
+                            .foregroundColor(colors.primary)
+                    }
+                }
+                #endif
             }
             .sheet(isPresented: $showContactPicker) {
                 ContactPickerView(
@@ -250,10 +263,10 @@ struct GameCenterNomineeRow: View {
     let vault: Vault
     let contactDiscovery: ContactDiscoveryService?
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var vaultService: VaultService
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var supabaseService: SupabaseService
     

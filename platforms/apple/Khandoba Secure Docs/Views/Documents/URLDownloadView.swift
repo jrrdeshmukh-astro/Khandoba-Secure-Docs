@@ -11,10 +11,10 @@ import SwiftData
 struct URLDownloadView: View {
     let vault: Vault
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var documentService: DocumentService
     
     @StateObject private var downloadService = URLAssetDownloadService()
@@ -262,6 +262,6 @@ struct SupportedFormatRow: View {
         }
     }
     
-    @Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
 }
 
