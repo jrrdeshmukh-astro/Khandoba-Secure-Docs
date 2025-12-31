@@ -85,6 +85,76 @@ struct ProfileView: View {
                     
                     // Role switching removed - single role system (autopilot mode)
                     
+                    // Features Section
+                    Section("Features") {
+                        NavigationLink {
+                            ComplianceDashboardView()
+                        } label: {
+                            HStack(spacing: UnifiedTheme.Spacing.md) {
+                                Image(systemName: "checkmark.shield.fill")
+                                    .foregroundColor(colors.success)
+                                    .frame(width: 24)
+                                Text("Compliance")
+                                    .foregroundColor(colors.textPrimary)
+                            }
+                        }
+                        .listRowBackground(colors.surface)
+                        
+                        NavigationLink {
+                            RiskAssessmentView()
+                        } label: {
+                            HStack(spacing: UnifiedTheme.Spacing.md) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(colors.warning)
+                                    .frame(width: 24)
+                                Text("Risk Assessment")
+                                    .foregroundColor(colors.textPrimary)
+                            }
+                        }
+                        .listRowBackground(colors.surface)
+                        
+                        NavigationLink {
+                            IndexDashboardView()
+                        } label: {
+                            HStack(spacing: UnifiedTheme.Spacing.md) {
+                                Image(systemName: "chart.bar.fill")
+                                    .foregroundColor(colors.info)
+                                    .frame(width: 24)
+                                Text("Security Indexes")
+                                    .foregroundColor(colors.textPrimary)
+                            }
+                        }
+                        .listRowBackground(colors.surface)
+                        
+                        NavigationLink {
+                            ConnectedAccountsView()
+                        } label: {
+                            HStack(spacing: UnifiedTheme.Spacing.md) {
+                                Image(systemName: "link.circle.fill")
+                                    .foregroundColor(colors.secondary)
+                                    .frame(width: 24)
+                                Text("Connected Accounts")
+                                    .foregroundColor(colors.textPrimary)
+                            }
+                        }
+                        .listRowBackground(colors.surface)
+                        
+                        
+                        NavigationLink {
+                            IncidentListView()
+                        } label: {
+                            HStack(spacing: UnifiedTheme.Spacing.md) {
+                                Image(systemName: "exclamationmark.octagon.fill")
+                                    .foregroundColor(colors.error)
+                                    .frame(width: 24)
+                                Text("Security Incidents")
+                                    .foregroundColor(colors.textPrimary)
+                            }
+                        }
+                        .listRowBackground(colors.surface)
+                        
+                    }
+                    
                     // Settings Section
                     Section("Settings") {
                         NavigationLink {

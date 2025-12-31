@@ -145,6 +145,131 @@ struct ClientDashboardView: View {
                         }
                         .padding(.horizontal)
                         
+                        // Security & Intelligence Section
+                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                            Text("Security & Intelligence")
+                                .font(theme.typography.headline)
+                                .foregroundColor(colors.textPrimary)
+                                .padding(.horizontal)
+                            
+                            // Compliance Dashboard
+                            NavigationLink {
+                                ComplianceDashboardView()
+                            } label: {
+                                StandardCard {
+                                    HStack {
+                                        Image(systemName: "checkmark.shield.fill")
+                                            .foregroundColor(colors.success)
+                                            .frame(width: 30)
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Compliance")
+                                                .font(theme.typography.subheadline)
+                                                .foregroundColor(colors.textPrimary)
+                                            
+                                            Text("View compliance status")
+                                                .font(theme.typography.caption)
+                                                .foregroundColor(colors.textSecondary)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(colors.textTertiary)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                            
+                            // Risk Assessment
+                            NavigationLink {
+                                RiskAssessmentView()
+                            } label: {
+                                StandardCard {
+                                    HStack {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundColor(colors.warning)
+                                            .frame(width: 30)
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Risk Assessment")
+                                                .font(theme.typography.subheadline)
+                                                .foregroundColor(colors.textPrimary)
+                                            
+                                            Text("View risk register")
+                                                .font(theme.typography.caption)
+                                                .foregroundColor(colors.textSecondary)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(colors.textTertiary)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                            
+                            // Index Dashboard
+                            NavigationLink {
+                                IndexDashboardView()
+                            } label: {
+                                StandardCard {
+                                    HStack {
+                                        Image(systemName: "chart.bar.fill")
+                                            .foregroundColor(colors.info)
+                                            .frame(width: 30)
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Security Indexes")
+                                                .font(theme.typography.subheadline)
+                                                .foregroundColor(colors.textPrimary)
+                                            
+                                            Text("Real-time threat & compliance metrics")
+                                                .font(theme.typography.caption)
+                                                .foregroundColor(colors.textSecondary)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(colors.textTertiary)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                            
+                            // Connected Accounts
+                            NavigationLink {
+                                ConnectedAccountsView()
+                            } label: {
+                                StandardCard {
+                                    HStack {
+                                        Image(systemName: "link.circle.fill")
+                                            .foregroundColor(colors.secondary)
+                                            .frame(width: 30)
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Connected Accounts")
+                                                .font(theme.typography.subheadline)
+                                                .foregroundColor(colors.textPrimary)
+                                            
+                                            Text("Manage OAuth & cloud storage")
+                                                .font(theme.typography.caption)
+                                                .foregroundColor(colors.textSecondary)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(colors.textTertiary)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                            
+                        }
+                        
                         // Recent Activity
                         VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                             Text("Recent Activity")

@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		24D2EBBC2EE304A9004257B4 /* Reductio in Frameworks */ = {isa = PBXBuildFile; productRef = 24D2EBBB2EE304A9004257B4 /* Reductio */; };
-		UZBSJGPGAD2QMCH6W8GZQHE0 /* (null) in Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (Weak, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -53,16 +52,6 @@
 			path = "Khandoba Secure Docs";
 			sourceTree = "<group>";
 		};
-		B383DOAW04QI7C5DL0CCFHZW /* Khandoba Secure DocsUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Khandoba Secure DocsUITests";
-			sourceTree = "<group>";
-		};
-		YON8O0RLDSU0FBG80H1PIC68 /* Khandoba Secure DocsTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Khandoba Secure DocsTests";
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,7 +67,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				UZBSJGPGAD2QMCH6W8GZQHE0 /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -97,8 +85,6 @@
 			children = (
 				24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */,
 				24FB38732EDF354B00BA1227 /* Products */,
-				YON8O0RLDSU0FBG80H1PIC68 /* Khandoba Secure DocsTests */,
-				B383DOAW04QI7C5DL0CCFHZW /* Khandoba Secure DocsUITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -151,9 +137,6 @@
 			dependencies = (
 				24FB38852EDF354C00BA1227 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				YON8O0RLDSU0FBG80H1PIC68 /* Khandoba Secure DocsTests */,
-			);
 			name = "Khandoba Secure DocsTests";
 			packageProductDependencies = (
 			);
@@ -173,9 +156,6 @@
 			);
 			dependencies = (
 				24FB388F2EDF354C00BA1227 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				B383DOAW04QI7C5DL0CCFHZW /* Khandoba Secure DocsUITests */,
 			);
 			name = "Khandoba Secure DocsUITests";
 			packageProductDependencies = (

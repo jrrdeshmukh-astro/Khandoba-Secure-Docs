@@ -7,8 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		UZBSJGPGAD2QMCH6W8GZQHE0 /* Testing.framework in Frameworks */ = {
+			isa = PBXBuildFile;
+			productReference = 43NBVSZNTRVE5DGJGUYY717J /* Testing */;
+			settings = {
+				ATTRIBUTES = (
+					Weak,
+				);
+			};
+		};
 		24D2EBBC2EE304A9004257B4 /* Reductio in Frameworks */ = {isa = PBXBuildFile; productRef = 24D2EBBB2EE304A9004257B4 /* Reductio */; };
-		UZBSJGPGAD2QMCH6W8GZQHE0 /* (null) in Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (Weak, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -53,13 +61,11 @@
 			path = "Khandoba Secure Docs";
 			sourceTree = "<group>";
 		};
-		B383DOAW04QI7C5DL0CCFHZW /* Khandoba Secure DocsUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Khandoba Secure DocsUITests";
-			sourceTree = "<group>";
-		};
 		YON8O0RLDSU0FBG80H1PIC68 /* Khandoba Secure DocsTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				JI0TLETCTSPE1JQWC0VE13D0 /* Exceptions for "Khandoba Secure DocsTests" folder in "Khandoba Secure DocsTests" target */,
+			);
 			path = "Khandoba Secure DocsTests";
 			sourceTree = "<group>";
 		};
@@ -78,8 +84,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				UZBSJGPGAD2QMCH6W8GZQHE0 /* (null) in Frameworks */,
-			);
+				UZBSJGPGAD2QMCH6W8GZQHE0 /* Testing.framework in Frameworks */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		24FB388A2EDF354C00BA1227 /* Frameworks */ = {
@@ -97,9 +102,7 @@
 			children = (
 				24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */,
 				24FB38732EDF354B00BA1227 /* Products */,
-				YON8O0RLDSU0FBG80H1PIC68 /* Khandoba Secure DocsTests */,
-				B383DOAW04QI7C5DL0CCFHZW /* Khandoba Secure DocsUITests */,
-			);
+				YON8O0RLDSU0FBG80H1PIC68 /* Khandoba Secure DocsTests */,);
 			sourceTree = "<group>";
 		};
 		24FB38732EDF354B00BA1227 /* Products */ = {
@@ -173,9 +176,6 @@
 			);
 			dependencies = (
 				24FB388F2EDF354C00BA1227 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				B383DOAW04QI7C5DL0CCFHZW /* Khandoba Secure DocsUITests */,
 			);
 			name = "Khandoba Secure DocsUITests";
 			packageProductDependencies = (

@@ -222,6 +222,44 @@ struct VaultDetailView: View {
                         .padding(.horizontal)
                     }
                     
+                    if hasActiveSession {
+                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                            Text("Data Pipeline")
+                                .font(theme.typography.headline)
+                                .foregroundColor(colors.textPrimary)
+                                .padding(.horizontal)
+                            
+                            StandardCard {
+                                VStack(spacing: 0) {
+                                    NavigationLink {
+                                        IngestionDashboardView(vault: vault)
+                                    } label: {
+                                        SecurityActionRow(
+                                            icon: "arrow.down.circle.fill",
+                                            title: "Ingestion Dashboard",
+                                            subtitle: "View iCloud sync status",
+                                            color: colors.primary
+                                        )
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    NavigationLink {
+                                        IngestionConfigurationView(vault: vault)
+                                    } label: {
+                                        SecurityActionRow(
+                                            icon: "gear.circle.fill",
+                                            title: "Configure Pipeline",
+                                            subtitle: "Set up iCloud sources",
+                                            color: colors.secondary
+                                        )
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                    
                     if hasActiveSession && !vault.isSystemVault {
                         VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
                             Text("Media Actions")

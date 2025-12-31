@@ -570,7 +570,7 @@ struct ThreatItem: Identifiable {
             type: .dataLeak(leak.type),
             severity: leak.severity,
             title: leak.title,
-            description: leak.description,
+                    description: leak.description,
             vaultName: leak.vaultName,
             vaultID: leak.vaultID,
             timestamp: leak.timestamp,

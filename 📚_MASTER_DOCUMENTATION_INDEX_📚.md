@@ -168,6 +168,8 @@ Purpose: What each feature does and how to use it
 - SESSION_MANAGEMENT_GUIDE.md
 - EMERGENCY_ACCESS_GUIDE.md
 - SYSTEM_VAULT_GUIDE.md
+- COMPLIANCE_SYSTEM_GUIDE.md (NEW)
+- EXTERNAL_SERVICES_INTEGRATION_GUIDE.md (NEW)
 
 **Documents:**
 - DOCUMENT_MANAGEMENT_GUIDE.md
@@ -182,6 +184,8 @@ Purpose: What each feature does and how to use it
 - FORMAL_LOGIC_GUIDE.md
 - ML_THREAT_GUIDE.md
 - NLP_TAGGING_GUIDE.md
+- DATA_INGESTION_GUIDE.md (NEW)
+- INDEX_CALCULATION_GUIDE.md (NEW)
 
 **Media:**
 - VIDEO_RECORDING_GUIDE.md

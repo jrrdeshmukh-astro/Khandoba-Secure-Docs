@@ -33,7 +33,15 @@ struct Khandoba_Secure_DocsApp: App {
             Nominee.self,
             VaultTransferRequest.self,
             VaultAccessRequest.self,
-            EmergencyAccessRequest.self
+            EmergencyAccessRequest.self,
+            // New models for ProjectKhandoba integration
+            ComplianceRecord.self,
+            ComplianceControl.self,
+            AuditFinding.self,
+            RiskAssessment.self,
+            SecurityIncident.self,
+            IDVerification.self,
+            VaultTopic.self
         ])
         // Use App Group for shared storage with extensions
         let appGroupIdentifier = "group.com.khandoba.securedocs"
