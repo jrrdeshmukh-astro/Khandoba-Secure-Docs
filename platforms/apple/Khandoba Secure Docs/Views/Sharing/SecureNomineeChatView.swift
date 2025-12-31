@@ -96,11 +96,9 @@ struct SecureNomineeChatView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .onAppear {
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
             // Configure chat service
             if let userID = authService.currentUser?.id {
-                if AppConfig.useSupabase {
-                    chatService.configure(supabaseService: supabaseService, userID: userID)
-                } else {
                 chatService.configure(modelContext: modelContext, userID: userID)
                 }
             }
@@ -154,6 +152,7 @@ struct SecureNomineeChatView: View {
     
     private func checkScreenCapture() {
         #if os(iOS)
+        // swiftlint:disable:next deprecated_member_use
         let captured = UIScreen.main.isCaptured
         
         if captured && !isScreenCaptured {

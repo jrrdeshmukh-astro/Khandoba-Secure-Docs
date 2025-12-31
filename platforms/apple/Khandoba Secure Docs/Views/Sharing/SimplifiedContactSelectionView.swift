@@ -187,14 +187,8 @@ struct SimplifiedContactSelectionView: View {
                 // Configure services
                 cloudKitSharing.configure(modelContext: modelContext)
                 
-                if AppConfig.useSupabase {
-                    if let userID = authService.currentUser?.id {
-                        nomineeService.configure(supabaseService: supabaseService, currentUserID: userID, vaultService: vaultService)
-                    } else {
-                        nomineeService.configure(supabaseService: supabaseService, vaultService: vaultService)
-                    }
-                } else {
-                    nomineeService.configure(modelContext: modelContext, vaultService: vaultService)
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
+                nomineeService.configure(modelContext: modelContext, vaultService: vaultService)
                 }
             }
             .sheet(isPresented: $showCloudKitSharing) {

@@ -115,25 +115,14 @@ struct UnifiedAddNomineeView: View {
                 )
             }
             .onAppear {
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
                 // Configure nominee service
-                if AppConfig.useSupabase {
-                    if let userID = authService.currentUser?.id {
-                        nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
-                    } else {
-                        nomineeService.configure(supabaseService: supabaseService)
-                    }
-                } else {
-                    nomineeService.configure(modelContext: modelContext)
-                    cloudKitSharing.configure(modelContext: modelContext)
-                }
+                nomineeService.configure(modelContext: modelContext)
+                cloudKitSharing.configure(modelContext: modelContext)
                 
                 // Configure document service for document selection
                 if let userID = authService.currentUser?.id {
-                    if AppConfig.useSupabase {
-                        documentService.configure(supabaseService: supabaseService, userID: userID)
-                    } else {
-                        documentService.configure(modelContext: modelContext, userID: userID)
-                    }
+                    documentService.configure(modelContext: modelContext, userID: userID)
                 }
                 
                 // Load documents for selection

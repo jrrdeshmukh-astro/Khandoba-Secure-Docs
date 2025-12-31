@@ -48,9 +48,11 @@ struct UnifiedShareView: View {
     
     // Native invitation flow using NomineeInvitationView
     
+    private var colors: UnifiedTheme.Colors {
+        theme.colors(for: colorScheme)
+    }
+    
     var body: some View {
-        let colors = theme.colors(for: colorScheme)
-        
         NavigationStack {
             ZStack {
                 colors.background
@@ -273,16 +275,9 @@ struct UnifiedShareView: View {
             }
             .interactiveDismissDisabled(true) // Prevent UnifiedShareView from being dismissed accidentally
             .onAppear {
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
                 // Configure nominee service
-                if AppConfig.useSupabase {
-                    if let userID = authService.currentUser?.id {
-                        nomineeService.configure(supabaseService: supabaseService, currentUserID: userID, vaultService: vaultService)
-                    } else {
-                        nomineeService.configure(supabaseService: supabaseService, vaultService: vaultService)
-                    }
-                } else {
-                    nomineeService.configure(modelContext: modelContext, vaultService: vaultService)
-                }
+                nomineeService.configure(modelContext: modelContext, vaultService: vaultService)
             }
             .sheet(isPresented: $showNomineeInvitation) {
                 NomineeInvitationView(vault: vault)
@@ -342,31 +337,19 @@ struct UnifiedShareView: View {
                     return
                 }
                 
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
                 // Create transfer request (nominee with special transfer flag)
-                // Use NomineeService to create nominee (supports both SwiftData and Supabase)
-                if AppConfig.useSupabase {
-                    // Supabase mode - use NomineeService
-                    _ = try await nomineeService.inviteNominee(
-                        name: fullName,
-                        phoneNumber: phoneNumber,
-                        email: email,
-                        to: vault,
-                        invitedByUserID: currentUser.id
-                    )
-                } else {
-                    // SwiftData mode
-                    let transferNominee = Nominee(
-                        name: fullName,
-                        phoneNumber: phoneNumber,
-                        email: email,
-                        status: .pending
-                    )
-                    transferNominee.vault = vault
-                    transferNominee.invitedByUserID = currentUser.id
-                    
-                    modelContext.insert(transferNominee)
-                    try modelContext.save()
-                }
+                let transferNominee = Nominee(
+                    name: fullName,
+                    phoneNumber: phoneNumber,
+                    email: email,
+                    status: .pending
+                )
+                transferNominee.vault = vault
+                transferNominee.invitedByUserID = currentUser.id
+                
+                modelContext.insert(transferNominee)
+                try modelContext.save()
                 
                 // Transfer ownership request created
                 await MainActor.run {

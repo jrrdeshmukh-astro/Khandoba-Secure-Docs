@@ -92,28 +92,17 @@ struct NomineeManagementView: View {
             Text(errorMessage)
         }
         .task {
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
             // Configure nominee service with current user ID
-            if AppConfig.useSupabase {
-                if let userID = authService.currentUser?.id {
-                    nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
-                } else {
-                    nomineeService.configure(supabaseService: supabaseService)
-                }
-            } else {
             if let userID = authService.currentUser?.id {
                 nomineeService.configure(modelContext: modelContext, currentUserID: userID)
             } else {
-            nomineeService.configure(modelContext: modelContext)
-                }
+                nomineeService.configure(modelContext: modelContext)
             }
             
             // Configure chat service
             if let userID = authService.currentUser?.id {
-                if AppConfig.useSupabase {
-                    chatService.configure(supabaseService: supabaseService, userID: userID)
-                } else {
                 chatService.configure(modelContext: modelContext, userID: userID)
-                }
             }
             
             do {

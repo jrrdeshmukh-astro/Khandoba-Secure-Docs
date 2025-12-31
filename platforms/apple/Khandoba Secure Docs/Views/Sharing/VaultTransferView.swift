@@ -32,9 +32,11 @@ struct VaultTransferView: View {
         self.preselectedNominee = preselectedNominee
     }
     
+    private var colors: UnifiedTheme.Colors {
+        theme.colors(for: colorScheme)
+    }
+    
     var body: some View {
-        let colors = theme.colors(for: colorScheme)
-        
         NavigationStack {
             ZStack {
                 colors.background
@@ -211,74 +213,10 @@ struct VaultTransferView: View {
     
     private func loadNominees() async {
         do {
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
             // Load nominees for this vault
             try await nomineeService.loadNominees(for: vault, includeInactive: false)
             nominees = nomineeService.nominees
-
-            // Supabase mode - exclusive use when enabled
-            if AppConfig.useSupabase {
-                guard let supabaseService = supabaseService else {
-                    errorMessage = "Service not configured"
-                    showError = true
-                    return
-                }
-                
-                // If preselectedNominee is provided, pre-select it
-                if let preselected = preselectedNominee,
-                   preselected.status == .accepted || preselected.status == .active {
-                    // Find the user matching this nominee by email
-                    if let nomineeEmail = preselected.email, !nomineeEmail.isEmpty {
-                        let filters: [String: Any] = ["email": nomineeEmail.lowercased()]
-                        let supabaseUsers: [SupabaseUser] = try await supabaseService.fetchAll(
-                            "users",
-                            filters: filters
-                        )
-                        if let matchingUser = supabaseUsers.first {
-                            await MainActor.run {
-                                selectedUserID = matchingUser.id
-                            }
-                        }
-                    }
-                }
-                
-                // Get users who are nominees (only accepted nominees can receive ownership)
-                // Match nominees to users by email
-                let acceptedNominees = nominees.filter { $0.status == .accepted || $0.status == .active }
-                var nomineeUserIDs: [UUID] = []
-                
-                for nominee in acceptedNominees {
-                    if let email = nominee.email, !email.isEmpty {
-                        let filters: [String: Any] = ["email": email.lowercased()]
-                        let supabaseUsers: [SupabaseUser] = try await supabaseService.fetchAll(
-                            "users",
-                            filters: filters
-                        )
-                        if let user = supabaseUsers.first {
-                            nomineeUserIDs.append(user.id)
-                        }
-                    }
-                }
-                
-                // Fetch users who are nominees and create temporary User objects for UI compatibility
-                var users: [User] = []
-                for userID in nomineeUserIDs {
-                    let supabaseUser: SupabaseUser = try await supabaseService.fetch("users", id: userID)
-                    // Create temporary User object for UI compatibility
-                    let user = User(
-                        email: supabaseUser.email,
-                        fullName: supabaseUser.fullName
-                    )
-                    user.id = supabaseUser.id
-                    users.append(user)
-                }
-                
-                await MainActor.run {
-                    availableUsers = users.filter { $0.id != authService.currentUser?.id }
-                }
-                return
-            }
-            
-            // SwiftData/CloudKit mode (only when useSupabase = false)
             // If preselectedNominee is provided, pre-select it
             if let preselected = preselectedNominee,
                preselected.status == .accepted || preselected.status == .active {
@@ -363,22 +301,7 @@ struct VaultTransferView: View {
         
         Task {
             do {
-                if AppConfig.useSupabase {
-                    // Supabase mode: Create transfer request in Supabase
-                    let supabaseRequest = SupabaseVaultTransferRequest(
-                        vaultID: vault.id,
-                        fromUserID: requestedByUserID,
-                        toUserID: newOwnerID,
-                        reason: reason.isEmpty ? nil : reason
-                    )
-                    
-                    let _: SupabaseVaultTransferRequest = try await supabaseService.insert(
-                        "vault_transfer_requests",
-                        values: supabaseRequest
-                    )
-                    
-                    print("📤 Transfer request created in Supabase for nominee: \(matchingNominee.name)")
-                    print("   Nominee will be notified when they accept their invitation")
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
                     
                     await MainActor.run {
                         dismiss()

@@ -140,18 +140,11 @@ struct VaultRequestsListView: View {
     }
     
     private func configureServices() async {
-        var cloudKitSharing: CloudKitSharingService? = nil
-        
-        if AppConfig.useSupabase {
-            nomineeService.configure(
-                supabaseService: supabaseService,
-                currentUserID: authService.currentUser?.id
-            )
-        } else {
-            cloudKitSharing = CloudKitSharingService()
-            cloudKitSharing?.configure(modelContext: modelContext)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        let cloudKitSharing = CloudKitSharingService()
+        cloudKitSharing.configure(modelContext: modelContext)
 
-            nomineeService.configure(
+        nomineeService.configure(
                 modelContext: modelContext,
                 currentUserID: authService.currentUser?.id
             )

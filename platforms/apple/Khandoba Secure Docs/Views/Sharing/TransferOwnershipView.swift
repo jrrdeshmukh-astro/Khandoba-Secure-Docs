@@ -491,50 +491,7 @@ struct TransferOwnershipView: View {
         
         Task {
             do {
-                // Supabase mode - exclusive use when enabled
-                if AppConfig.useSupabase {
-                    guard let supabaseService = supabaseService else {
-                        throw TransferError.serviceNotConfigured
-                    }
-                    
-                    // Create transfer request in Supabase
-                    let supabaseRequest = SupabaseVaultTransferRequest(
-                        vaultID: vault.id,
-                        requestedByUserID: currentUser.id,
-                        newOwnerName: newOwnerName.trimmingCharacters(in: .whitespaces),
-                        newOwnerPhone: phoneNumber.isEmpty ? nil : phoneNumber.trimmingCharacters(in: .whitespaces),
-                        newOwnerEmail: email.isEmpty ? nil : email.trimmingCharacters(in: .whitespaces),
-                        reason: reason.isEmpty ? nil : reason.trimmingCharacters(in: .whitespaces)
-                    )
-                    
-                    let created: SupabaseVaultTransferRequest = try await supabaseService.insert(
-                        "vault_transfer_requests",
-                        values: supabaseRequest
-                    )
-                    
-                    // Convert to SwiftData model for UI compatibility
-                    let request = VaultTransferRequest(
-                        reason: created.reason,
-                        newOwnerName: created.newOwnerName,
-                        newOwnerPhone: created.newOwnerPhone,
-                        newOwnerEmail: created.newOwnerEmail
-                    )
-                    request.id = created.id
-                    request.transferToken = created.transferToken
-                    request.status = created.status
-                    request.requestedAt = created.requestedAt
-                    request.requestedByUserID = created.requestedByUserID
-                    request.vault = vault
-                    
-                    await MainActor.run {
-                        createdRequest = request
-                        isCreating = false
-                        print("✅ Transfer request created in Supabase")
-                    }
-                    return
-                }
-                
-                // SwiftData/CloudKit mode
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
                 let request = VaultTransferRequest(
                     reason: reason.isEmpty ? nil : reason.trimmingCharacters(in: .whitespaces),
                     newOwnerName: newOwnerName.trimmingCharacters(in: .whitespaces),
@@ -701,7 +658,7 @@ enum TransferError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .serviceNotConfigured:
-            return "Service not configured. Please ensure Supabase is properly initialized."
+            return "Service not configured. Please ensure the app is properly initialized."
         }
     }
 }

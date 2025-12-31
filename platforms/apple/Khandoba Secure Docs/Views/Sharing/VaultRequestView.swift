@@ -336,18 +336,11 @@ struct VaultRequestView: View {
     // MARK: - Actions
     
     private func configureServices() async {
-        var cloudKitSharing: CloudKitSharingService? = nil
-        
-        if AppConfig.useSupabase {
-            nomineeService.configure(
-                supabaseService: supabaseService,
-                currentUserID: authService.currentUser?.id
-            )
-        } else {
-            cloudKitSharing = CloudKitSharingService()
-            cloudKitSharing?.configure(modelContext: modelContext)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        let cloudKitSharing = CloudKitSharingService()
+        cloudKitSharing.configure(modelContext: modelContext)
 
-            nomineeService.configure(
+        nomineeService.configure(
                 modelContext: modelContext,
                 currentUserID: authService.currentUser?.id
             )
@@ -474,21 +467,12 @@ struct VaultPickerView: View {
         }
     }
     
-    /// Load vaults from Supabase or SwiftData
+    /// Load vaults from SwiftData/CloudKit
     private func loadVaults() async {
         isLoading = true
         defer { isLoading = false }
         
-        // Supabase mode
-        if AppConfig.useSupabase {
-            // Use vaults from VaultService (already loaded)
-            await MainActor.run {
-                self.availableVaults = vaultService.vaults.filter { vault in
-                    vault.owner?.id == authService.currentUser?.id
-                }
-            }
-        } else {
-            // SwiftData/CloudKit mode
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
             do {
                 let descriptor = FetchDescriptor<Vault>(
                     sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
