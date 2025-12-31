@@ -189,7 +189,6 @@ struct SimplifiedContactSelectionView: View {
                 
                 // iOS-ONLY: Using SwiftData/CloudKit exclusively
                 nomineeService.configure(modelContext: modelContext, vaultService: vaultService)
-                }
             }
             .sheet(isPresented: $showCloudKitSharing) {
                 CloudKitSharingView(

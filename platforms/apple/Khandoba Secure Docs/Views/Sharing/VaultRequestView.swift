@@ -341,10 +341,9 @@ struct VaultRequestView: View {
         cloudKitSharing.configure(modelContext: modelContext)
 
         nomineeService.configure(
-                modelContext: modelContext,
-                currentUserID: authService.currentUser?.id
-            )
-        }
+            modelContext: modelContext,
+            currentUserID: authService.currentUser?.id
+        )
         
         requestService.configure(
             modelContext: modelContext,
@@ -473,21 +472,20 @@ struct VaultPickerView: View {
         defer { isLoading = false }
         
         // iOS-ONLY: Using SwiftData/CloudKit exclusively
-            do {
-                let descriptor = FetchDescriptor<Vault>(
-                    sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-                )
-                
-                let allVaults = try modelContext.fetch(descriptor)
-                
-                await MainActor.run {
-                    self.availableVaults = allVaults.filter { vault in
-                        vault.owner?.id == authService.currentUser?.id
-                    }
+        do {
+            let descriptor = FetchDescriptor<Vault>(
+                sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            )
+            
+            let allVaults = try modelContext.fetch(descriptor)
+            
+            await MainActor.run {
+                self.availableVaults = allVaults.filter { vault in
+                    vault.owner?.id == authService.currentUser?.id
                 }
-            } catch {
-                print("❌ Failed to load vaults: \(error.localizedDescription)")
             }
+        } catch {
+            print("❌ Failed to load vaults: \(error.localizedDescription)")
         }
     }
 }

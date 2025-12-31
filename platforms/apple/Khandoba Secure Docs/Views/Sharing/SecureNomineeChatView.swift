@@ -100,7 +100,6 @@ struct SecureNomineeChatView: View {
             // Configure chat service
             if let userID = authService.currentUser?.id {
                 chatService.configure(modelContext: modelContext, userID: userID)
-                }
             }
             
             startScreenCaptureMonitoring()

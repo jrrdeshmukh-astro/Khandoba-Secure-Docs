@@ -291,7 +291,6 @@ struct UnifiedNomineeManagementView: View {
                 nomineeService.configure(modelContext: modelContext)
             }
             cloudKitSharing.configure(modelContext: modelContext)
-            }
             
             if let userID = authService.currentUser?.id {
                 chatService.configure(modelContext: modelContext, userID: userID)

@@ -145,10 +145,9 @@ struct VaultRequestsListView: View {
         cloudKitSharing.configure(modelContext: modelContext)
 
         nomineeService.configure(
-                modelContext: modelContext,
-                currentUserID: authService.currentUser?.id
-            )
-        }
+            modelContext: modelContext,
+            currentUserID: authService.currentUser?.id
+        )
         
         requestService.configure(
             modelContext: modelContext,

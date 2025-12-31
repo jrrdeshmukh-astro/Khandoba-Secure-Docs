@@ -230,7 +230,6 @@ struct NomineeInvitationView: View {
                 nomineeService.configure(modelContext: modelContext)
             }
             cloudKitSharing.configure(modelContext: modelContext)
-            }
             
             // Set initial vault if provided
             if let vault = vault {

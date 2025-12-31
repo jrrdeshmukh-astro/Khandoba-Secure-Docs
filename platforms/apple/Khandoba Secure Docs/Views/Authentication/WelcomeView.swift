@@ -133,8 +133,11 @@ struct WelcomeView: View {
             
         case .failure(let error):
             // Provide more helpful error messages
-            errorMessage = handleAuthorizationError(error)
-            showError = true
+            // Ensure UI updates happen on main thread
+            Task { @MainActor in
+                errorMessage = handleAuthorizationError(error)
+                showError = true
+            }
         }
     }
     
@@ -144,22 +147,21 @@ struct WelcomeView: View {
         }
         
         // Handle all known ASAuthorizationError.Code cases
-        switch authError.code {
-        case .unknown:
+        // Using if-else to ensure exhaustiveness without compiler warnings
+        if authError.code == .unknown {
             return "Apple Sign In failed. Please ensure:\n• Your device is signed into iCloud\n• Two-factor authentication is enabled\n• Try testing on a real device (simulators have limitations)"
-        case .canceled:
+        } else if authError.code == .canceled {
             return "Sign in was canceled."
-        case .invalidResponse:
+        } else if authError.code == .invalidResponse {
             return "Invalid response from Apple. Please try again."
-        case .notHandled:
+        } else if authError.code == .notHandled {
             return "Sign in request could not be handled."
-        case .failed:
+        } else if authError.code == .failed {
             return "Sign in failed. Please check your iCloud sign-in status."
-        case .notInteractive:
+        } else if authError.code == .notInteractive {
             return "Sign in is not available. Please try again."
-        @unknown default:
-            // This case handles any future cases that may be added to ASAuthorizationError.Code
-            // The @unknown default attribute makes this switch exhaustive
+        } else {
+            // Handle any future cases that may be added to ASAuthorizationError.Code
             return "Apple Sign In error: \(authError.localizedDescription)\n\nTip: Ensure your device is signed into iCloud."
         }
     }

@@ -38,177 +38,200 @@ struct VaultTransferView: View {
     
     var body: some View {
         NavigationStack {
-            ZStack {
-                colors.background
-                    .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: UnifiedTheme.Spacing.lg) {
-                        // Warning
-                        StandardCard {
-                            HStack(spacing: UnifiedTheme.Spacing.sm) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(colors.warning)
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Ownership Transfer")
-                                        .font(theme.typography.subheadline)
-                                        .foregroundColor(colors.textPrimary)
-                                        .fontWeight(.semibold)
-                                    
-                                    Text("This action requires admin approval and cannot be undone")
-                                        .font(theme.typography.caption)
-                                        .foregroundColor(colors.textSecondary)
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        // Select New Owner
-                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                            Text("Select New Owner")
-                                .font(theme.typography.headline)
-                                .foregroundColor(colors.textPrimary)
-                                .padding(.horizontal)
-                            
-                            if availableUsers.isEmpty {
-                                StandardCard {
-                                    VStack(spacing: UnifiedTheme.Spacing.sm) {
-                                        Image(systemName: "person.crop.circle.badge.questionmark")
-                                            .font(.system(size: 40))
-                                            .foregroundColor(colors.textSecondary)
-                                        
-                                        Text("No Nominated Users")
-                                            .font(theme.typography.headline)
-                                            .foregroundColor(colors.textPrimary)
-                                        
-                                        Text("You can only transfer ownership to users who are already nominated for this vault. Please nominate users first.")
-                                            .font(theme.typography.caption)
-                                            .foregroundColor(colors.textSecondary)
-                                            .multilineTextAlignment(.center)
-                                    }
-                                    .padding()
-                                }
-                                .padding(.horizontal)
-                            }
-                            
-                            ForEach(availableUsers) { user in
-                                Button {
-                                    selectedUserID = user.id
-                                } label: {
-                                    StandardCard {
-                                        HStack {
-                                            if let imageData = user.profilePictureData,
-                                               let uiImage = UIImage(data: imageData) {
-                                                Image(uiImage: uiImage)
-                                                    .resizable()
-                                                    .scaledToFill()
-                                                    .frame(width: 40, height: 40)
-                                                    .clipShape(Circle())
-                                            } else {
-                                                ZStack {
-                                                    Circle()
-                                                        .fill(colors.primary.opacity(0.2))
-                                                        .frame(width: 40, height: 40)
-                                                    
-                                                    Text(String(user.fullName.prefix(1)))
-                                                        .foregroundColor(colors.primary)
-                                                }
-                                            }
-                                            
-                                            Text(user.fullName)
-                                                .font(theme.typography.subheadline)
-                                                .foregroundColor(colors.textPrimary)
-                                            
-                                            Spacer()
-                                            
-                                            if selectedUserID == user.id {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .foregroundColor(colors.primary)
-                                            }
-                                        }
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                        
-                        // Reason
-                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                            Text("Reason (Optional)")
-                                .font(theme.typography.subheadline)
-                                .foregroundColor(colors.textSecondary)
-                                .padding(.horizontal)
-                            
-                            TextField("Why are you transferring this vault?", text: $reason, axis: .vertical)
-                                .font(theme.typography.body)
-                                .lineLimit(3...6)
-                                .padding(UnifiedTheme.Spacing.md)
-                                .background(colors.surface)
-                                .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                                .padding(.horizontal)
-                        }
-                        
-                        // Submit Button
-                        Button {
-                            submitTransferRequest()
-                        } label: {
-                            if isLoading {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Text("Request Transfer")
-                            }
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .disabled(selectedUserID == nil || isLoading)
-                        .padding(.horizontal)
-                    }
-                    .padding(.vertical)
-                }
-            }
-            .navigationTitle("Transfer Ownership")
+            contentView
+        }
+        .navigationTitle("Transfer Ownership")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .toolbar {
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .foregroundColor(colors.primary)
+            }
+            #else
+            ToolbarItem(placement: .automatic) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .foregroundColor(colors.primary)
+            }
             #endif
-            .toolbar {
-                #if os(iOS)
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(colors.primary)
-                }
-                #else
-                ToolbarItem(placement: .automatic) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(colors.primary)
-                }
-                #endif
-            }
-            .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(errorMessage)
-            }
+        }
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
         }
         .task {
-            // Configure NomineeService based on backend mode
-            if AppConfig.useSupabase {
-                nomineeService.configure(
-                    supabaseService: supabaseService,
-                    currentUserID: authService.currentUser?.id
-                )
-            } else {
-                nomineeService.configure(
-                    modelContext: modelContext,
-                    currentUserID: authService.currentUser?.id
-                )
-            }
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
+            nomineeService.configure(
+                modelContext: modelContext,
+                currentUserID: authService.currentUser?.id
+            )
             await loadNominees()
         }
+    }
+    
+    @ViewBuilder
+    private var contentView: some View {
+        ZStack {
+            colors.background
+                .ignoresSafeArea()
+            
+            ScrollView {
+                VStack(spacing: UnifiedTheme.Spacing.lg) {
+                    warningSection
+                    ownerSelectionSection
+                    reasonSection
+                    submitButtonSection
+                }
+                .padding(.vertical)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var warningSection: some View {
+        StandardCard {
+            HStack(spacing: UnifiedTheme.Spacing.sm) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(colors.warning)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Ownership Transfer")
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(colors.textPrimary)
+                        .fontWeight(.semibold)
+                    
+                    Text("This action requires admin approval and cannot be undone")
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textSecondary)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private var ownerSelectionSection: some View {
+        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+            Text("Select New Owner")
+                .font(theme.typography.headline)
+                .foregroundColor(colors.textPrimary)
+                .padding(.horizontal)
+            
+            if availableUsers.isEmpty {
+                emptyUsersView
+            }
+            
+            ForEach(availableUsers) { user in
+                userSelectionRow(user: user)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var emptyUsersView: some View {
+        StandardCard {
+            VStack(spacing: UnifiedTheme.Spacing.sm) {
+                Image(systemName: "person.crop.circle.badge.questionmark")
+                    .font(.system(size: 40))
+                    .foregroundColor(colors.textSecondary)
+                
+                Text("No Nominated Users")
+                    .font(theme.typography.headline)
+                    .foregroundColor(colors.textPrimary)
+                
+                Text("You can only transfer ownership to users who are already nominated for this vault. Please nominate users first.")
+                    .font(theme.typography.caption)
+                    .foregroundColor(colors.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding()
+        }
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private func userSelectionRow(user: User) -> some View {
+        Button {
+            selectedUserID = user.id
+        } label: {
+            StandardCard {
+                HStack {
+                    userAvatarView(user: user)
+                    Text(user.fullName)
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(colors.textPrimary)
+                    Spacer()
+                    if selectedUserID == user.id {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(colors.primary)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private func userAvatarView(user: User) -> some View {
+        if let imageData = user.profilePictureData,
+           let uiImage = UIImage(data: imageData) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+        } else {
+            ZStack {
+                Circle()
+                    .fill(colors.primary.opacity(0.2))
+                    .frame(width: 40, height: 40)
+                
+                Text(String(user.fullName.prefix(1)))
+                    .foregroundColor(colors.primary)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var reasonSection: some View {
+        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
+            Text("Reason (Optional)")
+                .font(theme.typography.subheadline)
+                .foregroundColor(colors.textSecondary)
+                .padding(.horizontal)
+            
+            TextField("Why are you transferring this vault?", text: $reason, axis: .vertical)
+                .font(theme.typography.body)
+                .lineLimit(3...6)
+                .padding(UnifiedTheme.Spacing.md)
+                .background(colors.surface)
+                .cornerRadius(UnifiedTheme.CornerRadius.lg)
+                .padding(.horizontal)
+        }
+    }
+    
+    @ViewBuilder
+    private var submitButtonSection: some View {
+        Button {
+            submitTransferRequest()
+        } label: {
+            if isLoading {
+                ProgressView()
+                    .tint(.white)
+            } else {
+                Text("Request Transfer")
+            }
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .disabled(selectedUserID == nil || isLoading)
+        .padding(.horizontal)
     }
     
     private func loadNominees() async {
@@ -302,38 +325,32 @@ struct VaultTransferView: View {
         Task {
             do {
                 // iOS-ONLY: Using SwiftData/CloudKit exclusively
-                    
-                    await MainActor.run {
-                        dismiss()
-                    }
-                } else {
-                    // SwiftData/CloudKit mode: Create transfer request locally
-                    let request = VaultTransferRequest(
-                        reason: reason.isEmpty ? nil : reason,
-                        newOwnerID: newOwnerID
-                    )
-                    request.vault = vault
-                    request.requestedByUserID = requestedByUserID
-                    
-                    // Link transfer request to nominee for notification
-                    // Store nominee ID in transfer request metadata (using newOwnerEmail as identifier)
-                    if let nomineeEmail = matchingNominee.email {
-                        request.newOwnerEmail = nomineeEmail
-                        request.newOwnerName = matchingNominee.name
-                    }
-                    
-                    modelContext.insert(request)
-                    try modelContext.save()
-                    
-                    // Notify the nominee about the transfer request
-                    // The nominee will see this when they accept their invitation
-                    // or when they view their nominee status
-                    print("📤 Transfer request created for nominee: \(matchingNominee.name)")
-                    print("   Nominee will be notified when they accept their invitation")
-                    
-                    await MainActor.run {
-                        dismiss()
-                    }
+                // Create transfer request locally
+                let request = VaultTransferRequest(
+                    reason: reason.isEmpty ? nil : reason,
+                    newOwnerID: newOwnerID
+                )
+                request.vault = vault
+                request.requestedByUserID = requestedByUserID
+                
+                // Link transfer request to nominee for notification
+                // Store nominee ID in transfer request metadata (using newOwnerEmail as identifier)
+                if let nomineeEmail = matchingNominee.email {
+                    request.newOwnerEmail = nomineeEmail
+                    request.newOwnerName = matchingNominee.name
+                }
+                
+                modelContext.insert(request)
+                try modelContext.save()
+                
+                // Notify the nominee about the transfer request
+                // The nominee will see this when they accept their invitation
+                // or when they view their nominee status
+                print("📤 Transfer request created for nominee: \(matchingNominee.name)")
+                print("   Nominee will be notified when they accept their invitation")
+                
+                await MainActor.run {
+                    dismiss()
                 }
             } catch {
                 await MainActor.run {

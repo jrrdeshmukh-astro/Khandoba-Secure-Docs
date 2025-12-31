@@ -11,14 +11,15 @@ import SwiftData
 @Model
 final class EmergencyAccessPass {
     var id: UUID = UUID()
-    var vaultID: UUID
-    var requesterID: UUID
-    var passCode: String // UUID string for verification
+    // CloudKit requires default values for non-optional properties
+    var vaultID: UUID = UUID()
+    var requesterID: UUID = UUID()
+    var passCode: String = UUID().uuidString // UUID string for verification
     var createdAt: Date = Date()
-    var expiresAt: Date
+    var expiresAt: Date = Date().addingTimeInterval(24 * 60 * 60) // 24 hours default
     var usedAt: Date?
     var isActive: Bool = true
-    var emergencyRequestID: UUID
+    var emergencyRequestID: UUID = UUID()
     
     // Relationship to emergency request
     var emergencyRequest: EmergencyAccessRequest?

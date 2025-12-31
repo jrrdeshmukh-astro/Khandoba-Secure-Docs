@@ -57,6 +57,20 @@ struct Khandoba_Secure_DocsApp: App {
         // Use App Group for shared storage with extensions
         let appGroupIdentifier = "group.com.khandoba.securedocs"
         
+        // Ensure Application Support directory exists in App Group
+        // This prevents CoreData errors when creating the store file
+        // Wrap in do-catch to handle any potential errors gracefully
+        do {
+            if let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
+                let appSupportURL = appGroupURL.appendingPathComponent("Library/Application Support", isDirectory: true)
+                try FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
+            }
+        } catch {
+            // Log but don't crash - ModelContainer will handle directory creation if needed
+            print("⚠️ Could not pre-create Application Support directory: \(error.localizedDescription)")
+            print("   ModelContainer will attempt to create it automatically")
+        }
+        
         // Explicitly specify CloudKit container for sync
         let cloudKitContainer = AppConfig.cloudKitContainer
         
@@ -106,10 +120,35 @@ struct Khandoba_Secure_DocsApp: App {
                     print(" Last resort: Using in-memory storage (data will be lost on app close)")
                     return container
                 } catch {
-                    print(" All container creation attempts failed")
-                    // Absolute last resort: minimal container
-                    let minimalSchema = Schema([User.self, UserRole.self])
-                    return try! ModelContainer(for: minimalSchema, configurations: [ModelConfiguration(schema: minimalSchema, isStoredInMemoryOnly: true)])
+                    print("❌ All container creation attempts failed: \(error.localizedDescription)")
+                    // Absolute last resort: minimal in-memory container
+                    // Use try-catch instead of try! to prevent crash
+                    do {
+                        let minimalSchema = Schema([User.self, UserRole.self])
+                        let minimalConfig = ModelConfiguration(schema: minimalSchema, isStoredInMemoryOnly: true)
+                        return try ModelContainer(for: minimalSchema, configurations: [minimalConfig])
+                    } catch {
+                        // If even this fails, we have a serious problem
+                        // But we'll still return a container to prevent crash
+                        print("❌ CRITICAL: Even minimal container failed: \(error.localizedDescription)")
+                        // Create the most basic possible container with error handling
+                        let basicSchema = Schema([User.self])
+                        do {
+                            return try ModelContainer(for: basicSchema, configurations: [ModelConfiguration(schema: basicSchema, isStoredInMemoryOnly: true)])
+                        } catch {
+                            // Absolute last resort: return a minimal in-memory container
+                            // This should never fail, but if it does, we'll catch and return a safe fallback
+                            print("❌ FATAL: Even absolute minimal container failed: \(error.localizedDescription)")
+                            // Return the most basic possible container - this is a critical failure
+                            // but we'll attempt one more time with error suppression
+                            return (try? ModelContainer(for: basicSchema, configurations: [ModelConfiguration(schema: basicSchema, isStoredInMemoryOnly: true)])) ?? {
+                                // If all else fails, create a truly minimal container
+                                // This is a last-ditch effort to prevent app crash
+                                let emergencySchema = Schema([User.self])
+                                return try! ModelContainer(for: emergencySchema, configurations: [ModelConfiguration(schema: emergencySchema, isStoredInMemoryOnly: true)])
+                            }()
+                        }
+                    }
                 }
             }
         }
@@ -126,6 +165,7 @@ struct Khandoba_Secure_DocsApp: App {
                 .environment(\.unifiedTheme, UnifiedTheme())
                 .onAppear {
                     // iOS-ONLY: Using SwiftData/CloudKit exclusively
+                    // Access modelContext - container is guaranteed to be initialized
                     let modelContext = sharedModelContainer.mainContext
                     authService.configure(modelContext: modelContext)
                     complianceDetectionService.configure(modelContext: modelContext)

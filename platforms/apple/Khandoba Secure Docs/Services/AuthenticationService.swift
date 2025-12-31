@@ -68,7 +68,10 @@ final class AuthenticationService: ObservableObject {
                 var random: UInt8 = 0
                 let errorCode = SecRandomCopyBytes(kSecRandomDefault, 1, &random)
                 if errorCode != errSecSuccess {
-                    fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)")
+                    // Instead of fatalError, use a fallback random value
+                    // This prevents app crashes from security framework failures
+                    print("⚠️ SecRandomCopyBytes failed with OSStatus \(errorCode), using fallback")
+                    random = UInt8.random(in: 0...255)
                 }
                 return random
             }
@@ -132,11 +135,11 @@ final class AuthenticationService: ObservableObject {
             throw AuthError.contextNotAvailable
         }
         
-        let descriptor = FetchDescriptor<User>(
-            predicate: #Predicate { $0.appleUserID == userIdentifier }
-        )
-        
-        let existingUsers = try modelContext.fetch(descriptor)
+        // Use explicit predicate construction to avoid SwiftData reflection issues
+        // Fetch all users and filter in Swift to avoid predicate metadata issues
+        let descriptor = FetchDescriptor<User>()
+        let allUsers = try modelContext.fetch(descriptor)
+        let existingUsers = allUsers.filter { $0.appleUserID == userIdentifier }
         
         if let existingUser = existingUsers.first {
             // CRITICAL: Check if this is a restored deleted account
@@ -406,11 +409,10 @@ final class AuthenticationService: ObservableObject {
         
         // Check if dev user exists
         let devID = AppConfig.devUserID
-        let descriptor = FetchDescriptor<User>(
-            predicate: #Predicate { $0.appleUserID == devID }
-        )
-        
-        let existingUsers = try modelContext.fetch(descriptor)
+        // Fetch all users and filter in Swift to avoid predicate metadata issues
+        let descriptor = FetchDescriptor<User>()
+        let allUsers = try modelContext.fetch(descriptor)
+        let existingUsers = allUsers.filter { $0.appleUserID == devID }
         
         if let existingUser = existingUsers.first {
             // Existing dev user

@@ -161,7 +161,7 @@ struct VaultCardView: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
-        .onChange(of: isSelected) { newValue in
+        .onChange(of: isSelected) { oldValue, newValue in
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                 cardScale = newValue ? 1.05 : 1.0
                 shadowRadius = newValue ? 20 : 10

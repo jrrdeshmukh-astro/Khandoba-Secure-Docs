@@ -28,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		24200FC82F05AB1E003D9A42 /* Khandoba Secure DocsDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Khandoba Secure DocsDebug.entitlements"; sourceTree = "<group>"; };
 		24FB38722EDF354B00BA1227 /* Khandoba Secure Docs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Khandoba Secure Docs.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		24FB38832EDF354C00BA1227 /* Khandoba Secure DocsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Khandoba Secure DocsTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		24FB388D2EDF354C00BA1227 /* Khandoba Secure DocsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Khandoba Secure DocsUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -80,6 +81,7 @@
 		24FB38692EDF354B00BA1227 = {
 			isa = PBXGroup;
 			children = (
+				24200FC82F05AB1E003D9A42 /* Khandoba Secure DocsDebug.entitlements */,
 				24FB38742EDF354B00BA1227 /* platforms/apple/Khandoba Secure Docs */,
 				24FB38732EDF354B00BA1227 /* Products */,
 				YON8O0RLDSU0FBG80H1PIC68 /* Khandoba Secure DocsTests */,
@@ -281,7 +283,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "platforms/apple/Khandoba Secure Docs/Khandoba_Secure_Docs.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Khandoba Secure DocsDebug.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
@@ -629,12 +631,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 24FB386A2EDF354B00BA1227 /* Project object */;
 }
