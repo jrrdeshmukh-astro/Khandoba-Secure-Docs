@@ -1,209 +1,119 @@
-# 🚀 Production Deployment Guide
+# 🍎 Apple Deployment Guide
 
-> Master deployment guide for all platforms
-
----
-
-## 📋 Quick Start
-
-### 1. Productionize
-
-Prepare all platforms for production:
-
-```bash
-cd scripts
-./master_productionize.sh all
-```
-
-### 2. Build
-
-Build production artifacts:
-
-```bash
-./master_deploy.sh all build
-```
-
-### 3. Deploy
-
-Upload to stores:
-
-```bash
-# Apple
-./master_deploy.sh apple upload
-
-# Android (via Play Console)
-./master_deploy.sh android upload
-
-# Windows (via Partner Center)
-./master_deploy.sh windows upload
-```
+> App Store deployment instructions for Apple platforms (iOS/macOS/watchOS/tvOS)
 
 ---
 
-## 🍎 Apple Deployment
+## Prerequisites
 
-### Prerequisites
-- Xcode 15.0+
-- Apple Developer Account
+- Apple Developer Account (paid)
 - App Store Connect access
-
-### Steps
-
-1. **Productionize**
-   ```bash
-   ./master_productionize.sh apple
-   ```
-
-2. **Build**
-   ```bash
-   ./master_deploy.sh apple build
-   ```
-   Output: `builds/apple/ipas/Khandoba Secure Docs.ipa`
-
-3. **Upload**
-   ```bash
-   ./master_deploy.sh apple upload
-   ```
-   Or use Transporter.app:
-   - Open Transporter.app
-   - Drag IPA file
-   - Deliver
-
-4. **Submit**
-   - Go to [App Store Connect](https://appstoreconnect.apple.com)
-   - Select app → Create new version
-   - Select build
-   - Complete metadata
-   - Submit for review
+- Distribution certificate
+- Provisioning profiles
 
 ---
 
-## 🤖 Android Deployment
+## Deployment Steps
 
-### Prerequisites
-- Android SDK
-- Signing keystore
-- Google Play Console account
+### 1. Create App in App Store Connect
 
-### Steps
+1. Go to [App Store Connect](https://appstoreconnect.apple.com)
+2. Create new app
+3. Fill in app information
+4. Set up subscription products (if needed)
 
-1. **Productionize**
-   ```bash
-   ./master_productionize.sh android
-   ```
+### 2. Build Production IPA
 
-2. **Build**
-   ```bash
-   ./master_deploy.sh android build
-   ```
-   Output: `builds/android/aabs/KhandobaSecureDocs-YYYYMMDD.aab`
-
-3. **Upload**
-   - Go to [Google Play Console](https://play.google.com/console)
-   - Select app → Create new release
-   - Upload AAB file
-   - Complete release notes
-   - Review and roll out
-
----
-
-## 🪟 Windows Deployment
-
-### Prerequisites
-- .NET 8 SDK
-- Visual Studio 2022
-- Microsoft Partner Center account
-
-### Steps
-
-1. **Productionize**
-   ```bash
-   ./master_productionize.sh windows
-   ```
-
-2. **Build**
-   ```bash
-   ./master_deploy.sh windows build
-   ```
-
-3. **Package**
-   - Open project in Visual Studio
-   - Right-click project → Publish
-   - Create App Packages → Microsoft Store
-   - Follow wizard
-
-4. **Submit**
-   - Go to [Partner Center](https://partner.microsoft.com/dashboard)
-   - Create new submission
-   - Upload package
-   - Complete store listing
-   - Submit for certification
-
----
-
-## 🔐 Environment Variables (Optional)
-
-For automated uploads, set:
+Use the build script:
 
 ```bash
-# Apple (if using altool)
-export APP_STORE_API_KEY="your_key"
-export APP_STORE_API_ISSUER="your_issuer"
+cd scripts/apple
+./prepare_for_transporter.sh
 ```
 
----
+Output: `../../builds/apple/ipas/Khandoba Secure Docs.ipa`
 
-## 📦 Build Artifacts
+Or manually:
+1. Product → Archive in Xcode
+2. Select "Khandoba Secure Docs" scheme (Production)
+3. Distribute App
+4. App Store Connect
+5. Upload
 
-After building, artifacts are in:
+### 3. Upload via Transporter
 
-- **Apple:** `builds/apple/ipas/`
-- **Android:** `builds/android/aabs/`
-- **Windows:** `platforms/windows/.../publish/`
+1. Open Transporter.app
+2. Drag IPA file
+3. Deliver
 
----
+Or use command line:
 
-## ✅ Pre-Deployment Checklist
+```bash
+xcrun altool --upload-app \
+  --type ios \
+  --file "./builds/apple/ipas/Khandoba Secure Docs.ipa" \
+  --apiKey YOUR_KEY \
+  --apiIssuer YOUR_ISSUER
+```
 
-### All Platforms
-- [ ] Version number incremented
-- [ ] Production environment configured
-- [ ] Signing configured
-- [ ] Tests passed
-- [ ] Release notes prepared
+### 4. Submit for Review
 
-### Apple
-- [ ] Bundle ID correct (no dev/test suffix)
-- [ ] Provisioning profile valid
-- [ ] Export options configured
-- [ ] App Store metadata complete
-
-### Android
-- [ ] Application ID correct (no dev/test suffix)
-- [ ] Keystore configured
-- [ ] Version code incremented
-- [ ] Play Console metadata complete
-
-### Windows
-- [ ] Package version incremented
-- [ ] Certificate configured
-- [ ] Store metadata complete
+1. Go to App Store Connect
+2. Select your build
+3. Complete metadata
+4. Submit for review
 
 ---
 
-## 🆘 Troubleshooting
+## Build Scripts
 
-### Build Fails
-- Check environment configuration
-- Verify signing credentials
-- Review build logs in `builds/*/build.log`
+Located in `scripts/apple/`:
 
-### Upload Fails
-- Verify credentials
-- Check network connection
-- Review error messages
-- Use platform-specific tools (Transporter, Play Console, Partner Center)
+- `prepare_for_transporter.sh` - Build production IPA
+- `validate_for_transporter.sh` - Validate before upload
+- `upload_to_testflight.sh` - Upload to TestFlight
 
 ---
 
-**See:** [scripts/README.md](../scripts/README.md) for detailed script documentation
+## Subscriptions Setup
+
+See [Subscription Setup Guide](../../shared/workflows/SUBSCRIPTION_SETUP_GUIDE.md) for detailed instructions.
+
+---
+
+## Environment-Specific Builds
+
+The project supports dev/test/prod environments. For production deployment:
+
+1. Use "Khandoba Secure Docs" scheme (Production)
+2. Build configuration: `Release-Production`
+3. Bundle ID: `com.khandoba.securedocs` (no suffix)
+
+See [Environment Setup Guide](../../shared/environments/SETUP_GUIDE.md) for details.
+
+---
+
+## Troubleshooting
+
+**Upload fails:**
+- Check certificate validity
+- Verify provisioning profile
+- Check bundle ID matches App Store Connect
+
+**Review rejected:**
+- Check [App Store Review Guidelines](https://developer.apple.com/app-store/review/guidelines/)
+- Review rejection reasons
+- Fix issues and resubmit
+
+---
+
+## Related Documentation
+
+- **[Apple Setup](SETUP.md)** - Initial setup
+- **[Rebuild Guide](REBUILD_GUIDE.md)** - Complete rebuild
+- **[Subscription Setup](../../shared/workflows/SUBSCRIPTION_SETUP_GUIDE.md)** - IAP setup
+- **[Environment Setup](../../shared/environments/SETUP_GUIDE.md)** - Environment configuration
+
+---
+
+**Last Updated:** December 2024

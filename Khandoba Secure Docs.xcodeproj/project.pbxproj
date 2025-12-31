@@ -7,7 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		UZBSJGPGAD2QMCH6W8GZQHE0 /* (null) in Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (Weak, ); }; };
+		242AF6A92EF1ABBE00857701 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 242AF6A82EF1ABBE00857701 /* Auth */; };
+		242AF6AB2EF1ABBE00857701 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = 242AF6AA2EF1ABBE00857701 /* Functions */; };
+		242AF6AD2EF1ABBE00857701 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = 242AF6AC2EF1ABBE00857701 /* PostgREST */; };
+		242AF6AF2EF1ABBE00857701 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 242AF6AE2EF1ABBE00857701 /* Realtime */; };
+		242AF6B12EF1ABBE00857701 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 242AF6B02EF1ABBE00857701 /* Storage */; };
+		242AF6B32EF1ABBE00857701 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 242AF6B22EF1ABBE00857701 /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -28,26 +33,29 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		24200FC82F05AB1E003D9A42 /* Khandoba Secure DocsDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Khandoba Secure DocsDebug.entitlements"; sourceTree = "<group>"; };
 		24FB38722EDF354B00BA1227 /* Khandoba Secure Docs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Khandoba Secure Docs.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		24FB38832EDF354C00BA1227 /* Khandoba Secure DocsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Khandoba Secure DocsTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		24FB388D2EDF354C00BA1227 /* Khandoba Secure DocsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Khandoba Secure DocsUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		24FB38952EDF354C00BA1227 /* Exceptions for "Khandoba Secure Docs" folder in "Khandoba Secure Docs" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				Info.plist.backup,
+			);
+			target = 24FB38712EDF354B00BA1227 /* Khandoba Secure Docs */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		24FB38742EDF354B00BA1227 /* platforms/apple/Khandoba Secure Docs */ = {
+		24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "platforms/apple/Khandoba Secure Docs";
-			sourceTree = "<group>";
-		};
-		B383DOAW04QI7C5DL0CCFHZW /* Khandoba Secure DocsUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Khandoba Secure DocsUITests";
-			sourceTree = "<group>";
-		};
-		YON8O0RLDSU0FBG80H1PIC68 /* Khandoba Secure DocsTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Khandoba Secure DocsTests";
+			exceptions = (
+				24FB38952EDF354C00BA1227 /* Exceptions for "Khandoba Secure Docs" folder in "Khandoba Secure Docs" target */,
+			);
+			path = "Khandoba Secure Docs";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -57,6 +65,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				242AF6B32EF1ABBE00857701 /* Supabase in Frameworks */,
+				242AF6B12EF1ABBE00857701 /* Storage in Frameworks */,
+				242AF6AD2EF1ABBE00857701 /* PostgREST in Frameworks */,
+				242AF6AB2EF1ABBE00857701 /* Functions in Frameworks */,
+				242AF6A92EF1ABBE00857701 /* Auth in Frameworks */,
+				242AF6AF2EF1ABBE00857701 /* Realtime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -64,7 +78,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				UZBSJGPGAD2QMCH6W8GZQHE0 /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -81,11 +94,8 @@
 		24FB38692EDF354B00BA1227 = {
 			isa = PBXGroup;
 			children = (
-				24200FC82F05AB1E003D9A42 /* Khandoba Secure DocsDebug.entitlements */,
-				24FB38742EDF354B00BA1227 /* platforms/apple/Khandoba Secure Docs */,
+				24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */,
 				24FB38732EDF354B00BA1227 /* Products */,
-				YON8O0RLDSU0FBG80H1PIC68 /* Khandoba Secure DocsTests */,
-				B383DOAW04QI7C5DL0CCFHZW /* Khandoba Secure DocsUITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -115,10 +125,16 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				24FB38742EDF354B00BA1227 /* platforms/apple/Khandoba Secure Docs */,
+				24FB38742EDF354B00BA1227 /* Khandoba Secure Docs */,
 			);
 			name = "Khandoba Secure Docs";
 			packageProductDependencies = (
+				242AF6A82EF1ABBE00857701 /* Auth */,
+				242AF6AA2EF1ABBE00857701 /* Functions */,
+				242AF6AC2EF1ABBE00857701 /* PostgREST */,
+				242AF6AE2EF1ABBE00857701 /* Realtime */,
+				242AF6B02EF1ABBE00857701 /* Storage */,
+				242AF6B22EF1ABBE00857701 /* Supabase */,
 			);
 			productName = "Khandoba Secure Docs";
 			productReference = 24FB38722EDF354B00BA1227 /* Khandoba Secure Docs.app */;
@@ -136,9 +152,6 @@
 			);
 			dependencies = (
 				24FB38852EDF354C00BA1227 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				YON8O0RLDSU0FBG80H1PIC68 /* Khandoba Secure DocsTests */,
 			);
 			name = "Khandoba Secure DocsTests";
 			packageProductDependencies = (
@@ -159,9 +172,6 @@
 			);
 			dependencies = (
 				24FB388F2EDF354C00BA1227 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				B383DOAW04QI7C5DL0CCFHZW /* Khandoba Secure DocsUITests */,
 			);
 			name = "Khandoba Secure DocsUITests";
 			packageProductDependencies = (
@@ -203,6 +213,7 @@
 			mainGroup = 24FB38692EDF354B00BA1227;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				242AF6A72EF1ABBE00857701 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 24FB38732EDF354B00BA1227 /* Products */;
@@ -283,28 +294,31 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Khandoba Secure DocsDebug.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Khandoba Secure Docs/Khandoba_Secure_Docs.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 30;
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = YES;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Khandoba Secure Docs/Info.plist";
+				INFOPLIST_PREPROCESS = NO;
 				INFOPLIST_KEY_CFBundleDisplayName = Khandoba;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Bluetooth access is required to share vault sessions with nearby devices for secure in-person collaboration.";
-				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Bluetooth is used to discover and connect to nearby devices for session nomination and secure vault sharing.";
-				INFOPLIST_KEY_NSCalendarsUsageDescription = "Calendar access is required to schedule automated security reviews for your vaults.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Khandoba needs camera access to capture photos and videos for secure document storage.";
-				INFOPLIST_KEY_NSContactsUsageDescription = "Contacts access is required to share vaults with your friends and family via iMessage.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID is used to securely authenticate and unlock your vaults, providing an additional layer of security for your sensitive documents.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025 Khandoba. All rights reserved.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Khandoba uses location data to log vault access for security monitoring and threat detection.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Khandoba needs microphone access to record voice memos and videos for secure storage.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Khandoba can save captured photos to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Khandoba needs photo library access to upload images to your secure vaults.";
-				INFOPLIST_KEY_NSRemindersUsageDescription = "Reminders access is required to set up security review notifications.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Speech recognition is required to transcribe audio documents and voice memos for intelligence analysis.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
@@ -315,11 +329,12 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.khandoba.securedocs;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -328,7 +343,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -337,28 +352,21 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "platforms/apple/Khandoba Secure Docs/Khandoba_Secure_Docs.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Khandoba Secure Docs/Khandoba_Secure_Docs.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 30;
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Khandoba Secure Docs/Info.plist";
+				INFOPLIST_PREPROCESS = NO;
 				INFOPLIST_KEY_CFBundleDisplayName = Khandoba;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Bluetooth access is required to share vault sessions with nearby devices for secure in-person collaboration.";
-				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Bluetooth is used to discover and connect to nearby devices for session nomination and secure vault sharing.";
-				INFOPLIST_KEY_NSCalendarsUsageDescription = "Calendar access is required to schedule automated security reviews for your vaults.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Khandoba needs camera access to capture photos and videos for secure document storage.";
-				INFOPLIST_KEY_NSContactsUsageDescription = "Contacts access is required to share vaults with your friends and family via iMessage.";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID is used to securely authenticate and unlock your vaults, providing an additional layer of security for your sensitive documents.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025 Khandoba. All rights reserved.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Khandoba uses location data to log vault access for security monitoring and threat detection.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Khandoba needs microphone access to record voice memos and videos for secure storage.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Khandoba can save captured photos to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Khandoba needs photo library access to upload images to your secure vaults.";
-				INFOPLIST_KEY_NSRemindersUsageDescription = "Reminders access is required to set up security review notifications.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Speech recognition is required to transcribe audio documents and voice memos for intelligence analysis.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
@@ -369,11 +377,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.khandoba.securedocs;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -382,7 +390,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -439,14 +447,16 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = iphoneos;
+				SDKROOT = auto;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				TVOS_DEPLOYMENT_TARGET = 17.0;
 			};
 			name = Debug;
 		};
@@ -497,12 +507,14 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				SDKROOT = iphoneos;
+				SDKROOT = auto;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -512,13 +524,14 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 30;
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
-				MARKETING_VERSION = 1.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.khandoba.securedocs.Khandoba-Secure-DocsTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -534,13 +547,14 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 30;
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
-				MARKETING_VERSION = 1.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.khandoba.securedocs.Khandoba-Secure-DocsTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -555,10 +569,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 30;
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.khandoba.securedocs.Khandoba-Secure-DocsUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -575,10 +589,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 30;
 				DEVELOPMENT_TEAM = Q5Y8754WU4;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.khandoba.securedocs.Khandoba-Secure-DocsUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -631,6 +645,50 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		242AF6A72EF1ABBE00857701 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		242AF6A82EF1ABBE00857701 /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 242AF6A72EF1ABBE00857701 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		242AF6AA2EF1ABBE00857701 /* Functions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 242AF6A72EF1ABBE00857701 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Functions;
+		};
+		242AF6AC2EF1ABBE00857701 /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 242AF6A72EF1ABBE00857701 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
+		};
+		242AF6AE2EF1ABBE00857701 /* Realtime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 242AF6A72EF1ABBE00857701 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Realtime;
+		};
+		242AF6B02EF1ABBE00857701 /* Storage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 242AF6A72EF1ABBE00857701 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Storage;
+		};
+		242AF6B22EF1ABBE00857701 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 242AF6A72EF1ABBE00857701 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 24FB386A2EDF354B00BA1227 /* Project object */;
 }

@@ -1,100 +1,96 @@
-# 📚 Documentation Structure
+# 🍎 Apple Documentation
 
-> Complete documentation organization for Khandoba Secure Docs
-
----
-
-## 🎯 Start Here
-
-**[00_START_HERE.md](00_START_HERE.md)** - Main documentation entry point
+> Apple platform documentation (iOS/macOS/watchOS/tvOS) for Khandoba Secure Docs
 
 ---
 
-## 📁 Structure Overview
+## 📚 Documentation Index
 
+### Essential Guides
+- **[Apple Rebuild Guide](REBUILD_GUIDE.md)** ⭐⭐⭐ - Complete rebuild from scratch
+- **[Apple Setup](SETUP.md)** - Initial project setup
+- **[Apple Deployment](DEPLOYMENT.md)** - App Store submission
+- **[Apple Features](FEATURES.md)** - Feature documentation
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- macOS 13.0+
+- Xcode 15.0+
+- Apple Developer Account
+
+### Setup
+```bash
+cd platforms/apple
+open "Khandoba Secure Docs.xcodeproj"
 ```
-docs/
-├── 00_START_HERE.md          ← Main entry point
-│
-├── shared/                    # Cross-platform documentation
-│   ├── architecture/         # System architecture
-│   ├── api/                  # Supabase API integration
-│   ├── database/             # Database schemas & migrations
-│   ├── security/             # Security architecture
-│   ├── workflows/            # Feature implementation workflows
-│   └── environments/         # Dev/test/prod environment docs
-│
-├── apple/                    # Apple-specific documentation (iOS/macOS/watchOS/tvOS)
-│   ├── README.md             # Apple documentation index
-│   ├── REBUILD_GUIDE.md      # Complete rebuild guide
-│   ├── SETUP.md              # Initial setup
-│   ├── DEPLOYMENT.md         # App Store deployment
-│   └── FEATURES.md           # Feature documentation
-│
-├── android/                  # Android-specific documentation
-│   ├── README.md             # Android documentation index
-│   ├── SETUP.md              # Initial setup
-│   ├── DEPLOYMENT.md         # Play Store deployment
-│   └── FEATURES.md           # Feature documentation
-│
-└── windows/                  # Windows-specific documentation
-    ├── README.md             # Windows documentation index
-    ├── SETUP.md              # Initial setup
-    ├── DEPLOYMENT.md         # Store deployment
-    └── FEATURES.md           # Feature documentation
+
+### Build
+```bash
+# In Xcode: Cmd+B
+# Or via command line:
+xcodebuild -project "Khandoba Secure Docs.xcodeproj" \
+  -scheme "Khandoba Secure Docs" \
+  -configuration Debug
 ```
 
 ---
 
-## 🚀 Quick Navigation
+## 🏗️ Project Structure
 
-### For New Developers
-1. **[00_START_HERE.md](00_START_HERE.md)** - Overview and navigation
-2. **[Shared Architecture](shared/architecture/)** - Understand the system
-3. Choose platform: **[Apple](apple/README.md)** | **[Android](android/README.md)** | **[Windows](windows/README.md)**
-
-### For Rebuilding
-- **Apple:** [docs/apple/REBUILD_GUIDE.md](apple/REBUILD_GUIDE.md)
-- **Android:** See [docs/android/README.md](android/README.md) (guide in progress)
-- **Windows:** See [docs/windows/README.md](windows/README.md) (guide in progress)
-
-### For Deployment
-- **Apple:** [docs/apple/DEPLOYMENT.md](apple/DEPLOYMENT.md)
-- **Android:** [docs/android/DEPLOYMENT.md](android/DEPLOYMENT.md)
-- **Windows:** [docs/windows/DEPLOYMENT.md](windows/DEPLOYMENT.md)
-
----
-
-## 📖 Documentation Categories
-
-### Shared Documentation (`shared/`)
-
-Cross-platform documentation that applies to all platforms:
-
-- **Architecture** - System design, data flow, components
-- **API** - Supabase integration, API contracts
-- **Database** - Schemas, migrations, RLS policies
-- **Security** - Security architecture, encryption, threat analysis
-- **Workflows** - Feature implementation guides
-- **Environments** - Dev/test/prod configuration
-
-### Platform Documentation
-
-Each platform has:
-- **README.md** - Documentation index for that platform
-- **SETUP.md** - Initial setup instructions
-- **DEPLOYMENT.md** - Store deployment instructions
-- **FEATURES.md** - Feature documentation
-- **REBUILD_GUIDE.md** - Complete rebuild guide (Apple only currently)
+```
+platforms/apple/
+├── Khandoba Secure Docs/        # Main app source
+│   ├── Models/                  # SwiftData models
+│   ├── Services/                # Business logic services
+│   ├── Views/                   # SwiftUI views
+│   ├── Theme/                   # Theme system
+│   └── Config/                  # App configuration
+├── Configurations/              # Environment configs (dev/test/prod)
+│   ├── Development.xcconfig
+│   ├── Test.xcconfig
+│   └── Production.xcconfig
+├── Khandoba Secure Docs.xcodeproj/
+└── README.md
+```
 
 ---
 
-## 🔗 Related Resources
+## 🔧 Technology Stack
 
-- **Main README:** [../README.md](../README.md)
-- **Project Structure:** [../CROSS_PLATFORM_STRUCTURE.md](../CROSS_PLATFORM_STRUCTURE.md)
-- **Environment Structure:** [../ENVIRONMENT_STRUCTURE.md](../ENVIRONMENT_STRUCTURE.md)
-- **Platform Code:** [../platforms/](../platforms/)
+- **Language:** Swift 5.9+
+- **UI:** SwiftUI
+- **Persistence:** SwiftData
+- **Encryption:** CryptoKit
+- **Media:** AVFoundation
+- **AI/ML:** CoreML, NaturalLanguage, Vision
+- **Subscriptions:** StoreKit
+
+---
+
+## 📖 Documentation
+
+### Setup & Configuration
+- **[Setup Guide](SETUP.md)** - Initial setup, dependencies, configuration
+
+### Development
+- **[Rebuild Guide](REBUILD_GUIDE.md)** - Complete rebuild from scratch (40-50 hours)
+- **[Features](FEATURES.md)** - Feature documentation
+
+### Deployment
+- **[Deployment Guide](DEPLOYMENT.md)** - App Store submission
+- **[Build Scripts](../../scripts/apple/)** - Build automation
+
+---
+
+## 🔗 Related Documentation
+
+- **[Shared Architecture](../../shared/architecture/)** - System architecture
+- **[Shared API](../../shared/api/)** - API documentation
+- **[Shared Security](../../shared/security/)** - Security documentation
+- **[Environments](../../shared/environments/)** - Dev/test/prod configuration
 
 ---
 
