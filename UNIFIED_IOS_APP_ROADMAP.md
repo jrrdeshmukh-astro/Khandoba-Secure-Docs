@@ -20,23 +20,25 @@
 
 ## 🔐 **AUTHENTICATION & ONBOARDING**
 
-| Feature | iOS Status | Web Status | iOS Target | Priority |
-|---------|-----------|------------|-----------|----------|
-| Apple Sign In | ✅ | ❌ | ✅ Keep | High |
-| Account Setup (selfie, name) | ✅ | ⚠️ | ✅ Keep | High |
-| Role Selection (Client/Admin) | ✅ | ✅ | ✅ Keep | High |
-| Biometric Authentication | ✅ | ⚠️ | ✅ Keep | High |
-| Session Management | ✅ | ✅ | ✅ Keep | High |
-| Permissions Setup | ✅ | ⚠️ | ✅ Keep | High |
-| Welcome Screen | ✅ | ✅ | ✅ Keep | Medium |
-| Account Deletion | ✅ | ⚠️ | ✅ Keep | Medium |
-| Replit SSO | ❌ | ✅ | ❌ Skip | N/A |
-| OAuth 2.0 (Web) | ❌ | ✅ | ❌ Skip | N/A |
-| Device Management | ⚠️ | ✅ | 🔄 Add | Medium |
-| Trusted Devices | ⚠️ | ✅ | 🔄 Add | Medium |
-| Device Fingerprinting | ❌ | ✅ | 🔄 Add | Low |
+| Feature | iOS Status | Web Status | iOS Target | Priority | Notes |
+|---------|-----------|------------|-----------|----------|-------|
+| Apple Sign In | ✅ | ❌ | ✅ Keep | High | Native iOS |
+| Account Setup (selfie, name) | ✅ | ⚠️ | 🔄 Improve UI | High | **Enhanced minimalist UI** |
+| Compliance Needs Detection | ✅ | ⚠️ | ✅ Keep | High | **Replaces Role Selection** |
+| Professional KYC (if applicable) | ⚠️ | ✅ | 🔄 Add | High | **Replaces Admin role** |
+| Biometric Authentication | ✅ | ⚠️ | ✅ Keep | High | Face ID/Touch ID |
+| Session Management | ✅ | ✅ | ✅ Keep | High | 30-min sessions |
+| Permissions Setup | ✅ | ⚠️ | ✅ Keep | High | Camera, Photos, Location |
+| Welcome Screen | ✅ | ✅ | 🔄 Update | Medium | **Show all compliance regimes readiness** |
+| Account Deletion | ✅ | ⚠️ | ✅ Keep | Medium | Data cleanup |
+| Device Management | ⚠️ | ✅ | 🔄 Add | High | **One authorized irrevocable device per person** |
+| Device Whitelisting | ❌ | ✅ | 🔄 Add | High | **Required feature** |
+| Device Fingerprinting | ❌ | ✅ | 🔄 Add | High | **For device authorization** |
+| Replit SSO | ❌ | ✅ | ❌ Skip | N/A | iOS-only |
+| OAuth 2.0 (Web) | ❌ | ✅ | ❌ Skip | N/A | iCloud-native |
+| Role Selection (Client/Admin) | ✅ | ✅ | ❌ Remove | N/A | **No admin role needed** |
 
-**iOS Target:** ✅ **8/8 Core Features** + 🔄 **3 Web Features to Adapt**
+**iOS Target:** ✅ **7/7 Core Features** + 🔄 **5 Enhancements** - **Admin role removed**
 
 ---
 
@@ -49,7 +51,7 @@
 | Vault Detail View | ✅ | ✅ | ✅ Keep | High |
 | Vault Sessions (30-min timer) | ✅ | ✅ | ✅ Keep | High |
 | Vault Locking/Unlocking | ✅ | ✅ | ✅ Keep | High |
-| Dual-Key Vault System | ✅ | ✅ | ✅ Keep | High |
+| Dual-Key Vault System | ✅ | ✅ | 🔄 Enhance | High | **Must include invitation for second signee (device-to-device)** |
 | Vault Transfer | ✅ | ✅ | ✅ Keep | High |
 | Vault Sharing (CloudKit) | ✅ | ⚠️ | ✅ Keep | High |
 | Vault Archiving | ✅ | ✅ | ✅ Keep | Medium |
@@ -102,7 +104,12 @@
 | Document ACL | ❌ | ✅ | 🔄 Add | Low |
 | Document Relationships | ⚠️ | ✅ | 🔄 Enhance | Medium |
 
-**iOS Target:** ✅ **25/25 Core Features** + 🔄 **3 Enhancements**
+**iOS Target:** ✅ **25/25 Core Features** + 🔄 **4 Enhancements**
+
+**Key Changes:**
+- **Vault-level sharing only** (not individual documents)
+- **No restrictions** unless manual document redaction with proper logs
+- **Improved document management and preview** (minimalist UI)
 
 ---
 
@@ -141,7 +148,13 @@
 | Compliance AI Engine | ⚠️ | ✅ | 🔄 Enhance | High |
 | Relevance Calculation | ✅ | ✅ | ✅ Keep | Medium |
 
-**iOS Target:** ✅ **28/28 Core Features** + 🔄 **1 Enhancement**
+**iOS Target:** ✅ **28/28 Core Features** + 🔄 **2 Enhancements**
+
+**Key Requirements:**
+- **Keep all functionalities** that have web implementations
+- **Implement missing functionalities** in SwiftUI native iOS
+- **Case-based reasoning for Seek Agent** - **FULL LIFECYCLE IMPLEMENTATION**
+- **Complete Seek Agent lifecycle** - learning, reasoning, recommendations
 
 ---
 
@@ -177,6 +190,11 @@
 
 **iOS Target:** ✅ **22/22 Core Features** + 🔄 **3 Enhancements**
 
+**Security Enhancement Strategy:**
+- **AND JOIN of functionalities** - Combine iOS + Web security features
+- **Comprehensive security** - All features from both platforms
+- **Enhanced threat detection** - Best of both implementations
+
 ---
 
 ## 💎 **PREMIUM & SUBSCRIPTIONS**
@@ -197,6 +215,11 @@
 | Webhook Handlers | ❌ | ✅ | ❌ Skip | N/A |
 
 **iOS Target:** ✅ **10/10 Core Features** + 🔄 **1 Enhancement**
+
+**⚠️ CRITICAL: All subscriptions must be fully functional**
+- **StoreKit 2** integration complete
+- **Family Sharing** (6 members)
+- **Subscription management** fully operational
 
 ---
 
@@ -281,6 +304,11 @@
 | Batch Processing | ⚠️ | ✅ | 🔄 Enhance | Low |
 
 **iOS Target:** ✅ **10/10 Core Features** + 🔄 **2 Enhancements** (iCloud-only strategy)
+
+**⚠️ CRITICAL: Data Pipeline is the MOST IMPORTANT part of the app**
+- **Priority:** Highest
+- **Focus:** Seamless iCloud integration
+- **Requirements:** Real-time sync, intelligent ingestion, relevance scoring
 
 ---
 
