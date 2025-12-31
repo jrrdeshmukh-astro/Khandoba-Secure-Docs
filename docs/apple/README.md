@@ -88,7 +88,7 @@ platforms/apple/
 ## 🔗 Related Documentation
 
 - **[Shared Architecture](../../shared/architecture/)** - System architecture
-- **[Shared API](../../shared/api/)** - Supabase API docs
+- **[Shared API](../../shared/api/)** - API documentation
 - **[Shared Security](../../shared/security/)** - Security documentation
 - **[Environments](../../shared/environments/)** - Dev/test/prod configuration
 

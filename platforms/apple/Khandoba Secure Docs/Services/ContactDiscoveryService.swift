@@ -67,88 +67,100 @@ final class ContactDiscoveryService: ObservableObject {
             discoveryProgress = 0.0
         }
         
-        do {
-            // Get all contacts from the user's contact list
-            // Move contact enumeration to background thread to avoid blocking main thread
-            let contacts = try await Task.detached(priority: .userInitiated) {
-                try await Self.enumerateContactsOnBackgroundThread()
-            }.value
-            
-            print("📱 ContactDiscoveryService: Found \(contacts.count) contacts to check")
-            
-            // Extract all phone numbers and emails
-            var phoneNumbers: Set<String> = []
-            var emails: Set<String> = []
-            
-            for contact in contacts {
-                // Normalize and add phone numbers
-                for phoneNumber in contact.phoneNumbers {
-                    let normalized = normalizePhoneNumber(phoneNumber.value.stringValue)
-                    if !normalized.isEmpty {
-                        phoneNumbers.insert(normalized)
-                    }
+        // Capture modelContext and container for background task
+        let modelContext = modelContext
+        let container = container
+        
+        // Move all heavy work to background thread
+        await Task.detached(priority: .userInitiated) {
+            do {
+                // Get all contacts from the user's contact list
+                let contacts = try await Self.enumerateContactsOnBackgroundThread()
+                
+                print("📱 ContactDiscoveryService: Found \(contacts.count) contacts to check")
+                
+                // Extract all phone numbers and emails
+                var phoneNumbers: Set<String> = []
+                var emails: Set<String> = []
+                
+                // Normalize phone number helper (nonisolated)
+                func normalizePhone(_ phone: String) -> String {
+                    // Simple normalization - remove non-digits
+                    return phone.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
                 }
                 
-                // Add email addresses
-                for emailAddress in contact.emailAddresses {
-                    let email = emailAddress.value as String
-                    if !email.isEmpty {
-                        emails.insert(email.lowercased())
+                for contact in contacts {
+                    // Normalize and add phone numbers
+                    for phoneNumber in contact.phoneNumbers {
+                        let normalized = normalizePhone(phoneNumber.value.stringValue)
+                        if !normalized.isEmpty {
+                            phoneNumbers.insert(normalized)
+                        }
                     }
-                }
-            }
-            
-            print("📱 ContactDiscoveryService: Checking \(phoneNumbers.count) phone numbers and \(emails.count) email addresses")
-            
-            // Query CloudKit for registered users
-            let database = container.privateCloudDatabase
-            var registeredIdentifiers: Set<String> = []
-            
-            // Query by email addresses
-            if !emails.isEmpty {
-                let emailArray = Array(emails)
-                let emailPredicate = NSPredicate(format: "email IN %@", emailArray)
-                let emailQuery = CKQuery(recordType: "CD_User", predicate: emailPredicate)
-                
-                do {
-                    let (matchResults, _) = try await database.records(matching: emailQuery)
                     
-                    for (_, result) in matchResults {
-                        if case .success(let record) = result,
-                           let email = record["email"] as? String {
+                    // Add email addresses
+                    for emailAddress in contact.emailAddresses {
+                        let email = emailAddress.value as String
+                        if !email.isEmpty {
+                            emails.insert(email.lowercased())
+                        }
+                    }
+                }
+                
+                print("📱 ContactDiscoveryService: Checking \(phoneNumbers.count) phone numbers and \(emails.count) email addresses")
+                
+                // Query CloudKit for registered users
+                let database = container.privateCloudDatabase
+                var registeredIdentifiers: Set<String> = []
+                
+                // Query by email addresses
+                if !emails.isEmpty {
+                    let emailArray = Array(emails)
+                    let emailPredicate = NSPredicate(format: "email IN %@", emailArray)
+                    let emailQuery = CKQuery(recordType: "CD_User", predicate: emailPredicate)
+                    
+                    do {
+                        let (matchResults, _) = try await database.records(matching: emailQuery)
+                        
+                        for (_, result) in matchResults {
+                            if case .success(let record) = result,
+                               let email = record["email"] as? String {
+                                registeredIdentifiers.insert(email.lowercased())
+                            }
+                        }
+                    } catch {
+                        print("⚠️ ContactDiscoveryService: Error querying by email: \(error.localizedDescription)")
+                    }
+                }
+                
+                // Query by phone numbers (if we store phone numbers in User model)
+                // Note: Currently User model doesn't have phone numbers, but we can add this later
+                // For now, we'll primarily use email matching
+                
+                // Also check local SwiftData users (on background thread)
+                if let modelContext = modelContext {
+                    let localUsers = try modelContext.fetch(FetchDescriptor<User>())
+                    for user in localUsers {
+                        if let email = user.email {
                             registeredIdentifiers.insert(email.lowercased())
                         }
                     }
-                } catch {
-                    print("⚠️ ContactDiscoveryService: Error querying by email: \(error.localizedDescription)")
+                }
+                
+                await MainActor.run {
+                    self.registeredContacts = registeredIdentifiers
+                    self.isDiscovering = false
+                    self.discoveryProgress = 1.0
+                }
+                
+                print("✅ ContactDiscoveryService: Found \(registeredIdentifiers.count) registered contacts")
+            } catch {
+                print("❌ ContactDiscoveryService: Error discovering contacts: \(error.localizedDescription)")
+                await MainActor.run {
+                    self.isDiscovering = false
                 }
             }
-            
-            // Query by phone numbers (if we store phone numbers in User model)
-            // Note: Currently User model doesn't have phone numbers, but we can add this later
-            // For now, we'll primarily use email matching
-            
-            // Also check local SwiftData users
-            let localUsers = try modelContext.fetch(FetchDescriptor<User>())
-            for user in localUsers {
-                if let email = user.email {
-                    registeredIdentifiers.insert(email.lowercased())
-                }
-            }
-            
-            await MainActor.run {
-                registeredContacts = registeredIdentifiers
-                isDiscovering = false
-                discoveryProgress = 1.0
-            }
-            
-            print("✅ ContactDiscoveryService: Found \(registeredIdentifiers.count) registered contacts")
-        } catch {
-            print("❌ ContactDiscoveryService: Error discovering contacts: \(error.localizedDescription)")
-            await MainActor.run {
-                isDiscovering = false
-            }
-        }
+        }.value
     }
     
     /// Normalize phone number for comparison

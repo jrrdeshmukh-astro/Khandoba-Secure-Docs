@@ -14,7 +14,6 @@ struct AccountDeletionView: View {
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var deletionService = AccountDeletionService()
     @State private var showConfirmation = false

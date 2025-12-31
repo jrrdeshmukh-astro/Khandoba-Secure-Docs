@@ -30,15 +30,12 @@ open "Khandoba Secure Docs.xcodeproj"
 4. Select your development team
 5. Xcode will automatically manage certificates
 
-### 3. Configure Supabase
+### 3. Configure CloudKit
 
-Edit `Config/EnvironmentConfig.swift` or use environment-specific configuration:
-
-```swift
-// Environment-specific config is automatically selected
-let supabaseURL = EnvironmentConfig.current.supabaseURL
-let supabaseAnonKey = EnvironmentConfig.current.supabaseAnonKey
-```
+The app uses CloudKit exclusively for data sync. Ensure:
+- iCloud is enabled in your Apple Developer account
+- CloudKit container is configured in Xcode
+- iCloud capability is enabled in Signing & Capabilities
 
 ---
 

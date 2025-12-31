@@ -38,33 +38,7 @@ enum Environment: String {
         }
     }
     
-    // Supabase Configuration
-    // Note: For production, uses SupabaseConfig. For dev/test, use separate Supabase projects if needed
-    var supabaseURL: String {
-        switch self {
-        case .development:
-            // Use same URL as production for now (can be changed to separate dev project)
-            return SupabaseConfig.supabaseURL
-        case .test:
-            // Use same URL as production for now (can be changed to separate test project)
-            return SupabaseConfig.supabaseURL
-        case .production:
-            return SupabaseConfig.supabaseURL
-        }
-    }
-    
-    var supabaseAnonKey: String {
-        switch self {
-        case .development:
-            // Use production key for now (replace with dev key if using separate dev project)
-            return SupabaseConfig.supabaseAnonKey
-        case .test:
-            // Use production key for now (replace with test key if using separate test project)
-            return SupabaseConfig.supabaseAnonKey
-        case .production:
-            return SupabaseConfig.supabaseAnonKey
-        }
-    }
+    // iOS-ONLY: Using CloudKit exclusively - no Supabase configuration needed
     
     // Feature Flags
     var enableLogging: Bool {

@@ -21,7 +21,6 @@ final class NomineeService: ObservableObject {
     @Published var activeNominees: [Nominee] = [] // Currently active in vault sessions
     
     private var modelContext: ModelContext?
-    private var supabaseService: SupabaseService?
     private var cloudKitSharing: CloudKitSharingService?
     private var currentUserID: UUID?
     private var antiVaultService: AntiVaultService?
@@ -35,10 +34,9 @@ final class NomineeService: ObservableObject {
         self.container = CKContainer(identifier: containerID)
     }
     
-    // SwiftData/CloudKit mode
+    // iOS-ONLY: Using SwiftData/CloudKit exclusively
     func configure(modelContext: ModelContext, currentUserID: UUID? = nil, antiVaultService: AntiVaultService? = nil, vaultService: VaultService? = nil) {
         self.modelContext = modelContext
-        self.supabaseService = nil
         self.currentUserID = currentUserID
         self.antiVaultService = antiVaultService
         self.vaultService = vaultService
@@ -46,35 +44,11 @@ final class NomineeService: ObservableObject {
         cloudKitSharing?.configure(modelContext: modelContext)
     }
     
-    // Supabase mode
-    func configure(supabaseService: SupabaseService, currentUserID: UUID? = nil, antiVaultService: AntiVaultService? = nil, vaultService: VaultService? = nil) {
-        self.supabaseService = supabaseService
-        self.modelContext = nil
-        self.currentUserID = currentUserID
-        self.antiVaultService = antiVaultService
-        self.vaultService = vaultService
-        self.cloudKitSharing = nil
-    }
-    
     func loadNominees(for vault: Vault, includeInactive: Bool = false) async throws {
         isLoading = true
         defer { isLoading = false }
         
-        // Supabase mode - exclusive use when enabled
-        if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else {
-                print("❌ NomineeService: Supabase mode enabled but SupabaseService not configured")
-                throw NomineeError.serviceNotConfigured
-            }
-            try await loadNomineesFromSupabase(
-                vault: vault,
-                includeInactive: includeInactive,
-                supabaseService: supabaseService
-            )
-            return
-        }
-        
-        // SwiftData/CloudKit mode (only when useSupabase = false)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else {
             print("❌ NomineeService: ModelContext not available")
             throw NomineeError.serviceNotConfigured
@@ -138,78 +112,6 @@ final class NomineeService: ObservableObject {
         }
     }
     
-    // MARK: - Supabase Implementation
-    
-    /// Load nominees from Supabase
-    private func loadNomineesFromSupabase(
-        vault: Vault,
-        includeInactive: Bool,
-        supabaseService: SupabaseService
-    ) async throws {
-        print(" Loading nominees from Supabase for vault: \(vault.name) (ID: \(vault.id))")
-        
-        // RLS automatically filters nominees user has access to
-        var supabaseNominees: [SupabaseNominee] = try await supabaseService.fetchAll(
-            "nominees",
-            filters: ["vault_id": vault.id.uuidString]
-        )
-        
-        // Filter by status if needed
-        if !includeInactive {
-            supabaseNominees = supabaseNominees.filter { nominee in
-                nominee.status != "inactive" && nominee.status != "revoked"
-            }
-        }
-        
-        // Sort by invited_at
-        supabaseNominees.sort { $0.invitedAt > $1.invitedAt }
-        
-        // Convert to Nominee models for compatibility
-        let convertedNominees = supabaseNominees.map { supabaseNominee in
-            let nominee = Nominee(
-                name: supabaseNominee.userID.uuidString, // Will need to fetch user name
-                email: nil,
-                status: NomineeStatus(rawValue: supabaseNominee.status) ?? .pending,
-                invitedAt: supabaseNominee.invitedAt
-            )
-            nominee.id = supabaseNominee.id
-            nominee.email = nil // Would need to fetch from users table
-            nominee.invitedByUserID = supabaseNominee.invitedByUserID
-            nominee.acceptedAt = supabaseNominee.acceptedAt
-            nominee.statusRaw = supabaseNominee.status
-            nominee.selectedDocumentIDs = supabaseNominee.selectedDocumentIDs
-            nominee.sessionExpiresAt = supabaseNominee.sessionExpiresAt
-            nominee.isSubsetAccess = supabaseNominee.isSubsetAccess
-            
-            // Fetch user name from Supabase
-            Task {
-                do {
-                    let user: SupabaseUser = try await supabaseService.fetch(
-                        "users",
-                        id: supabaseNominee.userID
-                    )
-                    await MainActor.run {
-                        nominee.name = user.fullName
-                        nominee.email = user.email
-                    }
-                } catch {
-                    print("⚠️ Failed to fetch user for nominee: \(error)")
-                }
-            }
-            
-            return nominee
-        }
-        
-        // Update active status
-        await updateActiveStatus(for: convertedNominees, vault: vault)
-        
-        await MainActor.run {
-            nominees = convertedNominees
-            activeNominees = convertedNominees.filter { $0.isCurrentlyActive }
-        }
-        
-        print(" Found \(convertedNominees.count) nominee(s) for vault '\(vault.name)'")
-    }
     
     // MARK: - CloudKit Participant Sync (ENABLED - removes technical debt)
     
@@ -389,22 +291,7 @@ final class NomineeService: ObservableObject {
         sessionExpiresAt: Date? = nil,
         isSubsetAccess: Bool = false
     ) async throws -> Nominee {
-        // Supabase mode
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            return try await inviteNomineeToSupabase(
-                name: name,
-                phoneNumber: phoneNumber,
-                email: email,
-                vault: vault,
-                invitedByUserID: invitedByUserID,
-                selectedDocumentIDs: selectedDocumentIDs,
-                sessionExpiresAt: sessionExpiresAt,
-                isSubsetAccess: isSubsetAccess,
-                supabaseService: supabaseService
-            )
-        }
-        
-        // SwiftData/CloudKit mode
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else {
             throw NomineeError.contextNotAvailable
         }
@@ -495,140 +382,9 @@ final class NomineeService: ObservableObject {
         return nominee
     }
     
-    /// Invite nominee via Supabase
-    private func inviteNomineeToSupabase(
-        name: String,
-        phoneNumber: String?,
-        email: String?,
-        vault: Vault,
-        invitedByUserID: UUID,
-        selectedDocumentIDs: [UUID]? = nil,
-        sessionExpiresAt: Date? = nil,
-        isSubsetAccess: Bool = false,
-        supabaseService: SupabaseService
-    ) async throws -> Nominee {
-        // First, find or create user by email
-        var userID: UUID
-        
-        if let email = email {
-            // Try to find existing user by email
-            let users: [SupabaseUser] = try await supabaseService.fetchAll(
-                "users",
-                filters: ["email": email]
-            )
-            
-            if let existingUser = users.first {
-                userID = existingUser.id
-            } else {
-                // User doesn't exist - would need to create or invite
-                // For now, we'll create a placeholder
-                // In production, you'd send an invitation email/SMS
-                throw NomineeError.sendFailed
-            }
-        } else {
-            // Need email to invite
-            throw NomineeError.sendFailed
-        }
-        
-        // Check if nominee already exists
-        let existing: [SupabaseNominee] = try await supabaseService.fetchAll(
-            "nominees",
-            filters: ["vault_id": vault.id.uuidString, "user_id": userID.uuidString]
-        )
-        
-        if let existingNominee = existing.first {
-            // Nominee already exists
-            let nominee = Nominee(
-                name: name,
-                phoneNumber: phoneNumber,
-                email: email,
-                status: NomineeStatus(rawValue: existingNominee.status) ?? .pending
-            )
-            nominee.id = existingNominee.id
-            return nominee
-        }
-        
-        // Create new nominee with subset access support
-        let supabaseNominee = SupabaseNominee(
-            vaultID: vault.id,
-            userID: userID,
-            invitedByUserID: invitedByUserID,
-            status: "pending",
-            accessLevel: "read",
-            selectedDocumentIDs: selectedDocumentIDs,
-            sessionExpiresAt: sessionExpiresAt,
-            isSubsetAccess: isSubsetAccess
-        )
-        
-        let created: SupabaseNominee = try await supabaseService.insert(
-            "nominees",
-            values: supabaseNominee
-        )
-        
-        // Convert to Nominee model
-        let nominee = Nominee(
-            name: name,
-            phoneNumber: phoneNumber,
-            email: email,
-            status: .pending
-        )
-        nominee.id = created.id
-        nominee.invitedAt = created.invitedAt
-        nominee.selectedDocumentIDs = created.selectedDocumentIDs
-        nominee.sessionExpiresAt = created.sessionExpiresAt
-        nominee.isSubsetAccess = created.isSubsetAccess
-        
-        // Reload nominees
-        try await loadNominees(for: vault)
-        
-        // Trigger anti-vault monitoring if enabled
-        if let antiVaultService = antiVaultService {
-            do {
-                try await antiVaultService.monitorSessionNomination(
-                    vaultID: vault.id,
-                    nomineeID: nominee.id,
-                    selectedDocumentIDs: selectedDocumentIDs
-                )
-                print("✅ Anti-vault monitoring triggered for vault: \(vault.name)")
-            } catch {
-                print("⚠️ Failed to trigger anti-vault monitoring: \(error.localizedDescription)")
-                // Don't fail the nomination if anti-vault monitoring fails
-            }
-        }
-        
-        return nominee
-    }
     
     func removeNominee(_ nominee: Nominee, permanently: Bool = false) async throws {
-        // Supabase mode
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            if permanently {
-                try await supabaseService.delete("nominees", id: nominee.id)
-            } else {
-                // Update status to revoked
-                let supabaseNominee: SupabaseNominee = try await supabaseService.fetch(
-                    "nominees",
-                    id: nominee.id
-                )
-                var updated = supabaseNominee
-                updated.status = "revoked"
-                updated.revokedAt = Date()
-                
-                let _: SupabaseNominee = try await supabaseService.update(
-                    "nominees",
-                    id: nominee.id,
-                    values: updated
-                )
-            }
-            
-            // Reload nominees
-            if let vault = nominee.vault {
-                try await loadNominees(for: vault)
-            }
-            return
-        }
-        
-        // SwiftData/CloudKit mode
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else {
             throw NomineeError.contextNotAvailable
         }
@@ -722,131 +478,36 @@ final class NomineeService: ObservableObject {
         }
     }
     
-    /// Accept a nominee invitation by nominee ID (for Supabase mode)
+    /// Accept a nominee invitation by nominee ID
     func acceptNominee(nomineeID: UUID) async throws -> Nominee? {
-        // Supabase mode
-        if AppConfig.useSupabase, let supabaseService = supabaseService, let currentUserID = currentUserID {
-            // Fetch nominee from Supabase
-            let supabaseNominee: SupabaseNominee = try await supabaseService.fetch("nominees", id: nomineeID)
-            
-            // Verify this nominee is for the current user
-            guard supabaseNominee.userID == currentUserID else {
-                throw NomineeError.invalidToken
-            }
-            
-            // Update nominee status to accepted
-            var updated = supabaseNominee
-            updated.status = "accepted"
-            updated.acceptedAt = Date()
-            
-            let _: SupabaseNominee = try await supabaseService.update(
-                "nominees",
-                id: nomineeID,
-                values: updated
-            )
-            
-            // Convert to Nominee model
-            let nominee = Nominee(
-                name: "", // Will be fetched from user
-                email: nil,
-                status: .accepted,
-                invitedAt: supabaseNominee.invitedAt
-            )
-            nominee.id = supabaseNominee.id
-            nominee.acceptedAt = Date()
-            nominee.selectedDocumentIDs = supabaseNominee.selectedDocumentIDs
-            nominee.sessionExpiresAt = supabaseNominee.sessionExpiresAt
-            nominee.isSubsetAccess = supabaseNominee.isSubsetAccess
-            
-            // Fetch vault and user info
-            let vault: SupabaseVault = try await supabaseService.fetch("vaults", id: supabaseNominee.vaultID)
-            let user: SupabaseUser = try await supabaseService.fetch("users", id: supabaseNominee.userID)
-            let _: SupabaseUser = try await supabaseService.fetch("users", id: vault.ownerID)
-            
-            // Create Vault model for nominee
-            let vaultModel = Vault(
-                name: vault.name,
-                vaultDescription: vault.vaultDescription,
-                keyType: vault.keyType
-            )
-            vaultModel.id = vault.id
-            nominee.vault = vaultModel
-            
-            nominee.name = user.fullName
-            nominee.email = user.email
-            
-            print("✅ Nominee accepted in Supabase: \(nominee.name)")
-            print("   Vault: \(vault.name)")
-            
-            // Check for pending transfer request for this nominee (NEW FLOW)
-            let transferRequests: [SupabaseVaultTransferRequest] = try await supabaseService.fetchAll(
-                "vault_transfer_requests",
-                filters: ["vault_id": vault.id.uuidString, "status": "pending"]
-            )
-            
-            // Find transfer request matching this nominee (by userID)
-            if let transferRequest = transferRequests.first(where: { request in
-                request.newOwnerID == currentUserID || request.newOwnerID == supabaseNominee.userID
-            }) {
-                print("🔄 Transfer ownership request found - processing transfer")
-                // Process the transfer request
-                if let vaultService = vaultService {
-                    try await vaultService.transferOwnership(vault: vaultModel, to: currentUserID)
-                    // Update transfer request status in Supabase
-                    var updatedRequest = transferRequest
-                    updatedRequest.status = "completed"
-                    updatedRequest.approvedAt = Date()
-                    let _: SupabaseVaultTransferRequest = try await supabaseService.update(
-                        "vault_transfer_requests",
-                        id: transferRequest.id,
-                        values: updatedRequest
-                    )
-                    print("✅ Vault ownership transferred via request in Supabase: \(vault.name) → User ID: \(currentUserID)")
-                } else {
-                    print("⚠️ VaultService not available - ownership transfer skipped")
-                }
-                return nominee
-            }
-            
-            // Legacy: Check if this is a transfer ownership request (old flow)
-            // Transfer ownership: If nominee was invited by vault owner and this is the only nominee
-            if supabaseNominee.invitedByUserID == vault.ownerID {
-                // Check if this is the only nominee for this vault
-                let allNominees: [SupabaseNominee] = try await supabaseService.fetchAll(
-                    "nominees",
-                    filters: ["vault_id": vault.id.uuidString]
-                )
-                let pendingNominees = allNominees.filter { $0.status == "pending" || $0.status == "accepted" }
-                
-                // If this is the only nominee and they're accepting, it's likely a transfer
-                if pendingNominees.count == 1 && pendingNominees.first?.id == nomineeID {
-                    print("🔄 Transfer ownership detected (legacy flow) - transferring vault to new owner")
-                    // Transfer ownership to the accepting user
-                    if let vaultService = vaultService {
-                        try await vaultService.transferOwnership(vault: vaultModel, to: currentUserID)
-                        print("✅ Vault ownership transferred in Supabase: \(vault.name) → User ID: \(currentUserID)")
-                    } else {
-                        print("⚠️ VaultService not available - ownership transfer skipped")
-                    }
-                }
-            }
-            
-            return nominee
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext, let currentUserID = currentUserID else {
+            throw NomineeError.contextNotAvailable
         }
         
-        throw NomineeError.contextNotAvailable
-    }
-    
-    func acceptInvite(token: String) async throws -> Nominee? {
-        // Supabase mode - token-based invites not used, use direct database access
-        if AppConfig.useSupabase, supabaseService != nil {
-            // In Supabase, nominees are accepted by updating status
-            // Token-based invites would need a separate invitations table
-            // For now, return nil (would need to implement invitation system)
+        // Find nominee by ID
+        let descriptor = FetchDescriptor<Nominee>(
+            predicate: #Predicate { $0.id == nomineeID }
+        )
+        guard let nominee = try modelContext.fetch(descriptor).first else {
             throw NomineeError.invalidToken
         }
         
-        // SwiftData/CloudKit mode
+        // Update status to accepted
+        nominee.status = .accepted
+        nominee.acceptedAt = Date()
+        try modelContext.save()
+        
+        print("✅ Nominee accepted: \(nominee.name)")
+        if let vault = nominee.vault {
+            print("   Vault: \(vault.name)")
+        }
+        
+        return nominee
+    }
+    
+    func acceptInvite(token: String) async throws -> Nominee? {
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else {
             throw NomineeError.contextNotAvailable
         }
@@ -1048,7 +709,7 @@ enum NomineeError: LocalizedError {
         case .contextNotAvailable:
             return "Nominee service not available"
         case .serviceNotConfigured:
-            return "Service not configured. Please ensure Supabase is properly initialized."
+            return "Service not configured. Please ensure CloudKit is properly initialized."
         case .invalidToken:
             return "Invalid invitation token"
         case .sendFailed:

@@ -24,7 +24,6 @@ struct TransferOwnershipView: View {
     @SwiftUI.Environment(\.dismiss) var dismiss
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var nomineeService = NomineeService()
     
     // Form fields

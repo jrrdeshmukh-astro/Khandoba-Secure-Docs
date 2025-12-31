@@ -40,6 +40,11 @@ final class User {
     @Relationship(deleteRule: .nullify, inverse: \DualKeyRequest.requester)
     var dualKeyRequests: [DualKeyRequest]?
     
+    // Authorized devices (one irrevocable device per person)
+    // Note: Relationship defined without default value to avoid circular reference
+    @Relationship(deleteRule: .cascade, inverse: \Device.owner)
+    var authorizedDevices: [Device]?
+    
     // Anti-vaults owned by this user
     // Note: Relationship removed to avoid circular dependency - use UUID lookup instead
     // var ownedAntiVaults: [AntiVault]? // Look up by ownerID when needed
@@ -71,6 +76,7 @@ final class User {
         self.sentMessages = []
         self.vaultSessions = []
         self.dualKeyRequests = []
+        self.authorizedDevices = []
     }
 }
 

@@ -2,78 +2,58 @@
 //  ServiceConfigurationHelper.swift
 //  Khandoba Secure Docs
 //
-//  Created for Supabase Migration
+//  Helper utility to configure services with CloudKit/SwiftData
+//  iOS-ONLY: All services use SwiftData with CloudKit sync
 //
 
 import Foundation
 import SwiftData
 import SwiftUI
 
-/// Helper utility to configure services based on backend mode (SwiftData/Supabase)
+/// Helper utility to configure services with CloudKit/SwiftData
+/// iOS-ONLY: All services use SwiftData with CloudKit sync
 struct ServiceConfigurationHelper {
-    /// Configure NomineeService based on backend mode
+    /// Configure NomineeService with SwiftData/CloudKit
     static func configureNomineeService(
         _ service: NomineeService,
-        modelContext: ModelContext?,
-        supabaseService: SupabaseService?,
+        modelContext: ModelContext,
         userID: UUID? = nil
     ) {
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            service.configure(supabaseService: supabaseService, currentUserID: userID)
-        } else if let modelContext = modelContext {
-            service.configure(modelContext: modelContext, currentUserID: userID)
-        }
+        service.configure(modelContext: modelContext, currentUserID: userID)
     }
     
-    /// Configure VaultService based on backend mode
+    /// Configure VaultService with SwiftData/CloudKit
     static func configureVaultService(
         _ service: VaultService,
-        modelContext: ModelContext?,
-        supabaseService: SupabaseService?,
+        modelContext: ModelContext,
         userID: UUID
     ) {
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            service.configure(supabaseService: supabaseService, userID: userID)
-        } else if let modelContext = modelContext {
-            service.configure(modelContext: modelContext, userID: userID)
-        }
+        service.configure(modelContext: modelContext, userID: userID)
     }
     
-    /// Configure DocumentService based on backend mode
+    /// Configure DocumentService with SwiftData/CloudKit
     static func configureDocumentService(
         _ service: DocumentService,
-        modelContext: ModelContext?,
-        supabaseService: SupabaseService?,
+        modelContext: ModelContext,
         userID: UUID? = nil
     ) {
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            service.configure(supabaseService: supabaseService, userID: userID)
-        } else if let modelContext = modelContext {
-            service.configure(modelContext: modelContext, userID: userID)
-        }
+        service.configure(modelContext: modelContext, userID: userID)
     }
     
-    /// Configure ChatService based on backend mode
+    /// Configure ChatService with SwiftData/CloudKit
     static func configureChatService(
         _ service: ChatService,
-        modelContext: ModelContext?,
-        supabaseService: SupabaseService?,
+        modelContext: ModelContext,
         userID: UUID
     ) {
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            service.configure(supabaseService: supabaseService, userID: userID)
-        } else if let modelContext = modelContext {
-            service.configure(modelContext: modelContext, userID: userID)
-        }
+        service.configure(modelContext: modelContext, userID: userID)
     }
-}
-
-/// View extension to easily access SupabaseService
-extension View {
-    /// Get SupabaseService from environment, or nil if not available
-    func getSupabaseService() -> SupabaseService? {
-        // This is a helper that views can use
-        // In practice, views should use @EnvironmentObject var supabaseService: SupabaseService
-        return nil // Placeholder - views should use @EnvironmentObject
+    
+    /// Configure AuthenticationService with SwiftData/CloudKit
+    static func configureAuthenticationService(
+        _ service: AuthenticationService,
+        modelContext: ModelContext
+    ) {
+        service.configure(modelContext: modelContext)
     }
 }

@@ -16,7 +16,6 @@ struct NomineeManagementView: View {
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var chatService: ChatService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var nomineeService = NomineeService()
     @State private var showError = false
@@ -145,7 +144,6 @@ struct NomineeRow: View {
     @EnvironmentObject var vaultService: VaultService
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var showTransferOwnership = false
     @State private var showError = false

@@ -12,10 +12,12 @@ import CloudKit
 struct ContentView: View {
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     // Use @AppStorage to observe permissions changes
     @AppStorage("permissions_setup_complete") private var permissionsComplete = false
+    @AppStorage("compliance_selection_complete") private var complianceSelectionComplete = false
+    @AppStorage("professional_kyc_enabled") private var professionalKYCEnabled = false
+    @AppStorage("kyc_verification_submitted") private var kycVerificationSubmitted = false
     
     // Deep link handling for nominee invitations and transfer requests
     @State private var pendingInviteToken: String?
@@ -59,6 +61,18 @@ struct ContentView: View {
                 AccountSetupView()
                     .onAppear {
                         print("📱 Showing AccountSetupView")
+                    }
+            } else if needsComplianceSelection {
+                // Then compliance needs detection (replaces role selection)
+                ComplianceNeedsDetectionView()
+                    .onAppear {
+                        print("📱 Showing ComplianceNeedsDetectionView")
+                    }
+            } else if needsProfessionalKYC {
+                // Professional KYC verification (if enabled)
+                ProfessionalKYCView()
+                    .onAppear {
+                        print("📱 Showing ProfessionalKYCView")
                     }
             } else {
                 // Main App - Single role, autopilot mode
@@ -498,6 +512,22 @@ struct ContentView: View {
         // Check if name is missing, empty, or still default "User"
         let name = user.fullName.trimmingCharacters(in: .whitespaces)
         return name.isEmpty || name == "User"
+    }
+    
+    /// Check if user needs to complete compliance selection
+    /// Shows ComplianceNeedsDetectionView after account setup (replaces role selection)
+    private var needsComplianceSelection: Bool {
+        guard authService.isAuthenticated else { return false }
+        return !complianceSelectionComplete
+    }
+    
+    /// Check if user needs to complete professional KYC verification
+    /// Shows ProfessionalKYCView if KYC was enabled but not yet submitted
+    private var needsProfessionalKYC: Bool {
+        guard authService.isAuthenticated,
+              complianceSelectionComplete,
+              professionalKYCEnabled else { return false }
+        return !kycVerificationSubmitted
     }
     
 }

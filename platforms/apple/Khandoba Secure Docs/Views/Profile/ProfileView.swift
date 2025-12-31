@@ -166,6 +166,27 @@ struct ProfileView: View {
                         .listRowBackground(colors.surface)
                         
                         NavigationLink {
+                            DeviceManagementView()
+                        } label: {
+                            HStack(spacing: UnifiedTheme.Spacing.md) {
+                                Image(systemName: "iphone")
+                                    .foregroundColor(colors.primary)
+                                    .frame(width: 24)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Device Management")
+                                        .font(theme.typography.subheadline)
+                                        .foregroundColor(colors.textPrimary)
+                                    
+                                    Text("Authorized devices & security")
+                                        .font(theme.typography.caption)
+                                        .foregroundColor(colors.textSecondary)
+                                }
+                            }
+                        }
+                        .listRowBackground(colors.surface)
+                        
+                        NavigationLink {
                             PrivacyPolicyView()
                         } label: {
                             HStack(spacing: UnifiedTheme.Spacing.md) {

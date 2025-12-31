@@ -24,7 +24,6 @@ struct RedactionView: View {
     @SwiftUI.Environment(\.dismiss) var dismiss
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var documentService: DocumentService
     
     @State private var redactionAreas: [CGRect] = []
@@ -499,30 +498,21 @@ struct RedactionView: View {
                 let (encryptedRedactedData, _) = try EncryptionService.encryptDocument(redactedData, documentID: documentID)
                 
                 // Update document with redacted data
-                if AppConfig.useSupabase {
-                    // Supabase mode: Upload redacted document to storage
-                    try await updateRedactedDocumentInSupabase(
-                        document: document,
-                        encryptedData: encryptedRedactedData,
-                        fileSize: Int64(redactedData.count)
-                    )
-                } else {
-                    // SwiftData mode: Update local document
-                    document.encryptedFileData = encryptedRedactedData
-                    document.fileSize = Int64(redactedData.count)
-                    document.isRedacted = true
-                    document.lastModifiedAt = Date()
-                    
-                    // Mark document as redacted
-                    document.name = document.name.contains("(Redacted)") ? 
-                        document.name : 
-                        document.name + " (Redacted)"
-                    
-                    // Clear extracted text (may contain PHI)
-                    document.extractedText = nil
-                    
-                    try modelContext.save()
-                }
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
+                document.encryptedFileData = encryptedRedactedData
+                document.fileSize = Int64(redactedData.count)
+                document.isRedacted = true
+                document.lastModifiedAt = Date()
+                
+                // Mark document as redacted
+                document.name = document.name.contains("(Redacted)") ? 
+                    document.name : 
+                    document.name + " (Redacted)"
+                
+                // Clear extracted text (may contain PHI)
+                document.extractedText = nil
+                
+                try modelContext.save()
                 
                 // Log redaction event (HIPAA audit requirement)
                 await logRedactionEvent(
@@ -543,46 +533,6 @@ struct RedactionView: View {
         }
     }
     
-    /// Update redacted document in Supabase
-    private func updateRedactedDocumentInSupabase(
-        document: Document,
-        encryptedData: Data,
-        fileSize: Int64
-    ) async throws {
-        guard let supabaseDoc: SupabaseDocument = try? await supabaseService.fetch("documents", id: document.id),
-              let storagePath = supabaseDoc.storagePath else {
-            throw RedactionError.redactionFailed
-        }
-        
-        // Upload redacted encrypted document to Supabase Storage (overwrite existing)
-        _ = try await supabaseService.uploadFile(
-            bucket: SupabaseConfig.encryptedDocumentsBucket,
-            path: storagePath,
-            data: encryptedData
-        )
-        
-        // Update document metadata in Supabase
-        var updatedDoc = supabaseDoc
-        updatedDoc.fileSize = fileSize
-        updatedDoc.isRedacted = true
-        updatedDoc.lastModifiedAt = Date()
-        updatedDoc.name = supabaseDoc.name.contains("(Redacted)") ? 
-            supabaseDoc.name : 
-            supabaseDoc.name + " (Redacted)"
-        updatedDoc.extractedText = nil // Clear extracted text (may contain PHI)
-        
-        _ = try await supabaseService.update("documents", id: document.id, values: updatedDoc)
-        
-        // Update local document model
-        await MainActor.run {
-            document.fileSize = fileSize
-            document.isRedacted = true
-            document.lastModifiedAt = Date()
-            document.name = updatedDoc.name
-            document.extractedText = nil
-        }
-    }
-    
     /// Log redaction event for HIPAA audit trail
     private func logRedactionEvent(redactionAreas: Int, phiMatches: Int, verified: Bool) async {
         guard let vault = document.vault,
@@ -593,45 +543,26 @@ struct RedactionView: View {
         
         let deviceInfo = "Redacted \(redactionAreas) areas, \(phiMatches) PHI matches, verified: \(verified ? "Yes" : "No")"
         
-        if AppConfig.useSupabase {
-            // Create access log in Supabase
-            var accessLog = SupabaseVaultAccessLog(
-                vaultID: vault.id,
-                timestamp: Date(),
-                accessType: "redacted",
-                userID: userID,
-                userName: authService.currentUser?.fullName ?? "User",
-                deviceInfo: deviceInfo
-            )
-            accessLog.documentID = document.id
-            accessLog.documentName = document.name
-            
-            if let location = location {
-                accessLog.locationLatitude = location.coordinate.latitude
-                accessLog.locationLongitude = location.coordinate.longitude
-            }
-            
-            _ = try? await supabaseService.insert("vault_access_logs", values: accessLog)
-        } else {
-            // Create access log in SwiftData
-            let accessLog = VaultAccessLog(
-                accessType: "redacted",
-                userID: userID,
-                userName: authService.currentUser?.fullName
-            )
-            accessLog.vault = vault
-            accessLog.documentID = document.id
-            accessLog.documentName = document.name
-            accessLog.deviceInfo = deviceInfo
-            
-            if let location = location {
-                accessLog.locationLatitude = location.coordinate.latitude
-                accessLog.locationLongitude = location.coordinate.longitude
-            }
-            
-            modelContext.insert(accessLog)
-            try? modelContext.save()
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively - Create comprehensive redaction log
+        let accessLog = VaultAccessLog(
+            accessType: "redacted",
+            userID: userID,
+            userName: authService.currentUser?.fullName
+        )
+        accessLog.vault = vault
+        accessLog.documentID = document.id
+        accessLog.documentName = document.name
+        accessLog.deviceInfo = deviceInfo
+        
+        if let location = location {
+            accessLog.locationLatitude = location.coordinate.latitude
+            accessLog.locationLongitude = location.coordinate.longitude
         }
+        
+        modelContext.insert(accessLog)
+        try? modelContext.save()
+        
+        print("📋 Redaction logged: \(redactionAreas) areas, \(phiMatches) PHI matches")
     }
 }
 

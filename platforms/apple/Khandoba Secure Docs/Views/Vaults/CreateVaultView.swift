@@ -15,7 +15,6 @@ struct CreateVaultView: View {
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var name = ""
     @State private var description = ""
@@ -24,6 +23,8 @@ struct CreateVaultView: View {
     @State private var isLoading = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showDualKeyInvitation = false
+    @State private var createdVault: Vault?
     
     enum KeyType: String, CaseIterable {
         case single = "single"
@@ -39,7 +40,7 @@ struct CreateVaultView: View {
         var description: String {
             switch self {
             case .single: return "You have full access"
-            case .dual: return "Requires admin approval"
+            case .dual: return "Requires second signee approval"
             }
         }
     }
@@ -155,6 +156,22 @@ struct CreateVaultView: View {
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .disabled(name.isEmpty || isLoading)
+                        
+                        // Dual-Key Info
+                        if keyType == .dual {
+                            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
+                                HStack {
+                                    Image(systemName: "info.circle.fill")
+                                        .foregroundColor(colors.info)
+                                    Text("After creating, you'll invite a second signee")
+                                        .font(theme.typography.caption)
+                                        .foregroundColor(colors.textSecondary)
+                                }
+                            }
+                            .padding(UnifiedTheme.Spacing.md)
+                            .background(colors.info.opacity(0.1))
+                            .cornerRadius(UnifiedTheme.CornerRadius.md)
+                        }
                     }
                     .padding(UnifiedTheme.Spacing.lg)
                 }
@@ -179,6 +196,13 @@ struct CreateVaultView: View {
             } message: {
                 Text(errorMessage)
             }
+            .sheet(isPresented: $showDualKeyInvitation) {
+                if let vault = createdVault {
+                    DualKeyInvitationView(vault: vault) {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
     
@@ -190,7 +214,7 @@ struct CreateVaultView: View {
                 await ensureVaultServiceConfigured()
                 
                 // Create vault
-                _ = try await vaultService.createVault(
+                let vault = try await vaultService.createVault(
                     name: name,
                     description: description.isEmpty ? nil : description,
                     keyType: keyType.rawValue,
@@ -198,7 +222,15 @@ struct CreateVaultView: View {
                 )
                 
                 await MainActor.run {
-                    dismiss()
+                    isLoading = false
+                    
+                    // If dual-key, show invitation flow
+                    if keyType == .dual {
+                        createdVault = vault
+                        showDualKeyInvitation = true
+                    } else {
+                        dismiss()
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -212,7 +244,6 @@ struct CreateVaultView: View {
     
     private func ensureVaultServiceConfigured() async {
         // Check if vault service has a user ID configured
-        // If not, configure it with the current user
         guard let userID = authService.currentUser?.id else {
             await MainActor.run {
                 errorMessage = "Please sign in to create a vault."
@@ -222,17 +253,9 @@ struct CreateVaultView: View {
             return
         }
         
-        // Check if service is already configured
-        // We can't directly check, so we'll try to configure it anyway
-        // The configure method is idempotent
-        if AppConfig.useSupabase {
-            await MainActor.run {
-                vaultService.configure(supabaseService: supabaseService, userID: userID)
-            }
-        } else {
-            await MainActor.run {
-                vaultService.configure(modelContext: modelContext, userID: userID)
-            }
+        // Configure with SwiftData/CloudKit
+        await MainActor.run {
+            vaultService.configure(modelContext: modelContext, userID: userID)
         }
     }
 }

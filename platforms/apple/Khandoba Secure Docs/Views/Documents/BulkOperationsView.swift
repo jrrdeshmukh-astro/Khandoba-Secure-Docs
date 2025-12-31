@@ -145,13 +145,13 @@ struct BulkUploadView: View {
                             StandardCard {
                                 VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.md) {
                                     HStack {
-                                        Image(systemName:
-                                                #if os(iOS)
-                                                totalSelectedCount == selectedPhotos.count ? "photo.stack" : "doc.on.doc.fill"
-                                                #else
-                                                "doc.on.doc.fill"
-                                                #endif
-                                        )
+                                        Image(systemName: {
+                                            #if os(iOS)
+                                            return totalSelectedCount == selectedPhotos.count ? "photo.stack" : "doc.on.doc.fill"
+                                            #else
+                                            return "doc.on.doc.fill"
+                                            #endif
+                                        }())
                                         .foregroundColor(colors.info)
                                         
                                         VStack(alignment: .leading, spacing: 4) {

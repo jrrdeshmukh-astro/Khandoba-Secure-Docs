@@ -16,7 +16,6 @@ struct AcceptTransferView: View {
     @SwiftUI.Environment(\.dismiss) var dismiss
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var isLoading = false
     @State private var showError = false

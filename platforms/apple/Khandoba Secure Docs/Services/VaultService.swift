@@ -25,10 +25,9 @@ final class VaultService: ObservableObject {
     @Published var activeSessions: [UUID: VaultSession] = [:]
     
     var modelContext: ModelContext? // Made public for Intel vault access
-    private var supabaseService: SupabaseService?
     private var currentUserID: UUID?
     var currentUser: User? // Added for Intel report access
-    private var dataMergeService = DataMergeService() // For intelligent CloudKit/Supabase merging
+    private var dataMergeService = DataMergeService() // For CloudKit data operations
     
     // Session timeout management
     private var sessionTimeoutTasks: [UUID: Task<Void, Never>] = [:]
@@ -37,12 +36,11 @@ final class VaultService: ObservableObject {
     
     init() {}
     
-    // SwiftData/CloudKit mode
+    // iOS-ONLY: Using SwiftData/CloudKit exclusively
     func configure(modelContext: ModelContext, userID: UUID) {
         self.modelContext = modelContext
-        self.supabaseService = nil
         self.currentUserID = userID
-        dataMergeService.configure(supabaseService: nil, modelContext: modelContext)
+        dataMergeService.configure(modelContext: modelContext)
         
         // Load current user
         Task {
@@ -50,31 +48,6 @@ final class VaultService: ObservableObject {
                 predicate: #Predicate { $0.id == userID }
             )
             currentUser = try? modelContext.fetch(userDescriptor).first
-        }
-    }
-    
-    // Supabase mode
-    func configure(supabaseService: SupabaseService, userID: UUID) {
-        self.supabaseService = supabaseService
-        self.modelContext = nil
-        self.currentUserID = userID
-        dataMergeService.configure(supabaseService: supabaseService, modelContext: nil)
-        
-        // Load current user from Supabase
-        Task {
-            do {
-                let _: SupabaseUser = try await supabaseService.fetch(
-                    "users",
-                    id: userID
-                )
-                // Convert to User model for compatibility
-                await MainActor.run {
-                    // Note: We'll need to create a User from SupabaseUser
-                    // For now, we'll store the SupabaseUser data
-                }
-            } catch {
-                print("⚠️ Failed to load user from Supabase: \(error)")
-            }
         }
     }
     
@@ -88,26 +61,7 @@ final class VaultService: ObservableObject {
             }
         }
         
-        // Supabase mode - exclusive use when enabled
-        if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else {
-                print("❌ VaultService: Supabase mode enabled but SupabaseService not configured")
-                throw VaultError.serviceNotConfigured
-            }
-            guard let userID = currentUserID else {
-                print("❌ VaultService: User ID not available")
-                throw VaultError.serviceNotConfigured
-            }
-            
-            print("📦 Loading vaults from Supabase (user: \(userID))")
-            try await AsyncTimeout.withTimeout(10.0) {
-                try await self.loadVaultsFromSupabase(supabaseService: supabaseService, userID: userID)
-            }
-            print("✅ Loaded \(vaults.count) vault(s) from Supabase")
-            return
-        }
-        
-        // SwiftData/CloudKit mode
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else { return }
         
         // ONE-TIME CLEANUP: Delete Intel Reports vault
@@ -169,105 +123,6 @@ final class VaultService: ObservableObject {
         await loadActiveSessions()
     }
     
-    /// Load vaults from Supabase
-    private func loadVaultsFromSupabase(supabaseService: SupabaseService, userID: UUID) async throws {
-        // RLS automatically filters vaults user has access to
-        let supabaseVaults: [SupabaseVault] = try await supabaseService.fetchAll("vaults", filters: nil)
-        
-        // Convert to Vault models for compatibility
-        // Load anti-vault data first (async operation)
-        var vaultsWithAntiVaults: [Vault] = []
-        for supabaseVault in supabaseVaults {
-            let vault = Vault(
-                name: supabaseVault.name,
-                vaultDescription: supabaseVault.vaultDescription,
-                keyType: supabaseVault.keyType
-            )
-            vault.id = supabaseVault.id
-            vault.createdAt = supabaseVault.createdAt
-            vault.lastAccessedAt = supabaseVault.lastAccessedAt
-            vault.status = supabaseVault.status
-            vault.vaultType = supabaseVault.vaultType
-            vault.isSystemVault = supabaseVault.isSystemVault
-            vault.encryptionKeyData = supabaseVault.encryptionKeyData
-            vault.isEncrypted = supabaseVault.isEncrypted
-            vault.isZeroKnowledge = supabaseVault.isZeroKnowledge
-            vault.relationshipOfficerID = supabaseVault.relationshipOfficerID
-            vault.isAntiVault = supabaseVault.isAntiVault
-            vault.monitoredVaultID = supabaseVault.monitoredVaultID
-            vault.antiVaultID = supabaseVault.antiVaultID
-            vault.isBroadcast = supabaseVault.isBroadcast ?? false
-            vault.accessLevel = supabaseVault.accessLevel ?? "private"
-            
-            // Load anti-vault properties if anti-vault exists
-            if let antiVaultID = supabaseVault.antiVaultID {
-                // Load anti-vault data from Supabase
-                if let antiVault: SupabaseAntiVault = try? await supabaseService.fetch("anti_vaults", id: antiVaultID) {
-                    vault.antiVaultStatus = antiVault.status
-                    vault.antiVaultLastIntelReportID = antiVault.lastIntelReportID
-                    vault.antiVaultLastUnlockedAt = antiVault.lastUnlockedAt
-                    vault.antiVaultCreatedAt = antiVault.createdAt
-                    
-                    // Encode policy and settings
-                    vault.antiVaultAutoUnlockPolicyData = encodeAutoUnlockPolicy(antiVault.autoUnlockPolicy)
-                    vault.antiVaultThreatDetectionSettingsData = encodeThreatDetectionSettings(antiVault.threatDetectionSettings)
-                }
-            }
-            
-            vaultsWithAntiVaults.append(vault)
-        }
-        
-        await MainActor.run {
-            self.vaults = vaultsWithAntiVaults
-        }
-        
-        // Load active sessions
-        await loadActiveSessionsFromSupabase(supabaseService: supabaseService, userID: userID)
-    }
-    
-    /// Load active sessions from Supabase
-    private func loadActiveSessionsFromSupabase(supabaseService: SupabaseService, userID: UUID) async {
-        do {
-            let sessions: [SupabaseVaultSession] = try await supabaseService.fetchAll(
-                "vault_sessions",
-                filters: ["user_id": userID, "is_active": true]
-            )
-            
-            await MainActor.run {
-                for session in sessions {
-                    if session.expiresAt > Date() {
-                        // Session is still active - load it
-                        let vaultSession = VaultSession(
-                            startedAt: session.startedAt,
-                            expiresAt: session.expiresAt,
-                            isActive: session.isActive,
-                            wasExtended: session.wasExtended
-                        )
-                        vaultSession.id = session.id
-                        
-                        // Find vault by ID
-                        if let vault = vaults.first(where: { $0.id == session.vaultID }) {
-                            vaultSession.vault = vault
-                            activeSessions[session.vaultID] = vaultSession
-                            
-                            // Restart timeout timer for this session
-                            startSessionTimeout(for: vault)
-                            
-                            print("✅ Loaded active session for vault '\(vault.name)' (expires in \(Int(session.expiresAt.timeIntervalSinceNow / 60)) minutes)")
-                        }
-                    } else {
-                        // Session has expired - close it in Supabase
-                        print("⚠️ Found expired session for vault ID \(session.vaultID), closing in Supabase...")
-                        Task {
-                            await closeExpiredSessionInSupabase(session: session, supabaseService: supabaseService)
-                        }
-                    }
-                }
-            }
-        } catch {
-            print("⚠️ Failed to load sessions from Supabase: \(error)")
-        }
-    }
     
     /// Clean up orphaned vaults (vaults with no owner or deleted owner)
     /// This prevents CloudKit from restoring vaults after account deletion
@@ -369,27 +224,7 @@ final class VaultService: ObservableObject {
             }
         }
         
-        // Supabase mode - exclusive use when enabled
-        if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else {
-                print("❌ VaultService.createVault: Supabase mode enabled but SupabaseService not configured")
-                throw VaultError.serviceNotConfigured
-            }
-            guard let currentUserID = currentUserID else {
-                print("❌ VaultService.createVault: User ID not available")
-                throw VaultError.userNotFound
-            }
-            return try await createVaultInSupabase(
-                name: name,
-                description: description,
-                keyType: keyType,
-                vaultType: vaultType,
-                supabaseService: supabaseService,
-                userID: currentUserID
-            )
-        }
-        
-        // SwiftData/CloudKit mode (only when useSupabase = false)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext, let currentUserID = currentUserID else {
             throw VaultError.contextNotAvailable
         }
@@ -501,214 +336,15 @@ final class VaultService: ObservableObject {
         try await loadVaults()
     }
     
-    /// Create vault in Supabase
-    private func createVaultInSupabase(
-        name: String,
-        description: String?,
-        keyType: String,
-        vaultType: String,
-        supabaseService: SupabaseService,
-        userID: UUID
-    ) async throws -> Vault {
-        let supabaseVault = SupabaseVault(
-            name: name,
-            vaultDescription: description,
-            ownerID: userID,
-            status: "locked",
-            keyType: keyType,
-            vaultType: vaultType,
-            isSystemVault: false,
-            isEncrypted: true,
-            isZeroKnowledge: true
-        )
-        
-        let created: SupabaseVault = try await supabaseService.insert(
-            "vaults",
-            values: supabaseVault
-        )
-        
-        // Auto-create anti-vault for 1:1 relationship
-        // Note: vault_id must reference an existing vault (the monitored vault)
-        // The anti-vault is embedded in the vault, so vault_id = monitored_vault_id
-        let antiVaultID = UUID()
-        let antiVault = SupabaseAntiVault(
-            id: antiVaultID,
-            vaultID: created.id, // Must reference existing vault (foreign key constraint)
-            monitoredVaultID: created.id, // Monitors the created vault (1:1 relationship)
-            ownerID: userID,
-            status: "locked",
-            autoUnlockPolicy: AutoUnlockPolicy(),
-            threatDetectionSettings: ThreatDetectionSettings(),
-            createdAt: Date(),
-            updatedAt: Date()
-        )
-        
-        // Create anti-vault in Supabase (vault must exist first for foreign key)
-        _ = try await supabaseService.insert("anti_vaults", values: antiVault)
-        
-        // Update vault with anti-vault ID (1:1 relationship)
-        var updatedVault = created
-        updatedVault.antiVaultID = antiVaultID
-        _ = try await supabaseService.update("vaults", id: created.id, values: updatedVault)
-
-        // Create access log
-        var accessLog = SupabaseVaultAccessLog(
-            vaultID: created.id,
-            userID: userID,
-            accessType: "created"
-        )
-        
-        // Add location if available
-        let locationService = await MainActor.run { LocationService() }
-        let location = await MainActor.run { locationService.currentLocation }
-        if let location = location {
-            accessLog.locationLatitude = location.coordinate.latitude
-            accessLog.locationLongitude = location.coordinate.longitude
-        }
-        
-        let _: SupabaseVaultAccessLog = try await supabaseService.insert(
-            "vault_access_logs",
-            values: accessLog
-        )
-        
-        // Create Vault model with all properties
-        let vault = Vault(
-            name: created.name,
-            vaultDescription: created.vaultDescription,
-            keyType: created.keyType
-        )
-        vault.id = created.id
-        vault.createdAt = created.createdAt
-        vault.lastAccessedAt = created.lastAccessedAt
-        vault.status = created.status
-        vault.vaultType = created.vaultType
-        vault.isSystemVault = created.isSystemVault
-        vault.encryptionKeyData = created.encryptionKeyData
-        vault.isEncrypted = created.isEncrypted
-        vault.isZeroKnowledge = created.isZeroKnowledge
-        vault.relationshipOfficerID = created.relationshipOfficerID
-        vault.isAntiVault = created.isAntiVault
-        vault.monitoredVaultID = created.monitoredVaultID
-        vault.antiVaultID = created.antiVaultID
-        vault.isBroadcast = created.isBroadcast ?? false
-        vault.accessLevel = created.accessLevel ?? "private"
-        
-        try await loadVaults()
-        
-        return vault
-    }
     
     /// Load access logs for a vault
     func loadAccessLogs(for vault: Vault) async throws -> [VaultAccessLog] {
-        // Supabase mode - exclusive use when enabled
-        if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else {
-                print("❌ VaultService.loadAccessLogs: Supabase mode enabled but SupabaseService not configured")
-                return []
-            }
-            return try await loadAccessLogsFromSupabase(for: vault, supabaseService: supabaseService)
-        }
-        
-        // SwiftData/CloudKit mode (only when useSupabase = false)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         return vault.accessLogs ?? []
     }
     
-    /// Load access logs from Supabase for a vault
-    private func loadAccessLogsFromSupabase(for vault: Vault, supabaseService: SupabaseService) async throws -> [VaultAccessLog] {
-        // Fetch access logs for this vault
-        let supabaseLogs: [SupabaseVaultAccessLog] = try await supabaseService.fetchAll(
-            "vault_access_logs",
-            filters: ["vault_id": vault.id.uuidString],
-            orderBy: "timestamp",
-            ascending: false
-        )
-        
-        // Convert to VaultAccessLog models
-        return supabaseLogs.map { supabaseLog in
-            let log = VaultAccessLog(
-                timestamp: supabaseLog.timestamp,
-                accessType: supabaseLog.accessType,
-                userID: supabaseLog.userID,
-                userName: supabaseLog.userName,
-                deviceInfo: supabaseLog.deviceInfo
-            )
-            log.id = supabaseLog.id
-            log.locationLatitude = supabaseLog.locationLatitude
-            log.locationLongitude = supabaseLog.locationLongitude
-            log.ipAddress = supabaseLog.ipAddress
-            log.documentID = supabaseLog.documentID
-            log.documentName = supabaseLog.documentName
-            log.vault = vault
-            return log
-        }
-    }
-    
     func deleteVault(_ vault: Vault) async throws {
-        // Supabase mode - exclusive use when enabled
-        if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else {
-                print("❌ VaultService.deleteVault: Supabase mode enabled but SupabaseService not configured")
-                throw VaultError.serviceNotConfigured
-            }
-            
-            // Delete all related data first (cascade delete handled by database or manual deletion)
-            // Delete documents
-            let documents: [SupabaseDocument] = try await supabaseService.fetchAll(
-                "documents",
-                filters: ["vault_id": vault.id]
-            )
-            for document in documents {
-                // Delete document file from storage
-                if let storagePath = document.storagePath {
-                    try? await supabaseService.deleteFile(bucket: "documents", path: storagePath)
-                }
-                // Delete document record
-                try await supabaseService.delete("documents", id: document.id)
-            }
-            
-            // Delete access logs
-            let accessLogs: [SupabaseVaultAccessLog] = try await supabaseService.fetchAll(
-                "vault_access_logs",
-                filters: ["vault_id": vault.id]
-            )
-            for log in accessLogs {
-                try await supabaseService.delete("vault_access_logs", id: log.id)
-            }
-            
-            // Delete sessions
-            let sessions: [SupabaseVaultSession] = try await supabaseService.fetchAll(
-                "vault_sessions",
-                filters: ["vault_id": vault.id]
-            )
-            for session in sessions {
-                try await supabaseService.delete("vault_sessions", id: session.id)
-            }
-            
-            // Delete dual key requests
-            let dualKeyRequests: [SupabaseDualKeyRequest] = try await supabaseService.fetchAll(
-                "dual_key_requests",
-                filters: ["vault_id": vault.id]
-            )
-            for request in dualKeyRequests {
-                try await supabaseService.delete("dual_key_requests", id: request.id)
-            }
-            
-            // Delete nominees
-            let nominees: [SupabaseNominee] = try await supabaseService.fetchAll(
-                "nominees",
-                filters: ["vault_id": vault.id]
-            )
-            for nominee in nominees {
-                try await supabaseService.delete("nominees", id: nominee.id)
-            }
-            
-            // Finally delete the vault
-            try await supabaseService.delete("vaults", id: vault.id)
-            try await loadVaults()
-            return
-        }
-        
-        // SwiftData/CloudKit mode (only when useSupabase = false)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else {
             throw VaultError.contextNotAvailable
         }
@@ -733,17 +369,7 @@ final class VaultService: ObservableObject {
             throw VaultError.userNotFound
         }
         
-        // Supabase mode - exclusive use when enabled
-        if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else {
-                print("❌ VaultService.openVault: Supabase mode enabled but SupabaseService not configured")
-                throw VaultError.serviceNotConfigured
-            }
-            try await openVaultInSupabase(vault: vault, supabaseService: supabaseService, userID: currentUserID)
-            return
-        }
-        
-        // SwiftData/CloudKit mode (only when useSupabase = false)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else {
             throw VaultError.contextNotAvailable
         }
@@ -773,7 +399,6 @@ final class VaultService: ObservableObject {
                     let service = DualKeyApprovalService()
                     service.configure(
                         modelContext: modelContext,
-                        supabaseService: supabaseService,
                         vaultService: self
                     )
                     return service
@@ -830,7 +455,6 @@ final class VaultService: ObservableObject {
                     let service = DualKeyApprovalService()
                     service.configure(
                         modelContext: modelContext,
-                        supabaseService: supabaseService,
                         vaultService: self
                     )
                     return service
@@ -961,358 +585,6 @@ final class VaultService: ObservableObject {
         try await loadVaults()
     }
     
-    /// Open vault in Supabase mode
-    private func openVaultInSupabase(
-        vault: Vault,
-        supabaseService: SupabaseService,
-        userID: UUID
-    ) async throws {
-        print("🔓 Opening vault in Supabase mode: \(vault.name)")
-        
-        // Check if vault requires dual-key approval
-        if vault.keyType == "dual" {
-            // Check for existing pending requests in Supabase
-            do {
-                let existingRequests: [SupabaseDualKeyRequest] = try await supabaseService.fetchAll(
-                    "dual_key_requests",
-                    filters: [
-                        "vault_id": vault.id.uuidString,
-                        "requester_id": userID.uuidString,
-                        "status": "pending"
-                    ]
-                )
-                
-                if let existingRequest = existingRequests.first {
-                    print(" Pending request already exists for vault: \(vault.name)")
-                    print("   Request ID: \(existingRequest.id)")
-                    print("   Requested: \(existingRequest.requestedAt)")
-                    print("   → Processing existing request with ML")
-                    
-                    // Convert to DualKeyRequest for processing
-                    let request = DualKeyRequest(
-                        id: existingRequest.id,
-                        requestedAt: existingRequest.requestedAt,
-                        status: existingRequest.status,
-                        reason: existingRequest.reason
-                    )
-                    request.vault = vault
-                    
-                    // Configure approval service
-                    let approvalService = await Task { @MainActor in
-                        let service = DualKeyApprovalService()
-                        service.configure(
-                            modelContext: nil, // Supabase mode
-                            supabaseService: supabaseService,
-                            vaultService: self
-                        )
-                        return service
-                    }.value
-                    
-                    do {
-                        let decision = try await approvalService.processDualKeyRequest(request, vault: vault)
-                        
-                        switch decision.action {
-                        case .autoApproved:
-                            print(" ML AUTO-APPROVED: Access granted")
-                            // Update request status in Supabase
-                            var updatedRequest = existingRequest
-                            updatedRequest.status = "approved"
-                            updatedRequest.approvedAt = Date()
-                            updatedRequest.mlScore = decision.mlScore
-                            updatedRequest.logicalReasoning = decision.logicalReasoning
-                            updatedRequest.decisionMethod = "ml_auto"
-                            updatedRequest.reason = decision.reason
-                            updatedRequest.updatedAt = Date()
-                            
-                            let _: SupabaseDualKeyRequest = try await supabaseService.update(
-                                "dual_key_requests",
-                                id: existingRequest.id,
-                                values: updatedRequest
-                            )
-                            
-                            // Continue to session creation below
-                            
-                        case .autoDenied:
-                            print(" ML AUTO-DENIED: Access denied")
-                            // Update request status in Supabase
-                            var updatedRequest = existingRequest
-                            updatedRequest.status = "denied"
-                            updatedRequest.deniedAt = Date()
-                            updatedRequest.mlScore = decision.mlScore
-                            updatedRequest.logicalReasoning = decision.logicalReasoning
-                            updatedRequest.decisionMethod = "ml_auto"
-                            updatedRequest.reason = decision.reason
-                            updatedRequest.updatedAt = Date()
-                            
-                            let _: SupabaseDualKeyRequest = try await supabaseService.update(
-                                "dual_key_requests",
-                                id: existingRequest.id,
-                                values: updatedRequest
-                            )
-                            
-                            throw VaultError.accessDenied
-                        }
-                    } catch {
-                        print(" ML processing error: \(error)")
-                        throw VaultError.awaitingApproval
-                    }
-                } else {
-                    // No existing pending request - create new one
-                    let request = SupabaseDualKeyRequest(
-                        vaultID: vault.id,
-                        requesterID: userID,
-                        requestedAt: Date(),
-                        status: "pending",
-                        reason: "Requesting vault access"
-                    )
-                    
-                    print("📝 Creating dual-key request in Supabase...")
-                    let createdRequest: SupabaseDualKeyRequest = try await supabaseService.insert(
-                        "dual_key_requests",
-                        values: request
-                    )
-                    print("✅ Dual-key request created (ID: \(createdRequest.id))")
-                    
-                    // Convert to DualKeyRequest for processing
-                    let dualKeyRequest = DualKeyRequest(
-                        id: createdRequest.id,
-                        requestedAt: createdRequest.requestedAt,
-                        status: createdRequest.status,
-                        reason: createdRequest.reason
-                    )
-                    dualKeyRequest.vault = vault
-                    
-                    // AUTOMATIC ML-BASED APPROVAL/DENIAL
-                    print(" Dual-key request created - initiating ML analysis...")
-                    
-                    // Configure approval service
-                    let approvalService = await Task { @MainActor in
-                        let service = DualKeyApprovalService()
-                        service.configure(
-                            modelContext: nil, // Supabase mode
-                            supabaseService: supabaseService,
-                            vaultService: self
-                        )
-                        return service
-                    }.value
-                    
-                    do {
-                        // Process with ML
-                        let decision = try await approvalService.processDualKeyRequest(dualKeyRequest, vault: vault)
-                        
-                        // Check the automatic decision
-                        switch decision.action {
-                        case .autoApproved:
-                            print(" ML AUTO-APPROVED: Access granted automatically")
-                            print("   Confidence: \(Int(decision.confidence * 100))%")
-                            let reasoningPreview = decision.logicalReasoning.isEmpty ? "N/A" : String(decision.logicalReasoning.prefix(200))
-                            print("   Reasoning: \(reasoningPreview)...")
-                            
-                            // Update request status in Supabase
-                            var updatedRequest = createdRequest
-                            updatedRequest.status = "approved"
-                            updatedRequest.approvedAt = Date()
-                            updatedRequest.mlScore = decision.mlScore
-                            updatedRequest.logicalReasoning = decision.logicalReasoning
-                            updatedRequest.decisionMethod = "ml_auto"
-                            updatedRequest.reason = decision.reason
-                            updatedRequest.updatedAt = Date()
-                            
-                            let _: SupabaseDualKeyRequest = try await supabaseService.update(
-                                "dual_key_requests",
-                                id: createdRequest.id,
-                                values: updatedRequest
-                            )
-                            
-                            // Request is now approved - continue with session creation below
-                            
-                        case .autoDenied:
-                            print(" ML AUTO-DENIED: Access denied automatically")
-                            print("   Confidence: \(Int(decision.confidence * 100))%")
-                            let reasoningPreview = decision.logicalReasoning.isEmpty ? "N/A" : String(decision.logicalReasoning.prefix(200))
-                            print("   Reasoning: \(reasoningPreview)...")
-                            
-                            // Update request status in Supabase
-                            var updatedRequest = createdRequest
-                            updatedRequest.status = "denied"
-                            updatedRequest.deniedAt = Date()
-                            updatedRequest.mlScore = decision.mlScore
-                            updatedRequest.logicalReasoning = decision.logicalReasoning
-                            updatedRequest.decisionMethod = "ml_auto"
-                            updatedRequest.reason = decision.reason
-                            updatedRequest.updatedAt = Date()
-                            
-                            let _: SupabaseDualKeyRequest = try await supabaseService.update(
-                                "dual_key_requests",
-                                id: createdRequest.id,
-                                values: updatedRequest
-                            )
-                            
-                            throw VaultError.accessDenied
-                        }
-                        
-                        // If approved, continue to create session
-                        print("    Proceeding with vault access...")
-                        
-                    } catch {
-                        print(" ML processing error: \(error)")
-                        // Fallback: treat as denied for security
-                        throw VaultError.awaitingApproval
-                    }
-                }
-            } catch {
-                print("⚠️ Failed to check/create dual-key request: \(error.localizedDescription)")
-                // For security, deny access if we can't check dual-key status
-                if vault.keyType == "dual" {
-                    throw VaultError.awaitingApproval
-                }
-            }
-        }
-        
-        // Get location for access log
-        let locationService = await MainActor.run { LocationService() }
-        let currentLocation = await MainActor.run { locationService.currentLocation }
-        if currentLocation == nil {
-            await locationService.requestLocationPermission()
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
-        }
-        let finalLocation = await MainActor.run { locationService.currentLocation }
-        
-        // Get device info
-        #if os(iOS) || os(tvOS)
-        let deviceInfo = UIDevice.current.model + " " + (UIDevice.current.systemVersion)
-        #elseif os(macOS)
-        let deviceInfo = "Mac"
-        #else
-        let deviceInfo = "Unknown"
-        #endif
-        
-        // Get user name
-        var userName: String? = nil
-        do {
-            let supabaseUser: SupabaseUser = try await supabaseService.fetch("users", id: userID)
-            userName = supabaseUser.fullName
-        } catch {
-            print("⚠️ Failed to fetch user name: \(error)")
-        }
-        
-        // Create vault session in Supabase
-        let expiresAt = Date().addingTimeInterval(sessionTimeout)
-        let supabaseSession = SupabaseVaultSession(
-            vaultID: vault.id,
-            userID: userID,
-            startedAt: Date(),
-            expiresAt: expiresAt,
-            isActive: true,
-            wasExtended: false
-        )
-        
-        print("📝 Creating vault session in Supabase...")
-        let createdSession: SupabaseVaultSession
-        do {
-            createdSession = try await supabaseService.insert(
-                "vault_sessions",
-                values: supabaseSession
-            )
-            print("✅ Vault session created (ID: \(createdSession.id))")
-        } catch {
-            print("❌ Failed to create vault session: \(error.localizedDescription)")
-            throw error
-        }
-        
-        // Create local VaultSession for compatibility
-        let vaultSession = VaultSession(
-            startedAt: createdSession.startedAt,
-            expiresAt: createdSession.expiresAt,
-            isActive: createdSession.isActive,
-            wasExtended: createdSession.wasExtended
-        )
-        vaultSession.id = createdSession.id
-        vaultSession.vault = vault
-        
-        // Update vault status
-        vault.status = "active"
-        vault.lastAccessedAt = Date()
-        
-        // Create access log in Supabase
-        var accessLog = SupabaseVaultAccessLog(
-            vaultID: vault.id,
-            userID: userID,
-            userName: userName,
-            timestamp: Date(),
-            accessType: "opened",
-            deviceInfo: deviceInfo
-        )
-        
-        // Add location data
-        if let location = finalLocation {
-            accessLog.locationLatitude = location.coordinate.latitude
-            accessLog.locationLongitude = location.coordinate.longitude
-            print("   Location logged: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-        } else {
-            // Use default coordinates if location unavailable
-            accessLog.locationLatitude = 37.7749
-            accessLog.locationLongitude = -122.4194
-            print("   Using default location (permissions may be denied)")
-        }
-        
-        print("📝 Creating access log in Supabase...")
-        do {
-            let _: SupabaseVaultAccessLog = try await supabaseService.insert(
-                "vault_access_logs",
-                values: accessLog
-            )
-            print("✅ Access log created")
-        } catch {
-            print("⚠️ Failed to create access log: \(error.localizedDescription)")
-            // Continue anyway - session is more important
-        }
-        
-        // Update vault in Supabase (fetch first to get ownerID)
-        do {
-            // Fetch existing vault to get ownerID (it's a let constant)
-            let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: vault.id)
-            
-            // Create updated vault with mutable fields
-            let updatedVault = SupabaseVault(
-                id: existingVault.id,
-                name: existingVault.name,
-                vaultDescription: existingVault.vaultDescription,
-                ownerID: existingVault.ownerID, // Use existing ownerID
-                createdAt: existingVault.createdAt,
-                lastAccessedAt: Date(),
-                status: "active",
-                keyType: existingVault.keyType,
-                vaultType: existingVault.vaultType,
-                isSystemVault: existingVault.isSystemVault,
-                encryptionKeyData: existingVault.encryptionKeyData,
-                isEncrypted: existingVault.isEncrypted,
-                isZeroKnowledge: existingVault.isZeroKnowledge,
-                relationshipOfficerID: existingVault.relationshipOfficerID,
-                updatedAt: Date()
-            )
-            
-            let _: SupabaseVault = try await supabaseService.update(
-                "vaults",
-                id: vault.id,
-                values: updatedVault
-            )
-            print("✅ Vault status updated")
-        } catch {
-            print("⚠️ Failed to update vault status: \(error.localizedDescription)")
-            // Continue anyway - session is more important
-        }
-        
-        // Store session locally
-        await MainActor.run {
-            activeSessions[vault.id] = vaultSession
-        }
-        
-        // Start session timeout timer
-        startSessionTimeout(for: vault)
-        
-        print("✅ Vault opened successfully")
-    }
     
     // MARK: - Nominee Access Management
     
@@ -1413,31 +685,9 @@ final class VaultService: ObservableObject {
         let newExpiresAt = Date().addingTimeInterval(activityExtension)
         session.expiresAt = newExpiresAt
         
-        // Update session in Supabase if in Supabase mode
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            do {
-                let existingSession: SupabaseVaultSession = try await supabaseService.fetch("vault_sessions", id: session.id)
-                let updatedSession = SupabaseVaultSession(
-                    id: existingSession.id,
-                    vaultID: existingSession.vaultID,
-                    userID: existingSession.userID,
-                    startedAt: existingSession.startedAt,
-                    expiresAt: newExpiresAt,
-                    isActive: existingSession.isActive,
-                    wasExtended: true,
-                    createdAt: existingSession.createdAt,
-                    updatedAt: Date()
-                )
-                _ = try await supabaseService.update("vault_sessions", id: session.id, values: updatedSession)
-                print("✅ Session extended in Supabase (new expiration: \(newExpiresAt))")
-            } catch {
-                print("⚠️ Failed to update session expiration in Supabase: \(error.localizedDescription)")
-            }
-        } else {
-            // SwiftData mode - save to model context
-            if let modelContext = modelContext {
-                try? modelContext.save()
-            }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        if let modelContext = modelContext {
+            try? modelContext.save()
         }
         
         // Restart timeout timer with new expiration time
@@ -1461,54 +711,7 @@ final class VaultService: ObservableObject {
     private func logVaultActivity(_ vault: Vault, activityType: String) async {
         guard let currentUserID = currentUserID else { return }
         
-        // Supabase mode - exclusive use when enabled
-        if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else { return }
-            
-            // Get current location if available
-            var locationLatitude: Double? = nil
-            var locationLongitude: Double? = nil
-            
-            #if !os(tvOS)
-            // Get location from LocationService (not available on tvOS)
-            let locationService = await MainActor.run { LocationService() }
-            if let location = await locationService.getCurrentLocation() {
-                locationLatitude = location.coordinate.latitude
-                locationLongitude = location.coordinate.longitude
-            }
-            #endif
-            
-            // Get device info (platform-specific)
-            #if os(iOS) || os(tvOS)
-            let deviceInfo = UIDevice.current.model
-            #elseif os(macOS)
-            let deviceInfo = "Mac"
-            #else
-            let deviceInfo = "Unknown"
-            #endif
-            
-            // Create access log in Supabase
-            let accessLog = SupabaseVaultAccessLog(
-                vaultID: vault.id,
-                userID: currentUserID,
-                userName: currentUser?.fullName,
-                timestamp: Date(),
-                accessType: activityType,
-                deviceInfo: deviceInfo,
-                locationLatitude: locationLatitude,
-                locationLongitude: locationLongitude
-            )
-            
-            do {
-                _ = try await supabaseService.insert("vault_access_logs", values: accessLog)
-                print("✅ Logged vault activity to Supabase: \(activityType)")
-            } catch {
-                print("⚠️ Failed to log vault activity to Supabase: \(error.localizedDescription)")
-            }
-            return
-        }
-        
-        // SwiftData/CloudKit mode (only when useSupabase = false)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else { return }
         
         let accessLog = VaultAccessLog(
@@ -1544,17 +747,7 @@ final class VaultService: ObservableObject {
             throw VaultError.userNotFound
         }
         
-        // Supabase mode - exclusive use when enabled
-        if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else {
-                print("❌ VaultService.closeVault: Supabase mode enabled but SupabaseService not configured")
-                throw VaultError.serviceNotConfigured
-            }
-            try await closeVaultInSupabase(vault: vault, supabaseService: supabaseService, userID: currentUserID)
-            return
-        }
-        
-        // SwiftData/CloudKit mode (only when useSupabase = false)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else {
             throw VaultError.contextNotAvailable
         }
@@ -1610,149 +803,7 @@ final class VaultService: ObservableObject {
         try? await loadVaults()
     }
     
-    /// Close expired session in Supabase
-    private func closeExpiredSessionInSupabase(session: SupabaseVaultSession, supabaseService: SupabaseService) async {
-        do {
-            let updatedSession = SupabaseVaultSession(
-                id: session.id,
-                vaultID: session.vaultID,
-                userID: session.userID,
-                startedAt: session.startedAt,
-                expiresAt: session.expiresAt,
-                isActive: false,
-                wasExtended: session.wasExtended,
-                createdAt: session.createdAt,
-                updatedAt: Date()
-            )
-            let _: SupabaseVaultSession = try await supabaseService.update(
-                "vault_sessions",
-                id: session.id,
-                values: updatedSession
-            )
-            
-            // Update vault status to locked
-            let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: session.vaultID)
-            let updatedVault = SupabaseVault(
-                id: existingVault.id,
-                name: existingVault.name,
-                vaultDescription: existingVault.vaultDescription,
-                ownerID: existingVault.ownerID,
-                createdAt: existingVault.createdAt,
-                lastAccessedAt: existingVault.lastAccessedAt,
-                status: "locked",
-                keyType: existingVault.keyType,
-                vaultType: existingVault.vaultType,
-                isSystemVault: existingVault.isSystemVault,
-                encryptionKeyData: existingVault.encryptionKeyData,
-                isEncrypted: existingVault.isEncrypted,
-                isZeroKnowledge: existingVault.isZeroKnowledge,
-                relationshipOfficerID: existingVault.relationshipOfficerID,
-                updatedAt: Date()
-            )
-            let _: SupabaseVault = try await supabaseService.update("vaults", id: session.vaultID, values: updatedVault)
-            
-            // Remove from local active sessions
-            await MainActor.run {
-                activeSessions.removeValue(forKey: session.vaultID)
-                sessionTimeoutTasks[session.vaultID]?.cancel()
-                sessionTimeoutTasks.removeValue(forKey: session.vaultID)
-            }
-            
-            print("✅ Expired session closed in Supabase for vault ID: \(session.vaultID)")
-        } catch {
-            print("⚠️ Failed to close expired session in Supabase: \(error.localizedDescription)")
-        }
-    }
     
-    /// Close/lock vault in Supabase mode
-    private func closeVaultInSupabase(
-        vault: Vault,
-        supabaseService: SupabaseService,
-        userID: UUID
-    ) async throws {
-        print("🔒 Locking vault in Supabase mode: \(vault.name)")
-        
-        // Get location and device info
-        let locationService = await MainActor.run { LocationService() }
-        let location = await MainActor.run { locationService.currentLocation }
-        #if os(iOS) || os(tvOS)
-        let deviceInfo = UIDevice.current.model
-        #elseif os(macOS)
-        let deviceInfo = "Mac"
-        #else
-        let deviceInfo = "Unknown"
-        #endif
-        
-        // Update vault status to "locked" in Supabase
-        let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: vault.id)
-        let updatedVault = SupabaseVault(
-            id: existingVault.id,
-            name: existingVault.name,
-            vaultDescription: existingVault.vaultDescription,
-            ownerID: existingVault.ownerID,
-            createdAt: existingVault.createdAt,
-            lastAccessedAt: existingVault.lastAccessedAt,
-            status: "locked",
-            keyType: existingVault.keyType,
-            vaultType: existingVault.vaultType,
-            isSystemVault: existingVault.isSystemVault,
-            encryptionKeyData: existingVault.encryptionKeyData,
-            isEncrypted: existingVault.isEncrypted,
-            isZeroKnowledge: existingVault.isZeroKnowledge,
-            relationshipOfficerID: existingVault.relationshipOfficerID,
-            updatedAt: Date()
-        )
-        _ = try await supabaseService.update("vaults", id: vault.id, values: updatedVault)
-        
-        // End all active sessions for this vault
-        let supabaseSessions: [SupabaseVaultSession] = try await supabaseService.fetchAll(
-            "vault_sessions",
-            filters: ["vault_id": vault.id.uuidString, "is_active": true]
-        )
-        
-        for session in supabaseSessions {
-            // Create updated session with same ID and all required fields
-            let updatedSession = SupabaseVaultSession(
-                id: session.id,
-                vaultID: session.vaultID,
-                userID: session.userID,
-                startedAt: session.startedAt,
-                expiresAt: session.expiresAt,
-                isActive: false,
-                wasExtended: session.wasExtended,
-                createdAt: session.createdAt,
-                updatedAt: Date()
-            )
-            _ = try await supabaseService.update("vault_sessions", id: session.id, values: updatedSession)
-        }
-        
-        // Create access log
-        var accessLog = SupabaseVaultAccessLog(
-            vaultID: vault.id,
-            userID: userID,
-            userName: currentUser?.fullName ?? "User",
-            timestamp: Date(),
-            accessType: "closed",
-            deviceInfo: deviceInfo
-        )
-        
-        if let location = location {
-            accessLog.locationLatitude = location.coordinate.latitude
-            accessLog.locationLongitude = location.coordinate.longitude
-        }
-        
-        _ = try await supabaseService.insert("vault_access_logs", values: accessLog)
-        
-        // Update local state
-        await MainActor.run {
-            vault.status = "locked"
-            self.activeSessions.removeValue(forKey: vault.id)
-            sessionTimeoutTasks[vault.id]?.cancel()
-            sessionTimeoutTasks.removeValue(forKey: vault.id)
-        }
-        
-        print("✅ Vault locked successfully")
-    }
     
     func hasActiveSession(for vaultID: UUID) -> Bool {
         if let session = activeSessions[vaultID] {
@@ -1807,17 +858,7 @@ final class VaultService: ObservableObject {
     }
     
     func ensureIntelVaultExists(for user: User) async throws {
-        // Supabase mode - exclusive use when enabled
-        if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else {
-                print("❌ VaultService.ensureIntelVaultExists: Supabase mode enabled but SupabaseService not configured")
-                throw VaultError.serviceNotConfigured
-            }
-            try await ensureIntelVaultExistsInSupabase(userID: user.id, supabaseService: supabaseService)
-            return
-        }
-        
-        // SwiftData/CloudKit mode (only when useSupabase = false)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else {
             throw VaultError.contextNotAvailable
         }
@@ -1850,47 +891,23 @@ final class VaultService: ObservableObject {
         }
     }
     
-    /// Ensure Intel Vault exists in Supabase (overload for UUID)
+    /// Ensure Intel Vault exists (overload for UUID)
     func ensureIntelVaultExists(for userID: UUID) async throws {
-        if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else {
-                print("❌ VaultService.ensureIntelVaultExists: Supabase mode enabled but SupabaseService not configured")
-                throw VaultError.serviceNotConfigured
-            }
-            try await ensureIntelVaultExistsInSupabase(userID: userID, supabaseService: supabaseService)
-            return
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
+            throw VaultError.contextNotAvailable
         }
-        throw VaultError.contextNotAvailable
-    }
-    
-    /// Ensure Intel Vault exists in Supabase
-    private func ensureIntelVaultExistsInSupabase(userID: UUID, supabaseService: SupabaseService) async throws {
-        // Check if Intel Reports vault already exists
-        let allVaults: [SupabaseVault] = try await supabaseService.fetchAll("vaults", filters: nil)
-        let existing = allVaults.first { $0.name == "Intel Reports" && $0.ownerID == userID }
         
-        if existing == nil {
-            // Create Intel Reports vault (dual-key, system vault)
-            let intelVault = SupabaseVault(
-                name: "Intel Reports",
-                vaultDescription: "AI-generated voice memo intelligence reports from cross-document analysis. Listen to compiled insights about your documents.",
-                ownerID: userID,
-                status: "locked",
-                keyType: "dual", // Always dual-key for security
-                vaultType: "both",
-                isSystemVault: true, // Mark as system vault - read-only for users
-                isEncrypted: true,
-                isZeroKnowledge: true
-            )
-            
-            let _: SupabaseVault = try await supabaseService.insert(
-                "vaults",
-                values: intelVault
-            )
-            
-            // Reload vaults to include new Intel Vault
-            try await loadVaults()
+        // Find user by ID
+        let userDescriptor = FetchDescriptor<User>(
+            predicate: #Predicate { $0.id == userID }
+        )
+        guard let user = try modelContext.fetch(userDescriptor).first else {
+            throw VaultError.userNotFound
         }
+        
+        // Use the User-based method
+        try await ensureIntelVaultExists(for: user)
     }
     
     // MARK: - Transfer Ownership
@@ -1899,24 +916,7 @@ final class VaultService: ObservableObject {
     /// This is called when a nominee accepts a transfer invitation
     /// IMPORTANT: Only nominated users can receive ownership
     func transferOwnership(vault: Vault, to newOwnerID: UUID) async throws {
-        // Supabase mode - exclusive use when enabled
-        if AppConfig.useSupabase {
-            guard let supabaseService = supabaseService else {
-                print("❌ VaultService.transferOwnership: Supabase mode enabled but SupabaseService not configured")
-                throw VaultError.serviceNotConfigured
-            }
-            // Validate nominee status in Supabase
-            try await validateNomineeForTransfer(vault: vault, newOwnerID: newOwnerID, supabaseService: supabaseService)
-            
-            try await transferOwnershipInSupabase(
-                vault: vault,
-                newOwnerID: newOwnerID,
-                supabaseService: supabaseService
-            )
-            return
-        }
-        
-        // SwiftData/CloudKit mode
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else {
             throw VaultError.contextNotAvailable
         }
@@ -1961,111 +961,8 @@ final class VaultService: ObservableObject {
     }
     
     /// Validate that a user is a nominee before allowing ownership transfer
-    private func validateNomineeForTransfer(vault: Vault, newOwnerID: UUID, modelContext: ModelContext) throws {
-        // Fetch all accepted nominees and filter by vault in code (SwiftData predicate limitation with optionals)
-        let nomineeDescriptor = FetchDescriptor<Nominee>(
-            predicate: #Predicate { nominee in
-                nominee.statusRaw == "accepted"
-            }
-        )
-        
-        let allNominees = try modelContext.fetch(nomineeDescriptor)
-        let nominees = allNominees.filter { $0.vault?.id == vault.id }
-        
-        // Check if new owner matches any nominee by user ID (via email lookup)
-        let userDescriptor = FetchDescriptor<User>(
-            predicate: #Predicate { $0.id == newOwnerID }
-        )
-        
-        guard let newOwner = try modelContext.fetch(userDescriptor).first else {
-            throw VaultError.userNotFound
-        }
-        
-        // Check if nominee matches the user by email
-        // Note: User model doesn't have phoneNumber, so we only check email
-        let isNominee = nominees.contains { nominee in
-            if let nomineeEmail = nominee.email, !nomineeEmail.isEmpty,
-               let userEmail = newOwner.email, !userEmail.isEmpty,
-               nomineeEmail.lowercased() == userEmail.lowercased() {
-                return true
-            }
-            return false
-        }
-        
-        guard isNominee else {
-            throw VaultError.transferOwnershipRestricted("Ownership can only be transferred to users who are already nominated and have accepted their invitation for this vault.")
-        }
-    }
     
-    /// Validate nominee for transfer in Supabase mode
-    private func validateNomineeForTransfer(vault: Vault, newOwnerID: UUID, supabaseService: SupabaseService) async throws {
-        // Fetch nominees for this vault from Supabase
-        let nominees: [SupabaseNominee] = try await supabaseService.fetchAll(
-            "nominees",
-            filters: ["vault_id": vault.id.uuidString, "status": "accepted"]
-        )
-        
-        // Check if new owner is a nominee by userID
-        let isNominee = nominees.contains { nominee in
-            nominee.userID == newOwnerID
-        }
-        
-        guard isNominee else {
-            throw VaultError.transferOwnershipRestricted("Ownership can only be transferred to users who are already nominated and have accepted their invitation for this vault.")
-        }
-    }
     
-    /// Transfer vault ownership in Supabase
-    private func transferOwnershipInSupabase(
-        vault: Vault,
-        newOwnerID: UUID,
-        supabaseService: SupabaseService
-    ) async throws {
-        print("🔄 Transferring vault ownership in Supabase: \(vault.name) → User ID: \(newOwnerID)")
-        print("🔄 Transferring vault ownership in Supabase: \(vault.name)")
-        
-        // Fetch existing vault to get all required fields
-        let existingVault: SupabaseVault = try await supabaseService.fetch("vaults", id: vault.id)
-        
-        // Create updated vault with new owner
-        let updatedVault = SupabaseVault(
-            id: existingVault.id,
-            name: existingVault.name,
-            vaultDescription: existingVault.vaultDescription,
-            ownerID: newOwnerID, // New owner
-            createdAt: existingVault.createdAt,
-            lastAccessedAt: existingVault.lastAccessedAt,
-            status: existingVault.status,
-            keyType: existingVault.keyType,
-            vaultType: existingVault.vaultType,
-            isSystemVault: existingVault.isSystemVault,
-            encryptionKeyData: existingVault.encryptionKeyData,
-            isEncrypted: existingVault.isEncrypted,
-            isZeroKnowledge: existingVault.isZeroKnowledge,
-            relationshipOfficerID: existingVault.relationshipOfficerID,
-            updatedAt: Date()
-        )
-        
-        // Update vault in Supabase
-        let _: SupabaseVault = try await supabaseService.update(
-            "vaults",
-            id: vault.id,
-            values: updatedVault
-        )
-        
-        // Update local vault model
-        await MainActor.run {
-            // Note: In Supabase mode, vault.owner is not directly used
-            // The ownership is tracked in the database via owner_id
-            // We update the local vault for UI consistency
-            vault.lastAccessedAt = Date()
-        }
-        
-        // Reload vaults to reflect ownership change
-        try await loadVaults()
-        
-        print("✅ Vault ownership transferred in Supabase: \(vault.name) → User ID: \(newOwnerID)")
-    }
     
     // MARK: - Anti-Vault Encoding Helpers
     
@@ -2096,72 +993,18 @@ final class VaultService: ObservableObject {
     /// Create or get the "Open Street" broadcast vault
     /// Broadcast vaults are publicly accessible to all users
     func createOrGetOpenStreetVault() async throws -> Vault {
-        // Supabase mode
-        if AppConfig.useSupabase {
-            guard let supabaseService = self.supabaseService else {
-                throw VaultError.serviceNotConfigured
-            }
-            
-            // Check if "Open Street" vault exists (search by name and is_broadcast flag)
-            let allVaults: [SupabaseVault] = try await supabaseService.fetchAll("vaults")
-            let existing = allVaults.first { $0.name == "Open Street" && ($0.isBroadcast == true) }
-            
-            if let existingVault = existing {
-                // Convert to Vault model
-                let vault = Vault(name: existingVault.name, vaultDescription: existingVault.vaultDescription, keyType: existingVault.keyType)
-                vault.id = existingVault.id
-                vault.isBroadcast = existingVault.isBroadcast ?? true
-                vault.accessLevel = existingVault.accessLevel ?? "public_read"
-                return vault
-            }
-            
-            // Create "Open Street" vault
-            let openStreetVault = SupabaseVault(
-                name: "Open Street",
-                vaultDescription: "A public vault for everyone to share and access documents",
-                ownerID: self.currentUserID ?? UUID(),
-                status: "active",
-                keyType: "single",
-                vaultType: "both",
-                isSystemVault: false,
-                isEncrypted: true,
-                isZeroKnowledge: true,
-                isBroadcast: true,
-                accessLevel: "public_read"
-            )
-            
-            let created: SupabaseVault = try await supabaseService.insert(
-                "vaults",
-                values: openStreetVault
-            )
-            
-            let vault = Vault(name: created.name, vaultDescription: created.vaultDescription, keyType: created.keyType)
-            vault.id = created.id
-            vault.isBroadcast = created.isBroadcast ?? true
-            vault.accessLevel = created.accessLevel ?? "public_read"
-            
-            // Reload vaults to include the new broadcast vault
-            try await self.loadVaults()
-            
-            print("✅ Created 'Open Street' broadcast vault: \(vault.id)")
-            return vault
-        }
-        
-        // SwiftData/CloudKit mode
-        guard let modelContext = self.modelContext else {
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
             throw VaultError.contextNotAvailable
         }
         
         // Check if "Open Street" vault exists
         let descriptor = FetchDescriptor<Vault>(
-            predicate: #Predicate { vault in
-                vault.name == "Open Street" && vault.isBroadcast == true
-            }
+            predicate: #Predicate { $0.name == "Open Street" && $0.isBroadcast == true }
         )
         
-        if let existingVault = try? modelContext.fetch(descriptor).first {
-            print("✅ Found existing 'Open Street' broadcast vault")
-            return existingVault
+        if let existing = try modelContext.fetch(descriptor).first {
+            return existing
         }
         
         // Create "Open Street" vault
@@ -2173,6 +1016,7 @@ final class VaultService: ObservableObject {
         openStreetVault.isBroadcast = true
         openStreetVault.accessLevel = "public_read"
         openStreetVault.status = "active"
+        openStreetVault.vaultType = "both"
         
         // Set owner (use current user or leave nil for system vault)
         if let currentUserID = self.currentUserID {
@@ -2208,7 +1052,7 @@ enum VaultError: LocalizedError {
         case .contextNotAvailable:
             return "Database context not available"
         case .serviceNotConfigured:
-            return "Service not configured. Please ensure Supabase is properly initialized."
+            return "Service not configured. Please ensure CloudKit is properly initialized."
         case .userNotFound:
             return "Current user not found"
         case .accessDenied:

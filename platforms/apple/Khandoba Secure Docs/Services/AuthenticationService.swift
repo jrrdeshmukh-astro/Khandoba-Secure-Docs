@@ -10,7 +10,7 @@ import SwiftUI
 import AuthenticationServices
 import SwiftData
 import Combine
-import Supabase
+// Supabase removed - iOS-only uses CloudKit
 import CryptoKit
 
 #if os(iOS)
@@ -27,99 +27,19 @@ final class AuthenticationService: ObservableObject {
     private var currentNonce: String?
     
     private var modelContext: ModelContext?
-    private var supabaseService: SupabaseService?
     
     init() {}
     
-    // SwiftData/CloudKit mode
+    // iOS-ONLY: Using SwiftData/CloudKit exclusively
     func configure(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.supabaseService = nil
-        checkAuthenticationState()
-    }
-    
-    // Supabase mode
-    func configure(supabaseService: SupabaseService) {
-        self.supabaseService = supabaseService
-        self.modelContext = nil
         checkAuthenticationState()
     }
     
     func checkAuthenticationState() {
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            // Supabase mode - check session
-            Task {
-                do {
-                    print("🔍 Checking authentication state...")
-                    
-                    // First check if we have a session in memory
-                    var session = supabaseService.currentSession
-                    
-                    // If no session in memory, try to get it from Supabase (checks local storage)
-                    if session == nil {
-                        print("   No session in memory, checking Supabase for stored session...")
-                        if (try? await supabaseService.getCurrentUser()) != nil {
-                            // User exists - get the session
-                            session = supabaseService.currentSession
-                            if session != nil {
-                                print("   ✅ Found stored session")
-                            }
-                        }
-                    }
-                    
-                    if let session = session {
-                        // With emitLocalSessionAsInitialSession: true, we need to check if session is expired
-                        if session.isExpired {
-                            print("⚠️ Session found but expired - user needs to sign in again")
-                            await MainActor.run {
-                                self.isAuthenticated = false
-                                self.currentUser = nil
-                            }
-                            return
-                        }
-                        
-                        print("✅ Active session found")
-                        // Get user ID from session
-                        let userIDString = session.user.id.uuidString
-                        guard let userID = UUID(uuidString: userIDString) else {
-                            print("⚠️ Invalid user ID format: \(userIDString)")
-                            await MainActor.run {
-                                self.isAuthenticated = false
-                            }
-                            return
-                        }
-                        
-                        print("   Fetching user data from database...")
-                        // Fetch user from Supabase database
-                        let supabaseUser: SupabaseUser = try await supabaseService.fetch(
-                            "users",
-                            id: userID
-                        )
-                        
-                        // Convert to User model for compatibility
-                        await MainActor.run {
-                            self.currentUser = convertToUser(from: supabaseUser)
-                            self.isAuthenticated = true
-                            print("✅ User authenticated: \(supabaseUser.fullName)")
-                        }
-                    } else {
-                        print("ℹ️ No active session - user needs to sign in")
-                        await MainActor.run {
-                            self.isAuthenticated = false
-                            self.currentUser = nil
-                        }
-                    }
-                } catch {
-                    print("❌ Error checking Supabase auth state: \(error.localizedDescription)")
-                    print("   Details: \(error)")
-                    await MainActor.run {
-                        self.isAuthenticated = false
-                        self.currentUser = nil
-                    }
-                }
-            }
-        } else if let modelContext = modelContext {
-            // SwiftData mode
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else { return }
+        
         do {
             let descriptor = FetchDescriptor<User>()
             let users = try modelContext.fetch(descriptor)
@@ -130,7 +50,6 @@ final class AuthenticationService: ObservableObject {
             }
         } catch {
             print("Error checking auth state: \(error)")
-            }
         }
     }
     
@@ -206,16 +125,7 @@ final class AuthenticationService: ObservableObject {
         
         let userIdentifier = appleIDCredential.user
         
-        // Supabase mode
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            try await signInWithSupabase(
-                credential: appleIDCredential,
-                supabaseService: supabaseService
-            )
-            return
-        }
-        
-        // SwiftData/CloudKit mode (existing implementation)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         
         // Check if user exists
         guard let modelContext = modelContext else {
@@ -298,6 +208,21 @@ final class AuthenticationService: ObservableObject {
                 
                 // Admin role removed - autopilot mode
                 isAuthenticated = true
+                
+                // Check and authorize device
+                #if !APP_EXTENSION
+                Task {
+                    let deviceService = DeviceManagementService()
+                    deviceService.configure(modelContext: modelContext, userID: existingUser.id)
+                    await deviceService.checkCurrentDeviceAuthorization()
+                    
+                    // If device not authorized, authorize it (but not as irrevocable if one already exists)
+                    if !deviceService.isDeviceAuthorized {
+                        let hasIrrevocable = await deviceService.getIrrevocableDevice(for: existingUser.id) != nil
+                        try? await deviceService.authorizeCurrentDevice(isIrrevocable: !hasIrrevocable)
+                    }
+                }
+                #endif
             }
         } else {
             // New user - create account with data from Apple
@@ -343,232 +268,19 @@ final class AuthenticationService: ObservableObject {
                 let vaultService = VaultService()
                 vaultService.configure(modelContext: modelContext, userID: newUser.id)
                 try? await vaultService.ensureIntelVaultExists(for: newUser)
+                
+                // Authorize current device (first device is irrevocable)
+                let deviceService = DeviceManagementService()
+                deviceService.configure(modelContext: modelContext, userID: newUser.id)
+                try? await deviceService.authorizeCurrentDevice(isIrrevocable: true)
             }
             #endif
         }
     }
     
-    // MARK: - Supabase Authentication
+    // MARK: - Supabase Authentication (REMOVED)
     
-    /// Sign in with Supabase using Apple credentials
-    private func signInWithSupabase(
-        credential: ASAuthorizationAppleIDCredential,
-        supabaseService: SupabaseService
-    ) async throws {
-        print("🔐 Starting Supabase authentication...")
-        
-        // Get identity token (required for Supabase)
-        guard let identityTokenData = credential.identityToken,
-              let identityTokenString = String(data: identityTokenData, encoding: .utf8) else {
-            print("❌ Authentication failed: Missing identity token")
-            throw AuthError.invalidCredential
-        }
-        
-        print("✅ Identity token received from Apple")
-        
-        // Use the stored nonce (generated before authorization request)
-        guard let nonce = currentNonce else {
-            print("❌ Authentication failed: Nonce not found. Nonce must be generated before authorization request.")
-            throw AuthError.invalidCredential
-        }
-        print("🔑 Using stored nonce for Supabase authentication")
-        
-        // Clear the nonce after use (security best practice)
-        currentNonce = nil
-        
-        // Sign in with Supabase
-        print("📡 Sending authentication request to Supabase...")
-        let session: Session
-        do {
-            session = try await supabaseService.signInWithApple(
-                idToken: identityTokenString,
-                nonce: nonce
-            )
-            print("✅ Supabase authentication successful")
-            print("   User ID: \(session.user.id.uuidString)")
-            print("   Email: \(session.user.email ?? "not provided")")
-        } catch {
-            print("❌ Supabase authentication failed: \(error.localizedDescription)")
-            print("   Error details: \(error)")
-            throw error
-        }
-        
-        // Extract user info from Apple credential
-        let givenName = credential.fullName?.givenName ?? ""
-        let familyName = credential.fullName?.familyName ?? ""
-        let fullName = "\(givenName) \(familyName)".trimmingCharacters(in: .whitespaces)
-        let email = credential.email
-        let appleUserID = credential.user
-        
-        // Check if user exists in Supabase
-        print("🔍 Checking if user exists in Supabase database...")
-        let existingUsers: [SupabaseUser]
-        do {
-            existingUsers = try await supabaseService.fetchAll(
-                "users",
-                filters: ["apple_user_id": appleUserID]
-            )
-            print("   Found \(existingUsers.count) user(s) with Apple ID: \(appleUserID)")
-        } catch {
-            print("⚠️ Error checking for existing user: \(error.localizedDescription)")
-            print("   Will attempt to create new user...")
-            throw error
-        }
-        
-        if let existingUser = existingUsers.first {
-            print("✅ Existing user found: \(existingUser.fullName) (ID: \(existingUser.id))")
-            // Existing user - update last active
-            print("📝 Updating user's last active timestamp...")
-            var updatedUser = existingUser
-            updatedUser.lastActiveAt = Date()
-            
-            do {
-                let _: SupabaseUser = try await supabaseService.update(
-                    "users",
-                    id: existingUser.id,
-                    values: updatedUser
-                )
-                print("✅ User updated successfully")
-            } catch {
-                print("⚠️ Failed to update user: \(error.localizedDescription)")
-                // Continue anyway - user can still sign in
-            }
-            
-            // Convert to User model for compatibility
-            await MainActor.run {
-                self.currentUser = convertToUser(from: existingUser)
-                self.isAuthenticated = true
-                print("✅ User signed in successfully")
-                print("   Authentication state updated: isAuthenticated = \(self.isAuthenticated)")
-                print("   Current user: \(self.currentUser?.fullName ?? "nil")")
-            }
-        } else {
-            // New user - create in Supabase
-            print("👤 Creating new user in Supabase...")
-            print("   Name: \(fullName.isEmpty ? "User" : fullName)")
-            print("   Email: \(email ?? "not provided")")
-            print("   Apple User ID: \(appleUserID)")
-            
-            let profilePictureData = createDefaultProfileImage(name: fullName.isEmpty ? "User" : fullName)
-            var profilePictureURL: String? = nil
-            
-            // Upload profile picture to Supabase Storage if available
-            if let pictureData = profilePictureData {
-                do {
-                    // Get user ID from session
-                    let userIDString = session.user.id.uuidString
-                    let storagePath = "profiles/\(userIDString).png"
-                    let _ = try await supabaseService.uploadFile(
-                        bucket: "encrypted-documents", // Using same bucket for now
-                        path: storagePath,
-                        data: pictureData
-                    )
-                    profilePictureURL = storagePath
-                } catch {
-                    print("⚠️ Failed to upload profile picture: \(error)")
-                }
-            }
-            
-            // CRITICAL: Use the authenticated user's ID from Supabase Auth session
-            // The RLS policy requires auth.uid() = id, so we must use session.user.id
-            let authenticatedUserID = session.user.id
-            print("🔑 Using authenticated user ID: \(authenticatedUserID.uuidString)")
-            
-            let newSupabaseUser = SupabaseUser(
-                id: authenticatedUserID, // Use session user ID, not a new UUID
-                appleUserID: appleUserID,
-                fullName: fullName.isEmpty ? "User" : fullName,
-                email: email,
-                profilePictureURL: profilePictureURL,
-                isActive: true,
-                isPremiumSubscriber: false
-            )
-            
-            print("💾 Inserting user into database...")
-            let createdUser: SupabaseUser
-            do {
-                createdUser = try await supabaseService.insert(
-                    "users",
-                    values: newSupabaseUser
-                )
-                print("✅ User created successfully (ID: \(createdUser.id))")
-            } catch {
-                print("❌ Failed to create user: \(error.localizedDescription)")
-                print("   Error details: \(error)")
-                throw error
-            }
-            
-            // Create user role
-            print("👤 Creating user role...")
-            let userRole = SupabaseUserRole(
-                userID: createdUser.id,
-                role: .client
-            )
-            
-            do {
-                let _: SupabaseUserRole = try await supabaseService.insert(
-                    "user_roles",
-                    values: userRole
-                )
-                print("✅ User role created successfully")
-            } catch {
-                print("⚠️ Failed to create user role: \(error.localizedDescription)")
-                // Continue anyway - user can still use the app
-            }
-            
-            // Convert to User model for compatibility
-            await MainActor.run {
-                self.currentUser = convertToUser(from: createdUser)
-                self.isAuthenticated = true
-                print("✅ New user created and signed in successfully")
-                print("   Authentication state updated: isAuthenticated = \(self.isAuthenticated)")
-                print("   Current user: \(self.currentUser?.fullName ?? "nil")")
-                print("   User ID: \(createdUser.id)")
-            }
-            
-            // Create Intel Vault for new user
-            #if !APP_EXTENSION
-            Task {
-                let vaultService = VaultService()
-                vaultService.configure(supabaseService: supabaseService, userID: createdUser.id)
-                try? await vaultService.ensureIntelVaultExists(for: createdUser.id)
-            }
-            #endif
-        }
-    }
-    
-    /// Convert SupabaseUser to User model for compatibility
-    private func convertToUser(from supabaseUser: SupabaseUser) -> User {
-        let user = User(
-            appleUserID: supabaseUser.appleUserID,
-            fullName: supabaseUser.fullName,
-            email: supabaseUser.email,
-            profilePictureData: nil // Will be loaded from URL if needed
-        )
-        user.id = supabaseUser.id
-        user.createdAt = supabaseUser.createdAt
-        user.lastActiveAt = supabaseUser.lastActiveAt
-        user.isActive = supabaseUser.isActive
-        user.isPremiumSubscriber = supabaseUser.isPremiumSubscriber
-        user.subscriptionExpiryDate = supabaseUser.subscriptionExpiryDate
-        
-        // Load profile picture from URL if available
-        if let profileURL = supabaseUser.profilePictureURL {
-            Task {
-                do {
-                    let bucket = "encrypted-documents"
-                    let data = try await supabaseService?.downloadFile(bucket: bucket, path: profileURL)
-                    await MainActor.run {
-                        user.profilePictureData = data
-                    }
-                } catch {
-                    print("⚠️ Failed to load profile picture: \(error)")
-                }
-            }
-        }
-        
-        return user
-    }
+    // All Supabase authentication code removed - iOS app uses SwiftData/CloudKit exclusively
     
     /// Clean up orphaned vaults that may have been restored from CloudKit
     /// This handles the case where account was deleted but CloudKit sync restored vaults
@@ -649,76 +361,7 @@ final class AuthenticationService: ObservableObject {
             throw AuthError.noCurrentUser
         }
         
-        // Supabase mode
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            print("📝 Completing account setup in Supabase mode...")
-            print("   Full name: \(fullName)")
-            print("   Has profile picture: \(profilePicture != nil)")
-            
-            // Get current Supabase user
-            let userID = user.id
-            
-            // Upload profile picture to Supabase Storage if provided
-            var profilePictureURL: String? = nil
-            if let pictureData = profilePicture {
-                do {
-                    let storagePath = "profiles/\(userID.uuidString).png"
-                    let _ = try await supabaseService.uploadFile(
-                        bucket: "encrypted-documents",
-                        path: storagePath,
-                        data: pictureData
-                    )
-                    profilePictureURL = storagePath
-                    print("✅ Profile picture uploaded to Supabase Storage")
-                } catch {
-                    print("⚠️ Failed to upload profile picture: \(error.localizedDescription)")
-                    // Continue anyway - name update is more important
-                }
-            }
-            
-            // Update user in Supabase
-            // Note: id and createdAt are let constants, so they must be set in initializer
-            let updatedUser = SupabaseUser(
-                id: userID,
-                appleUserID: user.appleUserID,
-                fullName: fullName,
-                email: user.email,
-                profilePictureURL: profilePictureURL ?? (user.profilePictureData != nil ? "profiles/\(userID.uuidString).png" : nil),
-                createdAt: user.createdAt,
-                lastActiveAt: Date(),
-                isActive: true,
-                isPremiumSubscriber: user.isPremiumSubscriber,
-                subscriptionExpiryDate: user.subscriptionExpiryDate,
-                updatedAt: Date()
-            )
-            
-            do {
-                let _: SupabaseUser = try await supabaseService.update(
-                    "users",
-                    id: userID,
-                    values: updatedUser
-                )
-                print("✅ User updated in Supabase")
-            } catch {
-                print("❌ Failed to update user in Supabase: \(error.localizedDescription)")
-                throw error
-            }
-            
-            // Update local user model
-            await MainActor.run {
-                user.fullName = fullName
-                if let pictureData = profilePicture {
-                    user.profilePictureData = pictureData
-                }
-                self.currentUser = user
-                self.isAuthenticated = true
-            }
-            
-            print("✅ Account setup completed successfully")
-            return
-        }
-        
-        // SwiftData/CloudKit mode
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else {
             throw AuthError.contextNotAvailable
         }
@@ -750,11 +393,7 @@ final class AuthenticationService: ObservableObject {
     // switchRole removed - single role system
     
     func signOut() async throws {
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            // Sign out from Supabase
-            try await supabaseService.signOut()
-        }
-        
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively - no server-side session to sign out from
         currentUser = nil
         isAuthenticated = false
     }

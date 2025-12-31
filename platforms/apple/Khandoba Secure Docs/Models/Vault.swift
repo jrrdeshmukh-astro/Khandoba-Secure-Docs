@@ -77,6 +77,9 @@ final class Vault {
     @Relationship(deleteRule: .cascade, inverse: \VaultAccessRequest.vault)
     var accessRequests: [VaultAccessRequest]?
     
+    // Topic relationship - using UUID lookup instead of direct relationship to avoid circular dependency
+    // Use VaultTopic.vaultID to find the topic for this vault
+    
     // Anti-vaults monitoring this vault
     // Note: Relationship removed to avoid circular dependency - use UUID lookup instead
     // var antiVaults: [AntiVault]? // Look up by monitoredVaultID when needed

@@ -43,13 +43,23 @@ struct WelcomeView: View {
                         .foregroundColor(colors.textSecondary)
                 }
                 
-                // Feature highlights
+                // Compliance Regimes Readiness
                 VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                    WelcomeFeatureRow(icon: "lock.shield.fill", text: "End-to-end encryption", colors: colors)
-                    WelcomeFeatureRow(icon: "icloud.fill", text: "Secure cloud backup", colors: colors)
-                    WelcomeFeatureRow(icon: "checkmark.seal.fill", text: "Privacy first", colors: colors)
+                    Text("Compliance Ready")
+                        .font(theme.typography.subheadline)
+                        .foregroundColor(colors.textSecondary)
+                        .padding(.horizontal, UnifiedTheme.Spacing.xl)
+                    
+                    VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
+                        ComplianceFrameworkRow(framework: "SOC 2", icon: "shield.checkered", colors: colors)
+                        ComplianceFrameworkRow(framework: "HIPAA", icon: "cross.case.fill", colors: colors)
+                        ComplianceFrameworkRow(framework: "NIST 800-53", icon: "lock.shield.fill", colors: colors)
+                        ComplianceFrameworkRow(framework: "ISO 27001", icon: "checkmark.seal.fill", colors: colors)
+                        ComplianceFrameworkRow(framework: "DFARS", icon: "building.2.fill", colors: colors)
+                        ComplianceFrameworkRow(framework: "FINRA", icon: "chart.line.uptrend.xyaxis", colors: colors)
+                    }
+                    .padding(.horizontal, UnifiedTheme.Spacing.xl)
                 }
-                .padding(.horizontal, UnifiedTheme.Spacing.xl)
                 
                 Spacer()
                 
@@ -152,23 +162,27 @@ struct WelcomeView: View {
     }
 }
 
-// MARK: - Welcome Feature Row Component
-private struct WelcomeFeatureRow: View {
+// MARK: - Compliance Framework Row Component
+private struct ComplianceFrameworkRow: View {
+    let framework: String
     let icon: String
-    let text: String
     let colors: UnifiedTheme.Colors
     
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .foregroundColor(colors.primary)
-                .frame(width: 24)
+                .frame(width: 20)
             
-            Text(text)
-                .font(.subheadline)
+            Text(framework)
+                .font(.caption)
                 .foregroundColor(colors.textSecondary)
             
             Spacer()
+            
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(colors.success)
+                .font(.caption)
         }
     }
 }

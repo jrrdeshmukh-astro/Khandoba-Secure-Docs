@@ -15,7 +15,6 @@ struct VaultListView: View {
     @EnvironmentObject var vaultService: VaultService
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var showCreateVault = false
     @State private var isLoading = false

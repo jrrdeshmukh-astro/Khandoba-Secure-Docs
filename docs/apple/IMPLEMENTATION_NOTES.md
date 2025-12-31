@@ -29,7 +29,7 @@ Services (Business Logic)
     ↓
 Repositories / Data Layer
     ↓
-SwiftData (Local) + Supabase (Cloud)
+SwiftData (Local) + CloudKit (Cloud Sync)
 ```
 
 ### Key Patterns
@@ -69,11 +69,11 @@ SwiftData (Local) + Supabase (Cloud)
    - Zero-knowledge architecture
    - Location: `Services/EncryptionService.swift`
 
-5. **SupabaseService**
-   - Backend API integration
-   - Real-time subscriptions
-   - Storage operations
-   - Location: `Services/SupabaseService.swift`
+5. **CloudKitSharingService**
+   - CloudKit sharing integration
+   - Device-to-device invitations
+   - Share management
+   - Location: `Services/CloudKitSharingService.swift`
 
 ### AI/ML Services (9)
 
@@ -301,7 +301,7 @@ Configuration files:
 
 - `Config/AppConfig.swift` - App-wide settings
 - `Config/EnvironmentConfig.swift` - Environment-specific settings
-- `Config/SupabaseConfig.swift` - Supabase configuration
+- `Config/AppConfig.swift` - App-wide configuration (CloudKit container ID)
 - `Config/APNsConfig.swift` - Push notification configuration
 
 ---
@@ -347,18 +347,14 @@ Configuration files:
 
 ## Integration Points
 
-### Supabase Integration
+### CloudKit Integration
 
-- Database: PostgreSQL with RLS policies
-- Storage: Encrypted documents, voice memos, intel reports
-- Real-time: Live updates for vaults and documents
-- Auth: Apple Sign In → Supabase Auth
-
-### CloudKit Integration (Fallback)
-
-- Available for iOS-only features
-- Configured but not primary backend
-- Can be enabled via feature flag
+- **Primary Backend:** CloudKit + SwiftData for seamless iCloud sync
+- **Database:** CloudKit private database with automatic sync
+- **Storage:** Encrypted documents stored in CloudKit
+- **Real-time:** Automatic sync across all user devices
+- **Sharing:** CloudKit sharing for vault collaboration
+- **Auth:** Apple Sign In with iCloud account integration
 
 ---
 
@@ -388,7 +384,7 @@ xcodebuild -project "Khandoba Secure Docs.xcodeproj" \
 
 - Unit tests for services
 - UI tests for critical flows
-- Integration tests for Supabase sync
+- Integration tests for CloudKit sync
 - Performance tests for encryption/decryption
 
 ---

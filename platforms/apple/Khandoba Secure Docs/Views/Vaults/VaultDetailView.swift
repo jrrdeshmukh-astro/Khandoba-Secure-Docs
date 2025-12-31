@@ -24,7 +24,6 @@ struct VaultDetailView: View {
     @EnvironmentObject var vaultService: VaultService
     @EnvironmentObject var documentService: DocumentService
     @EnvironmentObject var chatService: ChatService
-    @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var nomineeService = NomineeService()
     
     @State private var isLoading = false
@@ -37,6 +36,7 @@ struct VaultDetailView: View {
     @State private var showDocumentPicker = false
     @State private var showNomineeInvitation = false
     @State private var showTransferOwnership = false
+    @State private var showVaultShare = false
     
     @EnvironmentObject var authService: AuthenticationService
     
@@ -111,6 +111,9 @@ struct VaultDetailView: View {
         }
         .sheet(isPresented: $showTransferOwnership) {
             UnifiedShareView(vault: vault, mode: .transfer)
+        }
+        .sheet(isPresented: $showVaultShare) {
+            VaultShareView(vault: vault)
         }
         .fileImporter(
             isPresented: $showDocumentPicker,
@@ -371,14 +374,29 @@ struct VaultDetailView: View {
             StandardCard {
                 VStack(spacing: 0) {
                     Button {
-                        showTransferOwnership = true
+                        showVaultShare = true
                     } label: {
                         SecurityActionRow(
-                            icon: "arrow.triangle.2.circlepath",
-                            title: "Transfer Ownership",
-                            subtitle: "Transfer vault to another user",
-                            color: colors.warning
+                            icon: "person.2.fill",
+                            title: "Share Vault",
+                            subtitle: "Invite others via iCloud",
+                            color: colors.primary
                         )
+                    }
+                    
+                    if isOwner {
+                        Divider()
+                        
+                        Button {
+                            showTransferOwnership = true
+                        } label: {
+                            SecurityActionRow(
+                                icon: "arrow.triangle.2.circlepath",
+                                title: "Transfer Ownership",
+                                subtitle: "Transfer vault to another user",
+                                color: colors.warning
+                            )
+                        }
                     }
                 }
             }
@@ -548,9 +566,8 @@ struct VaultDetailView: View {
     
     @ViewBuilder
     private func activeDocumentsView(colors: UnifiedTheme.Colors) -> some View {
-        let allDocuments: [Document] = AppConfig.useSupabase
-            ? documentService.documents.filter { $0.status == "active" }
-            : (vault.documents ?? []).filter { $0.status == "active" }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        let allDocuments: [Document] = (vault.documents ?? []).filter { $0.status == "active" }
         
         let documentsToShow: [Document] = {
             if let nominee = currentNominee, nominee.isSubsetAccess, let selectedIDs = nominee.selectedDocumentIDs {
@@ -663,7 +680,7 @@ struct VaultDetailView: View {
     private func configureView() {
         if let userID = authService.currentUser?.id {
             if AppConfig.useSupabase {
-                nomineeService.configure(supabaseService: supabaseService, currentUserID: userID, vaultService: vaultService)
+                nomineeService.configure(modelContext: modelContext, currentUserID: userID, vaultService: vaultService)
             } else {
                 nomineeService.configure(modelContext: modelContext, currentUserID: userID, vaultService: vaultService)
             }
@@ -941,62 +958,89 @@ struct DocumentRow: View {
         
         StandardCard {
             HStack(spacing: UnifiedTheme.Spacing.md) {
+                // Document Icon with Type Badge (Improved)
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: iconForDocumentType(document.documentType))
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(colors.primary)
-                        .frame(width: 40)
+                        .frame(width: 44, height: 44)
+                        .background(colors.primary.opacity(0.1))
+                        .cornerRadius(UnifiedTheme.CornerRadius.sm)
                     
                     if let sourceSinkType = document.sourceSinkType {
                         Circle()
                             .fill(sourceSinkBadgeColor(sourceSinkType))
-                            .frame(width: 12, height: 12)
+                            .frame(width: 10, height: 10)
                             .overlay(
                                 Circle()
-                                    .stroke(colors.surface, lineWidth: 2)
+                                    .stroke(colors.surface, lineWidth: 1.5)
                             )
-                            .offset(x: 8, y: -8)
+                            .offset(x: 6, y: -6)
+                    }
+                    
+                    // Redaction indicator
+                    if document.isRedacted {
+                        Image(systemName: "eye.slash.fill")
+                            .font(.caption2)
+                            .foregroundColor(.white)
+                            .padding(4)
+                            .background(colors.warning)
+                            .clipShape(Circle())
+                            .offset(x: 6, y: 6)
                     }
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
+                // Document Info (Improved layout)
+                VStack(alignment: .leading, spacing: 6) {
                     Text(document.name)
                         .font(theme.typography.subheadline)
                         .foregroundColor(colors.textPrimary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
                     
-                    HStack(spacing: UnifiedTheme.Spacing.xs) {
-                        Text(ByteCountFormatter.string(fromByteCount: document.fileSize, countStyle: .file))
+                    HStack(spacing: 6) {
+                        Label(ByteCountFormatter.string(fromByteCount: document.fileSize, countStyle: .file), systemImage: "doc")
                             .font(theme.typography.caption2)
                             .foregroundColor(colors.textSecondary)
                         
                         Text("•")
                             .foregroundColor(colors.textTertiary)
+                            .font(theme.typography.caption2)
                         
-                        Text(document.uploadedAt, style: .date)
+                        Text(document.uploadedAt, style: .relative)
                             .font(theme.typography.caption2)
                             .foregroundColor(colors.textSecondary)
                     }
                     
+                    // AI Tags (minimalist - max 2 tags)
                     if !document.aiTags.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 4) {
-                                ForEach(document.aiTags.prefix(3), id: \.self) { tag in
-                                    Text(tag)
-                                        .font(.caption2)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(colors.primary.opacity(0.2))
-                                        .foregroundColor(colors.primary)
-                                        .cornerRadius(4)
-                                }
+                        HStack(spacing: 4) {
+                            ForEach(document.aiTags.prefix(2), id: \.self) { tag in
+                                Text(tag)
+                                    .font(.caption2)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(colors.primary.opacity(0.15))
+                                    .foregroundColor(colors.primary)
+                                    .cornerRadius(4)
+                            }
+                            if document.aiTags.count > 2 {
+                                Text("+\(document.aiTags.count - 2)")
+                                    .font(.caption2)
+                                    .foregroundColor(colors.textTertiary)
                             }
                         }
                     }
                 }
                 
                 Spacer()
+                
+                // Chevron
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(colors.textTertiary)
             }
+            .padding(.vertical, 4)
         }
     }
     

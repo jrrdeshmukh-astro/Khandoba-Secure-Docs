@@ -15,7 +15,6 @@ struct EnhancedThreatMonitorView: View {
     @SwiftUI.Environment(\.colorScheme) var colorScheme
     @StateObject private var mlService = MLThreatAnalysisService()
     @EnvironmentObject var vaultService: VaultService
-    @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
     @StateObject private var formalLogicService = FormalLogicThreatInferenceService()
     @SwiftUI.Environment(\.modelContext) private var modelContext
@@ -557,7 +556,6 @@ struct ThreatTimelineCard: View {
     @SwiftUI.Environment(\.unifiedTheme) var theme
     @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var vaultService: VaultService
-    @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
     @State private var metrics: [ThreatMetric] = []
     

@@ -21,8 +21,9 @@ import AppKit
 struct Khandoba_Secure_DocsApp: App {
     @StateObject private var authService = AuthenticationService()
     @StateObject private var pushNotificationService = PushNotificationService.shared
-    @StateObject private var supabaseService = SupabaseService()
     @StateObject private var migrationService = DataMigrationService()
+    @StateObject private var deviceManagementService = DeviceManagementService()
+    @StateObject private var complianceDetectionService = ComplianceDetectionService()
     
     #if os(iOS)
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -32,15 +33,9 @@ struct Khandoba_Secure_DocsApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
     
-    // SwiftData ModelContainer - only used when useSupabase = false
-    // NOTE: When useSupabase = true, all data comes from Supabase, not SwiftData
-    var sharedModelContainer: ModelContainer? {
-        // Skip SwiftData initialization if using Supabase
-        guard !AppConfig.useSupabase else {
-            print("ℹ️ Supabase mode enabled - SwiftData ModelContainer not initialized")
-            return nil
-        }
-        
+    // SwiftData ModelContainer with CloudKit sync
+    // iOS-ONLY: Using CloudKit + SwiftData for seamless iCloud integration
+    var sharedModelContainer: ModelContainer {
         return {
         let schema = Schema([
             User.self,
@@ -56,7 +51,8 @@ struct Khandoba_Secure_DocsApp: App {
             VaultTransferRequest.self,
             VaultAccessRequest.self,
             EmergencyAccessRequest.self,
-            EmergencyAccessPass.self
+            EmergencyAccessPass.self,
+            Device.self
         ])
         // Use App Group for shared storage with extensions
         let appGroupIdentifier = "group.com.khandoba.securedocs"
@@ -125,68 +121,23 @@ struct Khandoba_Secure_DocsApp: App {
             ContentView()
                 .environmentObject(authService)
                 .environmentObject(pushNotificationService)
-                .environmentObject(supabaseService)
+                .environmentObject(deviceManagementService)
+                .environmentObject(complianceDetectionService)
                 .environment(\.unifiedTheme, UnifiedTheme())
                 .onAppear {
-                    // Initialize Supabase if enabled
-                    if AppConfig.useSupabase {
-                        Task {
-                            do {
-                                try await supabaseService.configure()
-                                print("✅ Supabase initialized successfully")
-                                
-                                // Configure authentication service AFTER Supabase is initialized
-                                await MainActor.run {
-                                    authService.configure(supabaseService: supabaseService)
-                                }
-                                
-                                // Check and perform migration if needed (users upgrading from 1.0.0)
-                                // Only attempt migration if we have a ModelContext (user upgrading from CloudKit)
-                                if let modelContext = sharedModelContainer?.mainContext {
-                                    // Create DataMergeService for migration
-                                    let dataMergeService = DataMergeService()
-                                    await MainActor.run {
-                                        dataMergeService.configure(supabaseService: supabaseService, modelContext: modelContext)
-                                        migrationService.configure(
-                                            modelContext: modelContext,
-                                            supabaseService: supabaseService,
-                                            dataMergeService: dataMergeService
-                                        )
-                                    }
-                                    
-                                    if migrationService.needsMigration() {
-                                        print("🔄 Migration needed - user upgrading from version 1.0.0")
-                                        do {
-                                            try await migrationService.migrateFromCloudKitToSupabase()
-                                            print("✅ Migration completed successfully")
-                                        } catch {
-                                            print("⚠️ Migration failed: \(error.localizedDescription)")
-                                            // Continue anyway - user can retry later
-                                        }
-                                    } else {
-                                        print("ℹ️ No migration needed - user already on version 1.0.1")
-                                    }
-                                } else {
-                                    print("ℹ️ No ModelContext available - user is new or already migrated to Supabase")
-                                }
-                            } catch {
-                                print("⚠️ Supabase initialization failed: \(error.localizedDescription)")
-                                print("   Falling back to SwiftData/CloudKit")
-                            }
-                        }
-                    } else {
-                        // SwiftData/CloudKit mode
-                        if let modelContext = sharedModelContainer?.mainContext {
-                            authService.configure(modelContext: modelContext)
+                    // iOS-ONLY: Using SwiftData/CloudKit exclusively
+                    if let modelContext = sharedModelContainer.mainContext {
+                        authService.configure(modelContext: modelContext)
+                        complianceDetectionService.configure(modelContext: modelContext)
+                        
+                        // Configure device management when user is authenticated
+                        if let userID = authService.currentUser?.id {
+                            deviceManagementService.configure(modelContext: modelContext, userID: userID)
                         }
                     }
                     
                     setupPushNotifications()
-                    
-                    // Only verify CloudKit if not using Supabase
-                    if !AppConfig.useSupabase {
                     verifyCloudKitSetup()
-                    }
                     
                     #if os(macOS)
                     configureMacOSMenuBar()
@@ -194,14 +145,7 @@ struct Khandoba_Secure_DocsApp: App {
         }
         .preferredColorScheme(.dark) // Force dark theme
         }
-        .modelContainer(sharedModelContainer ?? createMinimalModelContainer())
-    }
-    
-    // Create a minimal ModelContainer for Supabase mode (when SwiftData is not used)
-    private func createMinimalModelContainer() -> ModelContainer {
-        let schema = Schema([User.self, UserRole.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-        return try! ModelContainer(for: schema, configurations: [config])
+        .modelContainer(sharedModelContainer)
     }
     
     private func setupPushNotifications() {

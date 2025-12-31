@@ -17,7 +17,6 @@ struct GameCenterStyleNomineeView: View {
     @SwiftUI.Environment(\.dismiss) var dismiss
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var vaultService: VaultService
     
     @StateObject private var nomineeService = NomineeService()
@@ -268,7 +267,6 @@ struct GameCenterNomineeRow: View {
     @EnvironmentObject var vaultService: VaultService
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var showTransferOwnership = false
     @State private var showError = false

@@ -13,7 +13,6 @@ struct ClientDashboardView: View {
     @SwiftUI.Environment(\.colorScheme) var colorScheme
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var vaultService: VaultService
-    @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var authService: AuthenticationService
     
     // Access logs - loaded from Supabase or SwiftData based on mode

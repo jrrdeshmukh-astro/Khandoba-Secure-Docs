@@ -14,7 +14,6 @@ struct VaultRequestView: View {
     @SwiftUI.Environment(\.dismiss) var dismiss
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     @StateObject private var requestService = VaultRequestService()
     @StateObject private var nomineeService = NomineeService()
@@ -414,7 +413,6 @@ struct VaultPickerView: View {
     @SwiftUI.Environment(\.dismiss) var dismiss
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var vaultService: VaultService
     
     @Binding var selectedVault: Vault?

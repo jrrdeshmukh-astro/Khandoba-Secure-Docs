@@ -19,7 +19,6 @@ struct SimplifiedContactSelectionView: View {
     @SwiftUI.Environment(\.dismiss) var dismiss
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     @EnvironmentObject var vaultService: VaultService
     
     @StateObject private var nomineeService = NomineeService()

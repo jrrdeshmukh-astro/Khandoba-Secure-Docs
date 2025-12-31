@@ -18,22 +18,15 @@ struct AppConfig {
     static let appName = "Khandoba Secure Docs"
     
     // Production Configuration
-    // Note: Supabase is used for platform-agnostic vault access (web, iOS, Android, etc.)
-    // CloudKit is available as fallback for iOS-only features
+    // iOS-ONLY NATIVE APP: Using CloudKit + SwiftData exclusively
+    // CloudKit provides seamless iCloud sync, sharing, and backup
+    // SwiftData provides local persistence with automatic CloudKit sync
     static let cloudKitContainer = "iCloud.com.khandoba.securedocs"
     
-    // CloudKit API Configuration (fallback for iOS-only features)
+    // CloudKit API Configuration
     static let cloudKitKeyID = "PR62QK662L"
     static let cloudKitTeamID = "Q5Y8754WU4"
     static let cloudKitKeyPath = "AuthKey_PR62QK662L.p8" // Relative to project root
-    
-    // Supabase Configuration
-    // Production Supabase project configured for platform-agnostic access
-    // Set to true to use Supabase (enables web, iOS, Android, and other platform access)
-    // Set to false to use CloudKit/SwiftData (iOS-only, Apple's managed service)
-    static let useSupabase = true // Feature flag to switch between CloudKit and Supabase
-    static let supabaseURL = SupabaseConfig.currentEnvironment.supabaseURL
-    static let supabaseAnonKey = SupabaseConfig.currentEnvironment.supabaseAnonKey
     
     // Feature Flags
     static let enableAnalytics = true

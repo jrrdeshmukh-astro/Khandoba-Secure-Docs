@@ -22,7 +22,6 @@ struct SecureNomineeChatView: View {
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var chatService: ChatService
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var messageText = ""
     @State private var isLoading = false

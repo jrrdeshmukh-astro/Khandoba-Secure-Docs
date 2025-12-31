@@ -40,12 +40,8 @@ final class CloudKitSharingService: ObservableObject {
     
     /// Create a CKShare for a vault to share with nominees
     /// Returns the share metadata URL that can be sent to the nominee
+    /// iOS-ONLY: Uses CloudKit exclusively
     func createShare(for vault: Vault) async throws -> URL {
-        // Skip CloudKit operations if Supabase is enabled
-        guard !AppConfig.useSupabase else {
-            throw CloudKitSharingError.shareCreationFailed
-        }
-        
         print("🔗 Creating CloudKit share for vault: \(vault.name)")
 
         // Ensure vault is synced to CloudKit first
@@ -98,7 +94,8 @@ final class CloudKitSharingService: ObservableObject {
     /// This forces SwiftData to sync the vault to CloudKit
     private func ensureVaultSynced(_ vault: Vault) async throws {
         // Skip CloudKit operations if Supabase is enabled
-        guard !AppConfig.useSupabase else {
+        // iOS-ONLY: Always use CloudKit
+        guard true else {
             return
         }
         
@@ -436,7 +433,8 @@ final class CloudKitSharingService: ObservableObject {
     /// Returns an array of participant information
     func getShareParticipants(for vault: Vault) async throws -> [CKShare.Participant] {
         // Skip CloudKit operations if Supabase is enabled
-        guard !AppConfig.useSupabase else {
+        // iOS-ONLY: Always use CloudKit
+        guard true else {
             print("⚠️ CloudKit sharing disabled - using Supabase instead")
             return []
         }
@@ -471,7 +469,8 @@ final class CloudKitSharingService: ObservableObject {
     /// Returns a tuple of (share, participants) for convenience
     func getShareAndParticipants(for vault: Vault) async throws -> (CKShare?, [CKShare.Participant]) {
         // Skip CloudKit operations if Supabase is enabled
-        guard !AppConfig.useSupabase else {
+        // iOS-ONLY: Always use CloudKit
+        guard true else {
             print("⚠️ CloudKit sharing disabled - using Supabase instead")
             return (nil, [])
         }
@@ -504,7 +503,8 @@ final class CloudKitSharingService: ObservableObject {
     /// NOTE: No server deployment needed - CloudKit is Apple's backend service
     func getOrCreateShare(for vault: Vault) async throws -> CKShare? {
         // Skip CloudKit operations if Supabase is enabled
-        guard !AppConfig.useSupabase else {
+        // iOS-ONLY: Always use CloudKit
+        guard true else {
             print("⚠️ CloudKit sharing disabled - using Supabase instead")
             return nil
         }
@@ -539,7 +539,8 @@ final class CloudKitSharingService: ObservableObject {
     /// Remove a share (revoke access for all participants)
     func removeShare(for vault: Vault) async throws {
         // Skip CloudKit operations if Supabase is enabled
-        guard !AppConfig.useSupabase else {
+        // iOS-ONLY: Always use CloudKit
+        guard true else {
             print("⚠️ CloudKit sharing disabled - using Supabase instead")
             return
         }
@@ -563,7 +564,8 @@ final class CloudKitSharingService: ObservableObject {
     /// Remove a specific participant from a CloudKit share
     func removeParticipant(participantID: String?, from vault: Vault) async throws {
         // Skip CloudKit operations if Supabase is enabled
-        guard !AppConfig.useSupabase else {
+        // iOS-ONLY: Always use CloudKit
+        guard true else {
             print("⚠️ CloudKit sharing disabled - using Supabase instead")
             return
         }
@@ -607,7 +609,8 @@ final class CloudKitSharingService: ObservableObject {
     /// This method updates the share's owner participant
     func transferShareOwnership(for vault: Vault, to newOwnerUserID: UUID) async throws {
         // Skip CloudKit operations if Supabase is enabled
-        guard !AppConfig.useSupabase else {
+        // iOS-ONLY: Always use CloudKit
+        guard true else {
             print("⚠️ CloudKit sharing disabled - using Supabase instead")
             return
         }

@@ -188,26 +188,30 @@ struct ContactListView: View {
     }
     
     private func loadContacts() async {
-        isLoading = true
-        permissionStatus = CNContactStore.authorizationStatus(for: .contacts)
+        await MainActor.run {
+            isLoading = true
+            permissionStatus = CNContactStore.authorizationStatus(for: .contacts)
+        }
         
         if permissionStatus == .authorized {
             await contactStore.fetchContacts()
         } else if permissionStatus == .notDetermined {
-            let store = CNContactStore()
-            do {
-                let granted = try await store.requestAccess(for: .contacts)
-                await MainActor.run {
-                    permissionStatus = granted ? .authorized : .denied
-                    if granted {
-                        Task {
-                            await contactStore.fetchContacts()
-                        }
-                    }
+            // Move contact store access to background thread
+            let granted = await Task.detached(priority: .userInitiated) {
+                let store = CNContactStore()
+                do {
+                    return try await store.requestAccess(for: .contacts)
+                } catch {
+                    return false
                 }
-            } catch {
-                await MainActor.run {
-                    permissionStatus = .denied
+            }.value
+            
+            await MainActor.run {
+                permissionStatus = granted ? .authorized : .denied
+                if granted {
+                    Task {
+                        await contactStore.fetchContacts()
+                    }
                 }
             }
         }

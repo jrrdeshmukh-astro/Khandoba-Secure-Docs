@@ -20,7 +20,6 @@ struct TriageView: View {
     @EnvironmentObject var authService: AuthenticationService
     
     @EnvironmentObject var vaultService: VaultService
-    @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
     @StateObject private var mlService = MLThreatAnalysisService()
     @StateObject private var autoTriageService = AutomaticTriageService()

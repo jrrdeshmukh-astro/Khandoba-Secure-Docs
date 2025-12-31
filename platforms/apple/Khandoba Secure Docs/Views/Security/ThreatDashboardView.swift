@@ -15,7 +15,6 @@ struct ThreatDashboardView: View {
     @SwiftUI.Environment(\.unifiedTheme) var theme
     @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var vaultService: VaultService
-    @EnvironmentObject var supabaseService: SupabaseService
     @StateObject private var threatService = ThreatMonitoringService()
     
     @State private var threatMetrics: [ThreatMetric] = []

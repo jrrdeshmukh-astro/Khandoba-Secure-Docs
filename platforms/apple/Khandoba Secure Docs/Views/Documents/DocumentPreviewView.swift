@@ -27,7 +27,6 @@ struct DocumentPreviewView: View {
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var documentService: DocumentService
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var showActions = false
     @State private var showDeleteConfirm = false
@@ -240,45 +239,17 @@ struct DocumentPreviewView: View {
         defer { isLoading = false }
         
         do {
-            var documentData: Data?
-            
-            // In Supabase mode, download from storage
-            if AppConfig.useSupabase {
-                // Fetch document metadata to get storage path
-                let supabaseDoc: SupabaseDocument = try await supabaseService.fetch(
-                    "documents",
-                    id: document.id
-                )
-                
-                guard let storagePath = supabaseDoc.storagePath else {
-                    print("⚠️ Document has no storage path")
-                    return
-                }
-                
-                // Download encrypted file from Supabase Storage
-                let encryptedData = try await supabaseService.downloadFile(
-                    bucket: SupabaseConfig.encryptedDocumentsBucket,
-                    path: storagePath
-                )
-                
-                // Decrypt the document
-                documentData = try EncryptionService.decryptDocument(
-                    encryptedData,
-                    documentID: document.id
-                )
-            } else {
-                // SwiftData/CloudKit mode: use local encrypted data
-                guard let encryptedData = document.encryptedFileData else {
-                    print("⚠️ Document has no encrypted file data")
-                    return
-                }
-                
-                // Decrypt the document
-                documentData = try EncryptionService.decryptDocument(
-                    encryptedData,
-                    documentID: document.id
-                )
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
+            guard let encryptedData = document.encryptedFileData else {
+                print("⚠️ Document has no encrypted file data")
+                return
             }
+            
+            // Decrypt the document
+            let documentData = try EncryptionService.decryptDocument(
+                encryptedData,
+                documentID: document.id
+            )
             
             guard let data = documentData else {
                 print("⚠️ Failed to get document data")
@@ -330,52 +301,25 @@ struct DocumentPreviewView: View {
         await locationService.requestLocationPermission()
         let location = await locationService.getCurrentLocation()
         
-        // Supabase mode: Create access log in Supabase
-        if AppConfig.useSupabase {
-            var accessLog = SupabaseVaultAccessLog(
-                vaultID: vault.id,
-                userID: authService.currentUser?.id ?? UUID(),
-                userName: authService.currentUser?.fullName,
-                timestamp: Date(),
-                accessType: "previewed",
-                deviceInfo: nil,
-                locationLatitude: location?.coordinate.latitude,
-                locationLongitude: location?.coordinate.longitude,
-                ipAddress: nil,
-                documentID: document.id,
-                documentName: document.name
-            )
-            
-            do {
-                let _: SupabaseVaultAccessLog = try await supabaseService.insert(
-                    "vault_access_logs",
-                    values: accessLog
-                )
-                print("📄 Document preview logged: \(document.name)")
-            } catch {
-                print("⚠️ Failed to log document preview: \(error.localizedDescription)")
-            }
-        } else {
-            // SwiftData/CloudKit mode: Create access log entry
-            let accessLog = VaultAccessLog(
-                accessType: "previewed",
-                userID: authService.currentUser?.id,
-                userName: authService.currentUser?.fullName
-            )
-            accessLog.vault = vault
-            accessLog.documentID = document.id
-            accessLog.documentName = document.name
-            
-            if let location = location {
-                accessLog.locationLatitude = location.coordinate.latitude
-                accessLog.locationLongitude = location.coordinate.longitude
-            }
-            
-            modelContext.insert(accessLog)
-            try? modelContext.save()
-            
-            print("📄 Document preview logged: \(document.name)")
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively - Create access log
+        let accessLog = VaultAccessLog(
+            accessType: "previewed",
+            userID: authService.currentUser?.id,
+            userName: authService.currentUser?.fullName
+        )
+        accessLog.vault = vault
+        accessLog.documentID = document.id
+        accessLog.documentName = document.name
+        
+        if let location = location {
+            accessLog.locationLatitude = location.coordinate.latitude
+            accessLog.locationLongitude = location.coordinate.longitude
         }
+        
+        modelContext.insert(accessLog)
+        try? modelContext.save()
+        
+        print("📄 Document preview logged: \(document.name)")
     }
     
     private func deleteDocument() {

@@ -13,7 +13,6 @@ struct DualKeyRequestStatusView: View {
     @SwiftUI.Environment(\.colorScheme) var colorScheme
     @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
-    @EnvironmentObject var supabaseService: SupabaseService
     
     @State private var myRequests: [DualKeyRequest] = []
     @State private var isLoading = false
