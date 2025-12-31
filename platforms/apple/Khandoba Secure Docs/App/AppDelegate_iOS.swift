@@ -130,6 +130,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Fallback to rootRecordID when hierarchicalRootRecordID is unavailable
         // Note: rootRecordID is deprecated in iOS 16+ but still functional and needed as fallback
         // This is intentional fallback behavior per Apple's migration guidance
+        // swiftlint:disable:next deprecated_member_use
         return metadata.rootRecordID
     }
     

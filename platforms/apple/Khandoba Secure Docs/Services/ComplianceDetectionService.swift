@@ -166,8 +166,8 @@ final class ComplianceDetectionService: ObservableObject {
         
         for document in documents {
             // Check document name
-            if let name = document.name.lowercased(),
-               phiKeywords.contains(where: { name.contains($0) }) {
+            let name = document.name.lowercased()
+            if phiKeywords.contains(where: { name.contains($0) }) {
                 return true
             }
             
@@ -181,11 +181,10 @@ final class ComplianceDetectionService: ObservableObject {
             }
             
             // Check AI tags
-            if let tags = document.aiTags {
-                for tag in tags {
-                    if phiKeywords.contains(where: { tag.lowercased().contains($0) }) {
-                        return true
-                    }
+            let tags = document.aiTags
+            for tag in tags {
+                if phiKeywords.contains(where: { tag.lowercased().contains($0) }) {
+                    return true
                 }
             }
         }
@@ -202,8 +201,8 @@ final class ComplianceDetectionService: ObservableObject {
         ]
         
         for document in documents {
-            if let name = document.name.lowercased(),
-               financialKeywords.contains(where: { name.contains($0) }) {
+            let name = document.name.lowercased()
+            if financialKeywords.contains(where: { name.contains($0) }) {
                 return true
             }
             
@@ -228,8 +227,8 @@ final class ComplianceDetectionService: ObservableObject {
         ]
         
         for document in documents {
-            if let name = document.name.lowercased(),
-               governmentKeywords.contains(where: { name.contains($0) }) {
+            let name = document.name.lowercased()
+            if governmentKeywords.contains(where: { name.contains($0) }) {
                 return true
             }
             
@@ -247,8 +246,8 @@ final class ComplianceDetectionService: ObservableObject {
     
     private func detectHighSecurityContent(in documents: [Document], vaults: [Vault]) async -> Bool {
         // High-security indicators: dual-key vaults, high threat levels, sensitive data
-        let hasDualKeyVaults = vaults.contains { $0.keyType == .dual }
-        let hasHighThreatVaults = vaults.contains { $0.threatLevel == .high || $0.threatLevel == .critical }
+        let hasDualKeyVaults = vaults.contains { (vault: Vault) in vault.keyType == "dual" }
+        let hasHighThreatVaults = vaults.contains { (vault: Vault) in vault.threatLevel == "high" || vault.threatLevel == "critical" }
         
         if hasDualKeyVaults || hasHighThreatVaults {
             return true
@@ -261,8 +260,8 @@ final class ComplianceDetectionService: ObservableObject {
         ]
         
         for document in documents {
-            if let name = document.name.lowercased(),
-               sensitiveKeywords.contains(where: { name.contains($0) }) {
+            let name = document.name.lowercased()
+            if sensitiveKeywords.contains(where: { name.contains($0) }) {
                 return true
             }
         }
@@ -273,7 +272,10 @@ final class ComplianceDetectionService: ObservableObject {
     private func detectServiceOrganization(user: User, vaults: [Vault]) async -> Bool {
         // Service organization indicators: multiple vaults, shared vaults, nominee access
         let hasMultipleVaults = vaults.count > 3
-        let hasSharedVaults = vaults.contains { $0.isShared }
+        // Check if vaults have nominees (indicating sharing) or are broadcast vaults
+        let hasSharedVaults = vaults.contains { (vault: Vault) in
+            (vault.nomineeList?.isEmpty == false) || vault.isBroadcast
+        }
         
         // Check for service-related keywords in user profile
         let serviceKeywords = ["service", "provider", "organization", "company", "business"]
@@ -298,8 +300,8 @@ final class ComplianceDetectionService: ObservableObject {
         
         // Check documents
         for document in documents {
-            if let name = document.name.lowercased(),
-               internationalKeywords.contains(where: { name.contains($0) }) {
+            let name = document.name.lowercased()
+            if internationalKeywords.contains(where: { name.contains($0) }) {
                 return true
             }
         }
@@ -370,7 +372,7 @@ enum CompliancePriority: String, Codable, Comparable {
     case recommended = "Recommended"
     case required = "Required"
     
-    var rawValue: Int {
+    var priorityValue: Int {
         switch self {
         case .optional: return 1
         case .recommended: return 2
@@ -379,7 +381,7 @@ enum CompliancePriority: String, Codable, Comparable {
     }
     
     static func < (lhs: CompliancePriority, rhs: CompliancePriority) -> Bool {
-        lhs.rawValue < rhs.rawValue
+        lhs.priorityValue < rhs.priorityValue
     }
 }
 

@@ -16,19 +16,11 @@ final class EmergencyApprovalService: ObservableObject {
     @Published var isLoading = false
     
     private var modelContext: ModelContext?
-    private var supabaseService: SupabaseService?
     private let mlThreatService = MLThreatAnalysisService()
     
-    // SwiftData/CloudKit mode
+    // iOS-ONLY: Using SwiftData/CloudKit exclusively
     func configure(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.supabaseService = nil
-    }
-    
-    // Supabase mode
-    func configure(supabaseService: SupabaseService) {
-        self.supabaseService = supabaseService
-        self.modelContext = nil
     }
     
     // MARK: - Load Pending Requests
@@ -37,54 +29,20 @@ final class EmergencyApprovalService: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            // Supabase mode: Load from Supabase
-            let supabaseRequests: [SupabaseEmergencyAccessRequest] = try await supabaseService.fetchAll(
-                "emergency_access_requests",
-                filters: ["status": "pending"],
-                orderBy: "requested_at",
-                ascending: false
-            )
-            
-            // Convert to EmergencyAccessRequest models
-            // Note: We need to load vaults separately to link them
-            await MainActor.run {
-                // For now, create temporary EmergencyAccessRequest objects
-                // In a full implementation, we'd need to load vaults and link them
-                self.pendingRequests = supabaseRequests.map { supabaseRequest in
-                    let request = EmergencyAccessRequest(
-                        reason: supabaseRequest.reason,
-                        urgency: supabaseRequest.urgency
-                    )
-                    request.id = supabaseRequest.id
-                    request.requestedAt = supabaseRequest.requestedAt
-                    request.status = supabaseRequest.status
-                    request.approvedAt = supabaseRequest.approvedAt
-                    request.approverID = supabaseRequest.approverID
-                    request.expiresAt = supabaseRequest.expiresAt
-                    request.requesterID = supabaseRequest.requesterID
-                    // Note: Vault linking would need to be done separately
-                    return request
-                }
-            }
-            
-            print("📋 Loaded \(supabaseRequests.count) pending emergency request(s) from Supabase")
-        } else {
-            // SwiftData/CloudKit mode
-            guard let modelContext = modelContext else {
-                throw ApprovalError.contextNotAvailable
-            }
-            
-            let descriptor = FetchDescriptor<EmergencyAccessRequest>(
-                predicate: #Predicate { $0.status == "pending" },
-                sortBy: [SortDescriptor(\.requestedAt, order: .reverse)]
-            )
-            
-            let requests = try modelContext.fetch(descriptor)
-            pendingRequests = requests
-            
-            print("📋 Loaded \(requests.count) pending emergency request(s)")
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
+            throw ApprovalError.contextNotAvailable
         }
+        
+        let descriptor = FetchDescriptor<EmergencyAccessRequest>(
+            predicate: #Predicate { $0.status == "pending" },
+            sortBy: [SortDescriptor(\.requestedAt, order: .reverse)]
+        )
+        
+        let requests = try modelContext.fetch(descriptor)
+        pendingRequests = requests
+        
+        print("📋 Loaded \(requests.count) pending emergency request(s)")
     }
     
     // MARK: - ML-Assisted Approval Analysis
@@ -212,91 +170,51 @@ final class EmergencyApprovalService: ObservableObject {
         let passCode = UUID().uuidString
         let expiresAt = Date().addingTimeInterval(24 * 60 * 60) // 24 hours
         
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            // Supabase mode: Update in Supabase
-            let updatedRequest = SupabaseEmergencyAccessRequest(
-                id: request.id,
-                vaultID: vault.id,
-                requesterID: request.requesterID ?? UUID(),
-                requestedAt: request.requestedAt,
-                reason: request.reason,
-                urgency: request.urgency,
-                status: "approved",
-                approvedAt: Date(),
-                approverID: approverID,
-                expiresAt: expiresAt,
-                passCode: passCode,
-                mlScore: request.mlScore,
-                mlRecommendation: request.mlRecommendation,
-                createdAt: request.requestedAt,
-                updatedAt: Date()
-            )
-            
-            let _: SupabaseEmergencyAccessRequest = try await supabaseService.update(
-                "emergency_access_requests",
-                id: request.id,
-                values: updatedRequest
-            )
-            
-            // Create emergency access pass in Supabase (if table exists)
-            // Note: Table creation would be done via migration
-            // For now, store pass code in request
-            request.status = "approved"
-            request.approvedAt = Date()
-            request.approverID = approverID
-            request.expiresAt = expiresAt
-            request.passCode = passCode
-            
-            print("✅ Emergency request approved in Supabase: \(request.id)")
-            print("   Pass Code: \(passCode)")
-            print("   Expires at: \(expiresAt.formatted())")
-        } else {
-            // SwiftData/CloudKit mode
-            guard let modelContext = modelContext else {
-                throw ApprovalError.contextNotAvailable
-            }
-            
-            // Update request status
-            request.status = "approved"
-            request.approvedAt = Date()
-            request.approverID = approverID
-            request.expiresAt = expiresAt
-            request.passCode = passCode
-            
-            // Create EmergencyAccessPass record
-            let accessPass = EmergencyAccessPass(
-                vaultID: vault.id,
-                requesterID: request.requesterID ?? UUID(),
-                emergencyRequestID: request.id,
-                expiresAt: expiresAt
-            )
-            accessPass.passCode = passCode
-            accessPass.emergencyRequest = request
-            request.accessPass = accessPass
-            
-            modelContext.insert(accessPass)
-            
-            // Grant nominee read-only access
-            // Find the nominee who requested this (if any)
-            if let requesterID = request.requesterID,
-               let nominees = vault.nomineeList {
-                // Find nominee by requester ID or create temporary access
-                for nominee in nominees {
-                    if nominee.invitedByUserID == requesterID || nominee.id == requesterID {
-                        // Grant temporary active status
-                        nominee.status = .active
-                        nominee.lastActiveAt = Date()
-                        print("✅ Granted emergency access to nominee: \(nominee.name)")
-                        break
-                    }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
+            throw ApprovalError.contextNotAvailable
+        }
+        
+        // Update request status
+        request.status = "approved"
+        request.approvedAt = Date()
+        request.approverID = approverID
+        request.expiresAt = expiresAt
+        request.passCode = passCode
+        
+        // Create EmergencyAccessPass record
+        let accessPass = EmergencyAccessPass(
+            vaultID: vault.id,
+            requesterID: request.requesterID ?? UUID(),
+            emergencyRequestID: request.id,
+            expiresAt: expiresAt
+        )
+        accessPass.passCode = passCode
+        accessPass.emergencyRequest = request
+        request.accessPass = accessPass
+        
+        modelContext.insert(accessPass)
+        
+        // Grant nominee read-only access
+        // Find the nominee who requested this (if any)
+        if let requesterID = request.requesterID,
+           let nominees = vault.nomineeList {
+            // Find nominee by requester ID or create temporary access
+            for nominee in nominees {
+                if nominee.invitedByUserID == requesterID || nominee.id == requesterID {
+                    // Grant temporary active status
+                    nominee.status = .active
+                    nominee.lastActiveAt = Date()
+                    print("✅ Granted emergency access to nominee: \(nominee.name)")
+                    break
                 }
             }
-            
-            try modelContext.save()
-            print("✅ Emergency request approved: \(request.id)")
-            print("   Pass Code: \(passCode)")
-            print("   Expires at: \(expiresAt.formatted())")
         }
+        
+        try modelContext.save()
+        print("✅ Emergency request approved: \(request.id)")
+        print("   Pass Code: \(passCode)")
+        print("   Expires at: \(expiresAt.formatted())")
         
         // Reload pending requests
         try await loadPendingRequests()
@@ -305,115 +223,52 @@ final class EmergencyApprovalService: ObservableObject {
     // MARK: - Verify Emergency Access Pass
     
     func verifyEmergencyPass(passCode: String, vaultID: UUID) async throws -> EmergencyAccessPass? {
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            // Supabase mode: Query emergency_access_requests by pass_code field
-            // (emergency_access_passes table can be used when migration is complete)
-            let requests: [SupabaseEmergencyAccessRequest] = try await supabaseService.fetchAll(
-                "emergency_access_requests",
-                filters: ["pass_code": passCode, "vault_id": vaultID.uuidString, "status": "approved"]
-            )
-            
-            guard let request = requests.first,
-                  let requestPassCode = request.passCode,
-                  requestPassCode == passCode.trimmingCharacters(in: .whitespacesAndNewlines),
-                  let expiresAt = request.expiresAt,
-                  expiresAt > Date() else {
-                return nil
-            }
-            
-            // Create EmergencyAccessPass from request
-            let pass = EmergencyAccessPass(
-                vaultID: vaultID,
-                requesterID: request.requesterID,
-                emergencyRequestID: request.id,
-                expiresAt: expiresAt
-            )
-            pass.passCode = requestPassCode
-            return pass
-        } else {
-            // SwiftData/CloudKit mode
-            guard let modelContext = modelContext else {
-                throw ApprovalError.contextNotAvailable
-            }
-            
-            let descriptor = FetchDescriptor<EmergencyAccessPass>(
-                predicate: #Predicate { pass in
-                    pass.passCode == passCode && pass.vaultID == vaultID
-                }
-            )
-            
-            guard let pass = try? modelContext.fetch(descriptor).first,
-                  pass.isValid else {
-                return nil
-            }
-            
-            return pass
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
+            throw ApprovalError.contextNotAvailable
         }
+        
+        let descriptor = FetchDescriptor<EmergencyAccessPass>(
+            predicate: #Predicate { pass in
+                pass.passCode == passCode && pass.vaultID == vaultID
+            }
+        )
+        
+        guard let pass = try? modelContext.fetch(descriptor).first,
+              pass.isValid else {
+            return nil
+        }
+        
+        return pass
     }
     
     // MARK: - Use Emergency Pass (Mark as Used)
     
     func useEmergencyPass(_ pass: EmergencyAccessPass) async throws {
-        if AppConfig.useSupabase, let _ = supabaseService {
-            // Update in Supabase (would update emergency_access_passes table)
-            // For now, we track usage in the request
-            pass.usedAt = Date()
-            pass.isActive = false
-        } else {
-            guard let modelContext = modelContext else {
-                throw ApprovalError.contextNotAvailable
-            }
-            
-            pass.usedAt = Date()
-            pass.isActive = false
-            
-            try modelContext.save()
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
+            throw ApprovalError.contextNotAvailable
         }
+        
+        pass.usedAt = Date()
+        pass.isActive = false
+        
+        try modelContext.save()
     }
     
     // MARK: - Deny Emergency Request
     
     func denyEmergencyRequest(_ request: EmergencyAccessRequest, approverID: UUID, reason: String? = nil) async throws {
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            // Supabase mode: Update in Supabase
-            let updatedRequest = SupabaseEmergencyAccessRequest(
-                id: request.id,
-                vaultID: request.vault?.id ?? UUID(),
-                requesterID: request.requesterID ?? UUID(),
-                requestedAt: request.requestedAt,
-                reason: request.reason,
-                urgency: request.urgency,
-                status: "denied",
-                approvedAt: nil,
-                approverID: approverID,
-                expiresAt: nil,
-                createdAt: request.requestedAt,
-                updatedAt: Date()
-            )
-            
-            let _: SupabaseEmergencyAccessRequest = try await supabaseService.update(
-                "emergency_access_requests",
-                id: request.id,
-                values: updatedRequest
-            )
-            
-            // Update local request object
-            request.status = "denied"
-            request.approverID = approverID
-            
-            print("❌ Emergency request denied in Supabase: \(request.id)")
-        } else {
-            // SwiftData/CloudKit mode
-            guard let modelContext = modelContext else {
-                throw ApprovalError.contextNotAvailable
-            }
-            
-            request.status = "denied"
-            request.approverID = approverID
-            
-            try modelContext.save()
-            print("❌ Emergency request denied: \(request.id)")
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
+            throw ApprovalError.contextNotAvailable
         }
+        
+        request.status = "denied"
+        request.approverID = approverID
+        
+        try modelContext.save()
+        print("❌ Emergency request denied: \(request.id)")
         
         // Reload pending requests
         try await loadPendingRequests()

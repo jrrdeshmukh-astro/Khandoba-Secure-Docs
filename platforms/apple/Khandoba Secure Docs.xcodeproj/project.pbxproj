@@ -13,7 +13,6 @@
 		242AF6AF2EF1ABBE00857701 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 242AF6AE2EF1ABBE00857701 /* Realtime */; };
 		242AF6B12EF1ABBE00857701 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 242AF6B02EF1ABBE00857701 /* Storage */; };
 		242AF6B32EF1ABBE00857701 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 242AF6B22EF1ABBE00857701 /* Supabase */; };
-		24D2EBBC2EE304A9004257B4 /* Reductio in Frameworks */ = {isa = PBXBuildFile; productRef = 24D2EBBB2EE304A9004257B4 /* Reductio */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,7 +70,6 @@
 				242AF6AB2EF1ABBE00857701 /* Functions in Frameworks */,
 				242AF6A92EF1ABBE00857701 /* Auth in Frameworks */,
 				242AF6AF2EF1ABBE00857701 /* Realtime in Frameworks */,
-				24D2EBBC2EE304A9004257B4 /* Reductio in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,7 +128,6 @@
 			);
 			name = "Khandoba Secure Docs";
 			packageProductDependencies = (
-				24D2EBBB2EE304A9004257B4 /* Reductio */,
 				242AF6A82EF1ABBE00857701 /* Auth */,
 				242AF6AA2EF1ABBE00857701 /* Functions */,
 				242AF6AC2EF1ABBE00857701 /* PostgREST */,
@@ -215,7 +212,6 @@
 			mainGroup = 24FB38692EDF354B00BA1227;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				24D2EBBA2EE304A9004257B4 /* XCRemoteSwiftPackageReference "Reductio" */,
 				242AF6A72EF1ABBE00857701 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -652,14 +648,6 @@
 				minimumVersion = 2.5.1;
 			};
 		};
-		24D2EBBA2EE304A9004257B4 /* XCRemoteSwiftPackageReference "Reductio" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/fdzsergio/Reductio.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.7.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -692,11 +680,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 242AF6A72EF1ABBE00857701 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
-		};
-		24D2EBBB2EE304A9004257B4 /* Reductio */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 24D2EBBA2EE304A9004257B4 /* XCRemoteSwiftPackageReference "Reductio" */;
-			productName = Reductio;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

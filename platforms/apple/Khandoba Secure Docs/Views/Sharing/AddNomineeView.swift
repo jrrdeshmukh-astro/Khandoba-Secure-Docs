@@ -101,15 +101,8 @@ struct AddNomineeView: View {
             }
             #endif
             .onAppear {
-                if AppConfig.useSupabase {
-                    if let userID = authService.currentUser?.id {
-                        nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
-                    } else {
-                        nomineeService.configure(supabaseService: supabaseService)
-                    }
-                } else {
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
                 nomineeService.configure(modelContext: modelContext)
-                }
             }
         }
     }

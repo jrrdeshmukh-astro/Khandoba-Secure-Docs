@@ -27,106 +27,37 @@ struct EmergencyAccessUnlockView: View {
     @State private var showSuccess = false
     @State private var accessPass: EmergencyAccessPass?
     
+    private var colors: UnifiedTheme.Colors {
+        theme.colors(for: colorScheme)
+    }
+    
     var body: some View {
-        let colors = theme.colors(for: colorScheme)
-        
         NavigationStack {
-            ZStack {
-                colors.background
-                    .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: UnifiedTheme.Spacing.xl) {
-                        // Header
-                        VStack(spacing: UnifiedTheme.Spacing.sm) {
-                            Image(systemName: "key.horizontal.fill")
-                                .font(.system(size: 60))
-                                .foregroundColor(colors.warning)
-                            
-                            Text("Emergency Access")
-                                .font(theme.typography.title)
-                                .foregroundColor(colors.textPrimary)
-                            
-                            Text("Enter your emergency access pass code")
-                                .font(theme.typography.body)
-                                .foregroundColor(colors.textSecondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(.top, UnifiedTheme.Spacing.xl)
-                        
-                        // Vault Info
-                        StandardCard {
-                            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
-                                Text("Vault")
-                                    .font(theme.typography.caption)
-                                    .foregroundColor(colors.textSecondary)
-                                
-                                Text(vault.name)
-                                    .font(theme.typography.headline)
-                                    .foregroundColor(colors.textPrimary)
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        // Pass Code Input
-                        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
-                            Text("Pass Code")
-                                .font(theme.typography.subheadline)
-                                .foregroundColor(colors.textSecondary)
-                                .padding(.horizontal)
-                            
-                            TextField("Enter pass code", text: $passCode)
-                                .font(theme.typography.body.monospaced())
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .padding(UnifiedTheme.Spacing.md)
-                                .background(colors.surface)
-                                .cornerRadius(UnifiedTheme.CornerRadius.lg)
-                                .padding(.horizontal)
-                        }
-                        
-                        // Info Card
-                        StandardCard {
-                            HStack(spacing: UnifiedTheme.Spacing.sm) {
-                                Image(systemName: "info.circle.fill")
-                                    .foregroundColor(colors.info)
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Security Note")
-                                        .font(theme.typography.subheadline)
-                                        .fontWeight(.semibold)
-                                    
-                                    Text("Biometric verification is required even with a valid pass code.")
-                                        .font(theme.typography.caption)
-                                        .foregroundColor(colors.textSecondary)
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        // Unlock Button
-                        Button {
-                            Task {
-                                await unlockWithPassCode()
-                            }
-                        } label: {
-                            if isLoading {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                HStack {
-                                    Image(systemName: "lock.open.fill")
-                                    Text("Unlock Vault")
-                                }
-                            }
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .disabled(passCode.isEmpty || isLoading)
-                        .padding(.horizontal)
-                    }
-                    .padding(.vertical)
+            contentView
+        }
+        .task {
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
+            emergencyService.configure(modelContext: modelContext)
+        }
+    }
+    
+    @ViewBuilder
+    private var contentView: some View {
+        ZStack {
+            colors.background
+                .ignoresSafeArea()
+            
+            ScrollView {
+                VStack(spacing: UnifiedTheme.Spacing.xl) {
+                    headerSection
+                    vaultInfoSection
+                    passCodeInputSection
+                    infoCardSection
+                    unlockButtonSection
                 }
+                .padding(.vertical)
             }
+        }
             .navigationTitle("Emergency Unlock")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -147,7 +78,7 @@ struct EmergencyAccessUnlockView: View {
                     // Open vault and dismiss
                     Task {
                         do {
-                            try await vaultService.unlockVault(vaultId: vault.id, password: nil)
+                            try await vaultService.openVault(vault)
                             dismiss()
                         } catch {
                             errorMessage = error.localizedDescription
@@ -166,13 +97,103 @@ struct EmergencyAccessUnlockView: View {
                     Text("Emergency access granted.")
                 }
             }
+    }
+    
+    @ViewBuilder
+    private var headerSection: some View {
+        VStack(spacing: UnifiedTheme.Spacing.sm) {
+            Image(systemName: "key.horizontal.fill")
+                .font(.system(size: 60))
+                .foregroundColor(colors.warning)
+            
+            Text("Emergency Access")
+                .font(theme.typography.title)
+                .foregroundColor(colors.textPrimary)
+            
+            Text("Enter your emergency access pass code")
+                .font(theme.typography.body)
+                .foregroundColor(colors.textSecondary)
+                .multilineTextAlignment(.center)
         }
-        .task {
-            emergencyService.configure(supabaseService: supabaseService)
-            if !AppConfig.useSupabase {
-                emergencyService.configure(modelContext: modelContext)
+        .padding(.top, UnifiedTheme.Spacing.xl)
+    }
+    
+    @ViewBuilder
+    private var vaultInfoSection: some View {
+        StandardCard {
+            VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.sm) {
+                Text("Vault")
+                    .font(theme.typography.caption)
+                    .foregroundColor(colors.textSecondary)
+                
+                Text(vault.name)
+                    .font(theme.typography.headline)
+                    .foregroundColor(colors.textPrimary)
             }
         }
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private var passCodeInputSection: some View {
+        VStack(alignment: .leading, spacing: UnifiedTheme.Spacing.xs) {
+            Text("Pass Code")
+                .font(theme.typography.subheadline)
+                .foregroundColor(colors.textSecondary)
+                .padding(.horizontal)
+            
+            TextField("Enter pass code", text: $passCode)
+                .font(theme.typography.body.monospaced())
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .padding(UnifiedTheme.Spacing.md)
+                .background(colors.surface)
+                .cornerRadius(UnifiedTheme.CornerRadius.lg)
+                .padding(.horizontal)
+        }
+    }
+    
+    @ViewBuilder
+    private var infoCardSection: some View {
+        StandardCard {
+            HStack(spacing: UnifiedTheme.Spacing.sm) {
+                Image(systemName: "info.circle.fill")
+                    .foregroundColor(colors.info)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Security Note")
+                        .font(theme.typography.subheadline)
+                        .fontWeight(.semibold)
+                    
+                    Text("Biometric verification is required even with a valid pass code.")
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textSecondary)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private var unlockButtonSection: some View {
+        Button {
+            Task {
+                await unlockWithPassCode()
+            }
+        } label: {
+            if isLoading {
+                ProgressView()
+                    .tint(.white)
+            } else {
+                HStack {
+                    Image(systemName: "lock.open.fill")
+                    Text("Unlock Vault")
+                }
+            }
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .disabled(passCode.isEmpty || isLoading)
+        .padding(.horizontal)
     }
     
     private func unlockWithPassCode() async {
@@ -204,22 +225,22 @@ struct EmergencyAccessUnlockView: View {
             let context = LAContext()
             var error: NSError?
             
-            guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-                // Fallback to device passcode
-                guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-                    await MainActor.run {
-                        errorMessage = "Biometric authentication not available"
-                        showError = true
-                    }
-                    return
+            // Determine which policy to use
+            let policy: LAPolicy
+            if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+                policy = .deviceOwnerAuthenticationWithBiometrics
+            } else if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+                policy = .deviceOwnerAuthentication
+            } else {
+                await MainActor.run {
+                    errorMessage = "Biometric authentication not available"
+                    showError = true
                 }
+                return
             }
             
             let reason = "Verify your identity to access the vault with emergency pass code"
-            let success = try await context.evaluatePolicy(
-                .deviceOwnerAuthenticationWithBiometrics,
-                localizedReason: reason
-            )
+            let success = try await context.evaluatePolicy(policy, localizedReason: reason)
             
             guard success else {
                 await MainActor.run {

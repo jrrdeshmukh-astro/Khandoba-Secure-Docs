@@ -212,7 +212,7 @@ struct TriageView: View {
         var detectedLeaks: [DataLeak] = []
         
         // Configure services
-        threatService.configure(vaultService: vaultService, supabaseService: supabaseService)
+        threatService.configure(vaultService: vaultService)
         mlService.configure(vaultService: vaultService)
         
         // Analyze each vault
@@ -449,9 +449,9 @@ struct TriageView: View {
         }
         
         // Get screen capture status
-        // For now, use UIScreen.main (deprecated but still functional)
-        // In iOS 26+, we'd prefer to use windowScene.screen, but UIApplication.shared
-        // is unavailable in extensions, so we use the deprecated API as fallback
+        // Note: UIScreen.main is deprecated in iOS 26.0, but needed as fallback
+        // In iOS 26+, prefer windowScene.screen, but UIApplication.shared is unavailable in extensions
+        // swiftlint:disable:next deprecated_member_use
         let captured = UIScreen.main.isCaptured
         
         if captured && !isScreenCaptured {
@@ -568,7 +568,7 @@ struct TriageView: View {
     
     // MARK: - Helpers
     
-    private func threatTypeTitle(_ type: ThreatType) -> String {
+    private func threatTypeTitle(_ type: MonitoringThreatType) -> String {
         switch type {
         case .rapidAccess: return "Rapid Access Pattern"
         case .unusualLocation: return "Unusual Location"
@@ -608,7 +608,7 @@ struct ThreatItem: Identifiable {
 }
 
 enum ThreatItemType {
-    case threat(ThreatType)
+    case threat(MonitoringThreatType)
     case geographicAnomaly
     case accessBurst
     case dataExfiltration

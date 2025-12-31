@@ -9,9 +9,9 @@ import SwiftUI
 import SwiftData
 
 struct LostDeviceView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var deviceService: DeviceManagementService
     @EnvironmentObject var authService: AuthenticationService
     
@@ -232,8 +232,8 @@ struct LostDeviceView: View {
 // MARK: - Lost Devices List View
 
 struct LostDevicesListView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var deviceService: DeviceManagementService
     
     @State private var lostDevices: [Device] = []
@@ -284,8 +284,8 @@ struct LostDevicesListView: View {
 
 struct LostDeviceRow: View {
     let device: Device
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var deviceService: DeviceManagementService
     
     @State private var showingRecoverConfirmation = false

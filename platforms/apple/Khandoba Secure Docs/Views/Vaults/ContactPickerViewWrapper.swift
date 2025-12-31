@@ -7,11 +7,12 @@
 
 import SwiftUI
 import Contacts
+import ContactsUI
 
 struct ContactPickerViewWrapper: UIViewControllerRepresentable {
     @Binding var selectedContacts: [CNContact]
     let onSelection: ([CNContact]) -> Void
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.dismiss) var dismiss
     
     func makeUIViewController(context: Context) -> UIViewController {
         let picker = CNContactPickerViewController()

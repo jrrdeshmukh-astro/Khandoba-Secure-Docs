@@ -124,7 +124,7 @@ struct EnhancedThreatMonitorView: View {
         
         // Configure services
         mlService.configure(vaultService: vaultService)
-        threatService.configure(vaultService: vaultService, supabaseService: supabaseService)
+        threatService.configure(vaultService: vaultService)
         
         // Configure formal logic service
         let logicEngine = FormalLogicEngine()

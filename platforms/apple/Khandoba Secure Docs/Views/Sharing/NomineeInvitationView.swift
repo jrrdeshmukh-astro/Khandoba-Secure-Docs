@@ -223,14 +223,7 @@ struct NomineeInvitationView: View {
             Text(errorMessage ?? "An unknown error occurred")
         }
         .task {
-            // Configure services
-            if AppConfig.useSupabase {
-                if let userID = authService.currentUser?.id {
-                    nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
-                } else {
-                    nomineeService.configure(supabaseService: supabaseService)
-                }
-            } else {
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
             if let userID = authService.currentUser?.id {
                 nomineeService.configure(modelContext: modelContext, currentUserID: userID)
             } else {

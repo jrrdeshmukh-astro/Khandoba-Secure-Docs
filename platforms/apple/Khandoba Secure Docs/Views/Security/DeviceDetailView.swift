@@ -8,9 +8,9 @@
 import SwiftUI
 
 struct DeviceDetailView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var deviceService: DeviceManagementService
     
     let device: Device

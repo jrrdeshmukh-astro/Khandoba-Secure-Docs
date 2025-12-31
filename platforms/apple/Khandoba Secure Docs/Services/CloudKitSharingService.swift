@@ -372,8 +372,10 @@ final class CloudKitSharingService: ObservableObject {
         // Use hierarchicalRootRecordID on iOS 16+ and fall back to rootRecordID for compatibility
         #if swift(>=5.7)
         if #available(iOS 16.0, macOS 13.0, *) {
+            // swiftlint:disable:next deprecated_member_use
             return metadata.hierarchicalRootRecordID ?? metadata.rootRecordID
         } else {
+            // swiftlint:disable:next deprecated_member_use
             return metadata.rootRecordID
         }
         #else

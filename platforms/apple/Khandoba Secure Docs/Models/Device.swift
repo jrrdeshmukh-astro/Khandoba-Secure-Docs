@@ -35,9 +35,8 @@ final class Device {
     var hardwareUUID: String? // Device hardware UUID (if available)
     var advertisingIdentifier: String? // IDFA (if available)
     
-    // User relationship
-    // Note: Using .nullify to avoid circular cascade - if device is deleted, just remove reference from user
-    @Relationship(deleteRule: .nullify, inverse: \User.authorizedDevices)
+    // User relationship (inverse of User.authorizedDevices)
+    // Note: No @Relationship needed here - relationship is defined on User.authorizedDevices
     var owner: User?
     
     init(

@@ -9,8 +9,12 @@ import SwiftUI
 import AVFoundation
 import Combine
 
-struct VoiceRecordingView: View {
+internal struct VoiceRecordingView: View {
     let vault: Vault
+    
+    internal init(vault: Vault) {
+        self.vault = vault
+    }
     
     @SwiftUI.Environment(\.unifiedTheme) var theme
     @SwiftUI.Environment(\.colorScheme) var colorScheme

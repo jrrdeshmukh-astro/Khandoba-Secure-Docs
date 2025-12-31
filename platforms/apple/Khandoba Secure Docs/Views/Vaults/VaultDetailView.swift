@@ -679,11 +679,8 @@ struct VaultDetailView: View {
     
     private func configureView() {
         if let userID = authService.currentUser?.id {
-            if AppConfig.useSupabase {
-                nomineeService.configure(modelContext: modelContext, currentUserID: userID, vaultService: vaultService)
-            } else {
-                nomineeService.configure(modelContext: modelContext, currentUserID: userID, vaultService: vaultService)
-            }
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
+            nomineeService.configure(modelContext: modelContext, currentUserID: userID, vaultService: vaultService)
         }
         
         loadNomineesAndConfigureSubsetAccess()
@@ -730,10 +727,9 @@ struct VaultDetailView: View {
         Task {
             do {
                 try await documentService.loadDocuments(for: vault)
-                if AppConfig.useSupabase {
-                    await MainActor.run {
-                        updateVaultDocumentsFromService()
-                    }
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
+                await MainActor.run {
+                    updateVaultDocumentsFromService()
                 }
             } catch let loadError {
                 await MainActor.run {
@@ -757,13 +753,12 @@ struct VaultDetailView: View {
             Task {
                 do {
                     try await documentService.loadDocuments(for: vault)
-                    if AppConfig.useSupabase {
-                        await MainActor.run {
-                            if vault.documents == nil {
-                                vault.documents = []
-                            }
-                            vault.documents = documentService.documents
+                    // iOS-ONLY: Using SwiftData/CloudKit exclusively
+                    await MainActor.run {
+                        if vault.documents == nil {
+                            vault.documents = []
                         }
+                        vault.documents = documentService.documents
                     }
                 } catch {
                     print("⚠️ Failed to load documents after unlock: \(error.localizedDescription)")
@@ -894,11 +889,8 @@ struct VaultDetailView: View {
             session.expiresAt = Date().addingTimeInterval(15 * 60)
             session.wasExtended = true
             
-            if AppConfig.useSupabase {
-                // Session updates handled by VaultService in Supabase mode
-            } else {
-                try? modelContext.save()
-            }
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
+            try? modelContext.save()
         }
     }
     

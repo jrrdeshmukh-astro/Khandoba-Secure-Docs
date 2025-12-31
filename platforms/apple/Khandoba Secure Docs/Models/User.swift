@@ -76,7 +76,7 @@ final class User {
         self.sentMessages = []
         self.vaultSessions = []
         self.dualKeyRequests = []
-        self.authorizedDevices = []
+        // Note: authorizedDevices is managed by SwiftData - do not initialize
     }
 }
 

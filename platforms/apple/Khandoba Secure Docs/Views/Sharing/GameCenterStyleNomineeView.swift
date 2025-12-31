@@ -228,19 +228,11 @@ struct GameCenterStyleNomineeView: View {
         isLoading = true
         defer { isLoading = false }
         
-        // Configure services
-        if AppConfig.useSupabase {
-            if let userID = authService.currentUser?.id {
-                nomineeService.configure(supabaseService: supabaseService, currentUserID: userID, vaultService: vaultService)
-            } else {
-                nomineeService.configure(supabaseService: supabaseService, vaultService: vaultService)
-            }
+        // Configure services - iOS-ONLY: Using SwiftData/CloudKit exclusively
+        if let userID = authService.currentUser?.id {
+            nomineeService.configure(modelContext: modelContext, currentUserID: userID, vaultService: vaultService)
         } else {
-            if let userID = authService.currentUser?.id {
-                nomineeService.configure(modelContext: modelContext, currentUserID: userID, vaultService: vaultService)
-            } else {
-                nomineeService.configure(modelContext: modelContext, vaultService: vaultService)
-            }
+            nomineeService.configure(modelContext: modelContext, vaultService: vaultService)
         }
         
         do {

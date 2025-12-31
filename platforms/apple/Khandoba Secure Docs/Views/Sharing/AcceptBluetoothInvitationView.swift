@@ -170,47 +170,23 @@ struct AcceptBluetoothInvitationView: View {
     }
     
     private func loadInvitationDetails() async {
-        // Load vault name
-        do {
-            if AppConfig.useSupabase {
-                let supabaseVault: SupabaseVault = try await supabaseService.fetch(
-                    "vaults",
-                    id: invitation.vaultID
-                )
-                await MainActor.run {
-                    vaultName = supabaseVault.name
-                }
-                
-                // Load inviter name
-                let supabaseUser: SupabaseUser = try await supabaseService.fetch(
-                    "users",
-                    id: invitation.inviterUserID
-                )
-                await MainActor.run {
-                    inviterName = supabaseUser.fullName
-                }
-            } else {
-                // SwiftData/CloudKit mode
-                let vaultDescriptor = FetchDescriptor<Vault>(
-                    predicate: #Predicate { $0.id == invitation.vaultID }
-                )
-                if let vault = try? modelContext.fetch(vaultDescriptor).first {
-                    await MainActor.run {
-                        vaultName = vault.name
-                    }
-                }
-                
-                let userDescriptor = FetchDescriptor<User>(
-                    predicate: #Predicate { $0.id == invitation.inviterUserID }
-                )
-                if let user = try? modelContext.fetch(userDescriptor).first {
-                    await MainActor.run {
-                        inviterName = user.fullName
-                    }
-                }
+        // Load vault name - iOS-ONLY: Using SwiftData/CloudKit exclusively
+        let vaultDescriptor = FetchDescriptor<Vault>(
+            predicate: #Predicate { $0.id == invitation.vaultID }
+        )
+        if let vault = try? modelContext.fetch(vaultDescriptor).first {
+            await MainActor.run {
+                vaultName = vault.name
             }
-        } catch {
-            print("⚠️ Failed to load invitation details: \(error.localizedDescription)")
+        }
+        
+        let userDescriptor = FetchDescriptor<User>(
+            predicate: #Predicate { $0.id == invitation.inviterUserID }
+        )
+        if let user = try? modelContext.fetch(userDescriptor).first {
+            await MainActor.run {
+                inviterName = user.fullName
+            }
         }
     }
     
@@ -219,24 +195,15 @@ struct AcceptBluetoothInvitationView: View {
         defer { isLoading = false }
         
         do {
-            // Configure services
-            if AppConfig.useSupabase {
-                nomineeService.configure(
-                    supabaseService: supabaseService,
-                    currentUserID: authService.currentUser?.id
-                )
-                // SharedVaultSessionService doesn't support Supabase mode yet
-                // Will use SwiftData mode for now
-            } else {
-                nomineeService.configure(
-                    modelContext: modelContext,
-                    currentUserID: authService.currentUser?.id
-                )
-                sharedVaultSessionService.configure(
-                    modelContext: modelContext,
-                    userID: authService.currentUser?.id ?? UUID()
-                )
-            }
+            // Configure services - iOS-ONLY: Using SwiftData/CloudKit exclusively
+            nomineeService.configure(
+                modelContext: modelContext,
+                currentUserID: authService.currentUser?.id
+            )
+            sharedVaultSessionService.configure(
+                modelContext: modelContext,
+                userID: authService.currentUser?.id ?? UUID()
+            )
             
             // Find vault from vaultService
             guard let vault = vaultService.vaults.first(where: { $0.id == invitation.vaultID }) else {

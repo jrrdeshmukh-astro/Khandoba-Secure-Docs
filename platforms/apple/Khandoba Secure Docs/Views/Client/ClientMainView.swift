@@ -195,19 +195,11 @@ struct ClientMainView: View {
     private func configureServices() {
         guard let userID = authService.currentUser?.id else { return }
         
-        // Configure services based on backend mode
-        if AppConfig.useSupabase {
-            // Supabase mode
-            vaultService.configure(supabaseService: supabaseService, userID: userID)
-            documentService.configure(supabaseService: supabaseService, userID: userID, contentFilterService: contentFilterService, subscriptionService: subscriptionService)
-            chatService.configure(supabaseService: supabaseService, userID: userID)
-        } else {
-            // SwiftData/CloudKit mode
-            subscriptionService.configure(modelContext: modelContext)
-            vaultService.configure(modelContext: modelContext, userID: userID)
-            documentService.configure(modelContext: modelContext, userID: userID, contentFilterService: contentFilterService, subscriptionService: subscriptionService)
-            chatService.configure(modelContext: modelContext, userID: userID)
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        subscriptionService.configure(modelContext: modelContext)
+        vaultService.configure(modelContext: modelContext, userID: userID)
+        documentService.configure(modelContext: modelContext, userID: userID, contentFilterService: contentFilterService, subscriptionService: subscriptionService)
+        chatService.configure(modelContext: modelContext, userID: userID)
         
         // Load subscription status
         Task {

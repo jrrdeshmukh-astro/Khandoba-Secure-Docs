@@ -14,13 +14,12 @@ final class IntelReportService: ObservableObject {
     @Published var isLoading = false
     
     private var modelContext: ModelContext?
-    private var supabaseService: SupabaseService?
     
     nonisolated init() {}
     
-    func configure(modelContext: ModelContext? = nil, supabaseService: SupabaseService? = nil) {
+    // iOS-ONLY: Using SwiftData/CloudKit exclusively
+    func configure(modelContext: ModelContext? = nil) {
         self.modelContext = modelContext
-        self.supabaseService = supabaseService
     }
     
     // MARK: - Cross-Reference Intel Report Generation

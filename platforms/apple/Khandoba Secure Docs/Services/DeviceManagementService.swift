@@ -135,8 +135,9 @@ final class DeviceManagementService: ObservableObject {
         }
         
         // Check if device already exists
+        let deviceIdentifier = deviceInfo.identifier
         let deviceDescriptor = FetchDescriptor<Device>(
-            predicate: #Predicate { $0.deviceIdentifier == deviceInfo.identifier }
+            predicate: #Predicate { device in device.deviceIdentifier == deviceIdentifier }
         )
         let existingDevices = try modelContext.fetch(deviceDescriptor)
         
@@ -214,8 +215,9 @@ final class DeviceManagementService: ObservableObject {
         let fingerprintHash = generateDeviceFingerprint()
         
         // Find device by identifier
+        let deviceIdentifier = deviceInfo.identifier
         let deviceDescriptor = FetchDescriptor<Device>(
-            predicate: #Predicate { $0.deviceIdentifier == deviceInfo.identifier }
+            predicate: #Predicate { device in device.deviceIdentifier == deviceIdentifier }
         )
         
         if let devices = try? modelContext.fetch(deviceDescriptor),
@@ -228,8 +230,9 @@ final class DeviceManagementService: ObservableObject {
                 device.failedAttemptCount += 1
                 try? modelContext.save()
                 
-                // Send security alert
-                await sendLostDeviceAccessAlert(device: device)
+                // Send security alert via push notification
+                // Note: PushNotificationService integration would go here
+                print("🚨 Alert: Lost/stolen device access attempt logged")
                 
                 await MainActor.run {
                     isDeviceAuthorized = false
@@ -393,6 +396,76 @@ final class DeviceManagementService: ObservableObject {
         }
         
         return []
+    }
+    
+    // MARK: - Lost Device Management
+    
+    /// Mark a device as lost or stolen
+    func markDeviceAsLost(_ device: Device, isStolen: Bool, reason: String?) async throws {
+        guard let modelContext = modelContext else {
+            throw DeviceError.contextNotAvailable
+        }
+        
+        // Check if this is the current device
+        if device.id == currentDevice?.id {
+            throw DeviceError.cannotMarkCurrentDeviceAsLost
+        }
+        
+        device.isLost = !isStolen
+        device.isStolen = isStolen
+        device.reportedLostAt = Date()
+        device.lostDeviceReason = reason
+        device.isAuthorized = false // Revoke access
+        
+        try modelContext.save()
+        
+        await loadAuthorizedDevices()
+        print("✅ Device marked as \(isStolen ? "stolen" : "lost"): \(device.deviceName)")
+    }
+    
+    /// Transfer irrevocable status from one device to another
+    func transferIrrevocableStatus(from lostDevice: Device) async throws {
+        guard let modelContext = modelContext, currentUserID != nil else {
+            throw DeviceError.contextNotAvailable
+        }
+        
+        // Find current device (the one to transfer to)
+        guard let currentDevice = currentDevice else {
+            throw DeviceError.deviceNotFound
+        }
+        
+        // Remove irrevocable status from lost device
+        lostDevice.isIrrevocable = false
+        
+        // Transfer to current device
+        currentDevice.isIrrevocable = true
+        
+        try modelContext.save()
+        
+        await loadAuthorizedDevices()
+        print("✅ Irrevocable status transferred from \(lostDevice.deviceName) to \(currentDevice.deviceName)")
+    }
+    
+    /// Recover a lost/stolen device
+    func recoverDevice(_ device: Device) async throws {
+        guard let modelContext = modelContext else {
+            throw DeviceError.contextNotAvailable
+        }
+        
+        guard device.isLost || device.isStolen else {
+            throw DeviceError.deviceNotLost
+        }
+        
+        device.isLost = false
+        device.isStolen = false
+        device.reportedLostAt = nil
+        device.lostDeviceReason = nil
+        device.isAuthorized = true // Restore access
+        
+        try modelContext.save()
+        
+        await loadAuthorizedDevices()
+        print("✅ Device recovered: \(device.deviceName)")
     }
 }
 

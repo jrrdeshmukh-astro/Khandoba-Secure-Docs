@@ -113,23 +113,14 @@ struct AntiVaultManagementView: View {
     private func configureServices() async {
         guard let userID = authService.currentUser?.id else { return }
         
-        if AppConfig.useSupabase {
-            antiVaultService.configure(
-                supabaseService: supabaseService,
-                userID: userID,
-                intelReportService: intelReportService,
-                vaultService: vaultService
-            )
-            intelReportService.configure(supabaseService: supabaseService)
-        } else {
-            antiVaultService.configure(
-                modelContext: modelContext,
-                userID: userID,
-                intelReportService: intelReportService,
-                vaultService: vaultService
-            )
-            intelReportService.configure(modelContext: modelContext)
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        antiVaultService.configure(
+            modelContext: modelContext,
+            userID: userID,
+            intelReportService: intelReportService,
+            vaultService: vaultService
+        )
+        intelReportService.configure(modelContext: modelContext)
     }
     
     private func loadAntiVaults() async {
@@ -244,7 +235,7 @@ struct CreateAntiVaultView: View {
     @State private var errorMessage = ""
     
     var body: some View {
-        let colors = theme.colors(for: colorScheme)
+        let _ = theme.colors(for: colorScheme) // Theme colors available if needed
         
         NavigationStack {
             Form {
@@ -329,23 +320,14 @@ struct CreateAntiVaultView: View {
     private func configureServices() async {
         guard let userID = authService.currentUser?.id else { return }
         
-        if AppConfig.useSupabase {
-            antiVaultService.configure(
-                supabaseService: supabaseService,
-                userID: userID,
-                intelReportService: intelReportService,
-                vaultService: vaultService
-            )
-            intelReportService.configure(supabaseService: supabaseService)
-        } else {
-            antiVaultService.configure(
-                modelContext: modelContext,
-                userID: userID,
-                intelReportService: intelReportService,
-                vaultService: vaultService
-            )
-            intelReportService.configure(modelContext: modelContext)
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        antiVaultService.configure(
+            modelContext: modelContext,
+            userID: userID,
+            intelReportService: intelReportService,
+            vaultService: vaultService
+        )
+        intelReportService.configure(modelContext: modelContext)
     }
     
     private func createAntiVault() async {
@@ -369,34 +351,8 @@ struct CreateAntiVaultView: View {
             // Update auto-unlock policy
             antiVault.autoUnlockPolicy = autoUnlockPolicy
             
-            // Save policy updates
-            if AppConfig.useSupabase {
-                // Convert and update in Supabase
-                guard let vaultID = antiVault.vaultID,
-                      let monitoredVaultID = antiVault.monitoredVaultID,
-                      let ownerID = authService.currentUser?.id else {
-                    errorMessage = "Invalid anti-vault data"
-                    showError = true
-                    return
-                }
-                
-                let supabaseAntiVault = SupabaseAntiVault(
-                    id: antiVault.id,
-                    vaultID: vaultID,
-                    monitoredVaultID: monitoredVaultID,
-                    ownerID: ownerID,
-                    status: antiVault.status,
-                    autoUnlockPolicy: antiVault.autoUnlockPolicy,
-                    threatDetectionSettings: antiVault.threatDetectionSettings,
-                    lastIntelReportID: antiVault.lastIntelReportID,
-                    createdAt: antiVault.createdAt,
-                    updatedAt: Date(),
-                    lastUnlockedAt: antiVault.lastUnlockedAt
-                )
-                _ = try await supabaseService.update("anti_vaults", id: antiVault.id, values: supabaseAntiVault)
-            } else {
-                try modelContext.save()
-            }
+            // Save policy updates - iOS-ONLY: Using SwiftData/CloudKit exclusively
+            try modelContext.save()
             
             onCreated(vault)
             dismiss()

@@ -126,14 +126,13 @@ struct Khandoba_Secure_DocsApp: App {
                 .environment(\.unifiedTheme, UnifiedTheme())
                 .onAppear {
                     // iOS-ONLY: Using SwiftData/CloudKit exclusively
-                    if let modelContext = sharedModelContainer.mainContext {
-                        authService.configure(modelContext: modelContext)
-                        complianceDetectionService.configure(modelContext: modelContext)
-                        
-                        // Configure device management when user is authenticated
-                        if let userID = authService.currentUser?.id {
-                            deviceManagementService.configure(modelContext: modelContext, userID: userID)
-                        }
+                    let modelContext = sharedModelContainer.mainContext
+                    authService.configure(modelContext: modelContext)
+                    complianceDetectionService.configure(modelContext: modelContext)
+                    
+                    // Configure device management when user is authenticated
+                    if let userID = authService.currentUser?.id {
+                        deviceManagementService.configure(modelContext: modelContext, userID: userID)
                     }
                     
                     setupPushNotifications()
@@ -142,10 +141,10 @@ struct Khandoba_Secure_DocsApp: App {
                     #if os(macOS)
                     configureMacOSMenuBar()
                     #endif
+                }
+                .preferredColorScheme(.dark) // Force dark theme
+                .modelContainer(sharedModelContainer)
         }
-        .preferredColorScheme(.dark) // Force dark theme
-        }
-        .modelContainer(sharedModelContainer)
     }
     
     private func setupPushNotifications() {

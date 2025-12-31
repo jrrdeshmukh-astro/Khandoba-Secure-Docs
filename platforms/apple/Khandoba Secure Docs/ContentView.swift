@@ -347,14 +347,7 @@ struct ContentView: View {
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
         
-        // Supabase mode - nominees are handled via RLS, no need to find shared vaults
-        if AppConfig.useSupabase {
-            // In Supabase, shared vaults are automatically visible via RLS policies
-            // Nominees can see vaults they're invited to
-            return nil
-        }
-        
-        // SwiftData/CloudKit mode
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         do {
             let vaults = try modelContext.fetch(descriptor)
             // Find vaults that are not owned by current user (shared vaults)
@@ -397,8 +390,9 @@ struct ContentView: View {
         }
         // Fallback to deprecated rootRecordID for iOS < 16 or when hierarchical is nil
         // This deprecation warning is intentional - API still functional, no replacement available
+        // Note: rootRecordID is deprecated in iOS 16.0, but needed as fallback per Apple's guidance
         // swiftlint:disable:next deprecated_member_use
-        return metadata.rootRecordID  // Deprecated in iOS 16.0, but needed for compatibility
+        return metadata.rootRecordID
     }
     
     private func acceptCloudKitShare(metadata: CKShare.Metadata) {

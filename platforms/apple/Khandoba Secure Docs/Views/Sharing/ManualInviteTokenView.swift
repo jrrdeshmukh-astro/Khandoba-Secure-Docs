@@ -162,11 +162,8 @@ struct ManualInviteTokenView: View {
                 }
             }
             .onAppear {
-                if AppConfig.useSupabase {
-                    nomineeService.configure(supabaseService: supabaseService)
-                } else {
-                    nomineeService.configure(modelContext: modelContext)
-                }
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
+                nomineeService.configure(modelContext: modelContext)
             }
         }
     }

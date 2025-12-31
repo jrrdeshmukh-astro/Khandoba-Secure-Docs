@@ -10,8 +10,12 @@ import SwiftUI
 import AVKit
 import Combine
 
-struct VideoRecordingView: View {
+internal struct VideoRecordingView: View {
     let vault: Vault
+    
+    internal init(vault: Vault) {
+        self.vault = vault
+    }
     
     @SwiftUI.Environment(\.unifiedTheme) var theme
     @SwiftUI.Environment(\.colorScheme) var colorScheme

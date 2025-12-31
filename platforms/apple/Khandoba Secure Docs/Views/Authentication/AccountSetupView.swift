@@ -35,130 +35,11 @@ struct AccountSetupView: View {
             
             ScrollView {
                 VStack(spacing: UnifiedTheme.Spacing.lg) {
-                    // Minimalist Header
-                    VStack(spacing: UnifiedTheme.Spacing.xs) {
-                        Text("Complete Your Profile")
-                            .font(theme.typography.largeTitle)
-                            .foregroundColor(colors.textPrimary)
-                            .fontWeight(.semibold)
-                        
-                        Text("Just a few details")
-                            .font(theme.typography.subheadline)
-                            .foregroundColor(colors.textSecondary)
-                    }
-                    .padding(.top, UnifiedTheme.Spacing.xxl)
-                    .padding(.bottom, UnifiedTheme.Spacing.md)
-                    .onAppear {
-                        // Pre-populate with name from Apple (if available)
-                        if let user = authService.currentUser {
-                            let existingName = user.fullName.trimmingCharacters(in: .whitespaces)
-                            // Only pre-fill if it's not the default "User"
-                            if !existingName.isEmpty && existingName != "User" {
-                                fullName = existingName
-                            }
-                            // Load existing profile picture if available
-                            if let existingPhoto = user.profilePictureData {
-                                profileImageData = existingPhoto
-                            }
-                        }
-                    }
-                    
-                    // Minimalist Profile Picture Section
-                    VStack(spacing: UnifiedTheme.Spacing.sm) {
-                        #if os(iOS)
-                        Button {
-                            showImageSourceOptions = true
-                        } label: {
-                            if let imageData = profileImageData,
-                               let uiImage = UIImage(data: imageData) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 100, height: 100)
-                                    .clipShape(Circle())
-                                    .overlay(
-                                        Circle()
-                                            .stroke(colors.primary.opacity(0.3), lineWidth: 2)
-                                    )
-                                    .overlay(
-                                        Circle()
-                                            .fill(Color.black.opacity(0.3))
-                                            .overlay(
-                                                Image(systemName: "camera.fill")
-                                                    .foregroundColor(.white)
-                                                    .font(.title3)
-                                            )
-                                    )
-                            } else {
-                                Circle()
-                                    .fill(colors.surface)
-                                    .frame(width: 100, height: 100)
-                                    .overlay(
-                                        VStack(spacing: 8) {
-                                            Image(systemName: "camera.fill")
-                                                .font(.title2)
-                                                .foregroundColor(colors.primary)
-                                            Text("Add Photo")
-                                                .font(theme.typography.caption)
-                                                .foregroundColor(colors.textSecondary)
-                                        }
-                                    )
-                                    .overlay(
-                                        Circle()
-                                            .stroke(colors.primary.opacity(0.3), lineWidth: 2)
-                                    )
-                            }
-                        }
-                        #else
-                        Circle()
-                            .fill(colors.surface)
-                            .frame(width: 100, height: 100)
-                            .overlay(
-                                Image(systemName: "person.fill")
-                                    .font(.title)
-                                    .foregroundColor(colors.textTertiary)
-                            )
-                        #endif
-                    }
-                    .padding(.bottom, UnifiedTheme.Spacing.md)
-                    
-                    // Minimalist Name Input
-                    VStack(spacing: UnifiedTheme.Spacing.sm) {
-                        TextField("Your name", text: $fullName)
-                            .font(theme.typography.title3)
-                            .foregroundColor(colors.textPrimary)
-                            .padding(UnifiedTheme.Spacing.lg)
-                            .background(colors.surface)
-                            .cornerRadius(UnifiedTheme.CornerRadius.md)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: UnifiedTheme.CornerRadius.md)
-                                    .stroke(fullName.isEmpty ? colors.textTertiary.opacity(0.3) : colors.primary.opacity(0.3), lineWidth: 1)
-                            )
-                    }
-                    .padding(.horizontal, UnifiedTheme.Spacing.lg)
-                    
-                    // Minimalist Continue Button
-                    Button {
-                        completeSetup()
-                    } label: {
-                        HStack {
-                            if isLoading {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Text("Continue")
-                                    .fontWeight(.semibold)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(UnifiedTheme.Spacing.md)
-                        .background(fullName.isEmpty ? colors.textTertiary : colors.primary)
-                        .foregroundColor(.white)
-                        .cornerRadius(UnifiedTheme.CornerRadius.md)
-                    }
-                    .disabled(fullName.isEmpty || isLoading)
-                    .padding(.horizontal, UnifiedTheme.Spacing.lg)
-                    .padding(.top, UnifiedTheme.Spacing.xl)
+                    headerSection(colors: colors)
+                    profilePictureSection(colors: colors)
+                        .padding(.bottom, UnifiedTheme.Spacing.md)
+                    nameInputSection(colors: colors)
+                    continueButton(colors: colors)
                 }
             }
         }
@@ -205,6 +86,76 @@ struct AccountSetupView: View {
         #endif
     }
     
+    // MARK: - View Sections (extracted to avoid complex expression)
+    private func headerSection(colors: UnifiedTheme.Colors) -> some View {
+        VStack(spacing: UnifiedTheme.Spacing.xs) {
+            Text("Complete Your Profile")
+                .font(theme.typography.largeTitle)
+                .foregroundColor(colors.textPrimary)
+                .fontWeight(.semibold)
+            
+            Text("Just a few details")
+                .font(theme.typography.subheadline)
+                .foregroundColor(colors.textSecondary)
+        }
+        .padding(.top, UnifiedTheme.Spacing.xxl)
+        .padding(.bottom, UnifiedTheme.Spacing.md)
+        .onAppear {
+            // Pre-populate with name from Apple (if available)
+            if let user = authService.currentUser {
+                let existingName = user.fullName.trimmingCharacters(in: .whitespaces)
+                // Only pre-fill if it's not the default "User"
+                if !existingName.isEmpty && existingName != "User" {
+                    fullName = existingName
+                }
+                // Load existing profile picture if available
+                if let existingPhoto = user.profilePictureData {
+                    profileImageData = existingPhoto
+                }
+            }
+        }
+    }
+    
+    private func nameInputSection(colors: UnifiedTheme.Colors) -> some View {
+        VStack(spacing: UnifiedTheme.Spacing.sm) {
+            TextField("Your name", text: $fullName)
+                .font(theme.typography.headline)
+                .foregroundColor(colors.textPrimary)
+                .padding(UnifiedTheme.Spacing.lg)
+                .background(colors.surface)
+                .cornerRadius(UnifiedTheme.CornerRadius.md)
+                .overlay(
+                    RoundedRectangle(cornerRadius: UnifiedTheme.CornerRadius.md)
+                        .stroke(fullName.isEmpty ? colors.textTertiary.opacity(0.3) : colors.primary.opacity(0.3), lineWidth: 1)
+                )
+        }
+        .padding(.horizontal, UnifiedTheme.Spacing.lg)
+    }
+    
+    private func continueButton(colors: UnifiedTheme.Colors) -> some View {
+        Button {
+            completeSetup()
+        } label: {
+            HStack {
+                if isLoading {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Text("Continue")
+                        .fontWeight(.semibold)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(UnifiedTheme.Spacing.md)
+            .background(fullName.isEmpty ? colors.textTertiary : colors.primary)
+            .foregroundColor(.white)
+            .cornerRadius(UnifiedTheme.CornerRadius.md)
+        }
+        .disabled(fullName.isEmpty || isLoading)
+        .padding(.horizontal, UnifiedTheme.Spacing.lg)
+        .padding(.top, UnifiedTheme.Spacing.xl)
+    }
+    
     private func completeSetup() {
         isLoading = true
         Task {
@@ -220,6 +171,80 @@ struct AccountSetupView: View {
                 showError = true
             }
         }
+    }
+    
+    // MARK: - Profile Picture Section (extracted to avoid complex expression)
+    @ViewBuilder
+    private func profilePictureSection(colors: UnifiedTheme.Colors) -> some View {
+        VStack(spacing: UnifiedTheme.Spacing.sm) {
+            #if os(iOS)
+            Button {
+                showImageSourceOptions = true
+            } label: {
+                profileImageContent(colors: colors)
+            }
+            #else
+            Circle()
+                .fill(colors.surface)
+                .frame(width: 100, height: 100)
+                .overlay(
+                    Image(systemName: "person.fill")
+                        .font(.title)
+                        .foregroundColor(colors.textTertiary)
+                )
+            #endif
+        }
+    }
+    
+    @ViewBuilder
+    private func profileImageContent(colors: UnifiedTheme.Colors) -> some View {
+        if let imageData = profileImageData,
+           let uiImage = UIImage(data: imageData) {
+            profileImageWithOverlay(uiImage: uiImage, colors: colors)
+        } else {
+            profileImagePlaceholder(colors: colors)
+        }
+    }
+    
+    private func profileImageWithOverlay(uiImage: UIImage, colors: UnifiedTheme.Colors) -> some View {
+        Image(uiImage: uiImage)
+            .resizable()
+            .scaledToFill()
+            .frame(width: 100, height: 100)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(colors.primary.opacity(0.3), lineWidth: 2)
+            )
+            .overlay(
+                Circle()
+                    .fill(Color.black.opacity(0.3))
+                    .overlay(
+                        Image(systemName: "camera.fill")
+                            .foregroundColor(.white)
+                            .font(.title3)
+                    )
+            )
+    }
+    
+    private func profileImagePlaceholder(colors: UnifiedTheme.Colors) -> some View {
+        Circle()
+            .fill(colors.surface)
+            .frame(width: 100, height: 100)
+            .overlay(
+                VStack(spacing: 8) {
+                    Image(systemName: "camera.fill")
+                        .font(.title2)
+                        .foregroundColor(colors.primary)
+                    Text("Add Photo")
+                        .font(theme.typography.caption)
+                        .foregroundColor(colors.textSecondary)
+                }
+            )
+            .overlay(
+                Circle()
+                    .stroke(colors.primary.opacity(0.3), lineWidth: 2)
+            )
     }
 }
 

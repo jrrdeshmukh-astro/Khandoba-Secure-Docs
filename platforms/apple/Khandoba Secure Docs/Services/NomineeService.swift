@@ -481,7 +481,7 @@ final class NomineeService: ObservableObject {
     /// Accept a nominee invitation by nominee ID
     func acceptNominee(nomineeID: UUID) async throws -> Nominee? {
         // iOS-ONLY: Using SwiftData/CloudKit exclusively
-        guard let modelContext = modelContext, let currentUserID = currentUserID else {
+        guard let modelContext = modelContext else {
             throw NomineeError.contextNotAvailable
         }
         

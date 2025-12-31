@@ -242,7 +242,7 @@ struct VaultShareView: View {
         Task {
             do {
                 // Create nominee for shared access
-                guard let currentUser = authService.currentUser else {
+                guard authService.currentUser != nil else {
                     throw NSError(domain: "VaultShare", code: 1, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
                 }
                 
@@ -270,8 +270,8 @@ struct VaultShareView: View {
                     // Create nominee
                     let nominee = Nominee(
                         name: "\(contact.givenName) \(contact.familyName)",
-                        email: contact.emailAddresses.first?.value as String?,
                         phoneNumber: contact.phoneNumbers.first?.value.stringValue,
+                        email: contact.emailAddresses.first?.value as String?,
                         status: .pending
                     )
                     nominee.vault = vault
@@ -283,7 +283,7 @@ struct VaultShareView: View {
                 try modelContext.save()
                 
                 // Show CloudKit share for first contact
-                if let firstContact = contacts.first {
+                if contacts.first != nil {
                     await MainActor.run {
                         showCloudKitShare = true
                     }
@@ -347,10 +347,12 @@ struct CloudKitShareView: UIViewControllerRepresentable {
         let container = CKContainer(identifier: AppConfig.cloudKitContainer)
         
         // Create CloudKit sharing controller
+        // Note: init(preparationHandler:) is deprecated in iOS 17.0, but needed for compatibility
+        // swiftlint:disable:next deprecated_member_use
         let shareController = UICloudSharingController { controller, completionHandler in
             Task {
                 // Use SwiftData's PersistentIdentifier for CloudKit record lookup
-                let persistentID = vault.persistentModelID
+                _ = vault.persistentModelID
                 completionHandler(nil, container, nil)
             }
         }
@@ -368,13 +370,15 @@ struct CloudKitShareView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
     
     func makeCoordinator() -> Coordinator {
-        Coordinator(onComplete: onComplete)
+        Coordinator(vault: vault, onComplete: onComplete)
     }
     
     class Coordinator: NSObject, UICloudSharingControllerDelegate {
+        let vault: Vault
         let onComplete: () -> Void
         
-        init(onComplete: @escaping () -> Void) {
+        init(vault: Vault, onComplete: @escaping () -> Void) {
+            self.vault = vault
             self.onComplete = onComplete
         }
         
@@ -397,14 +401,14 @@ struct CloudKitShareView: UIViewControllerRepresentable {
         func cloudSharingControllerDidSaveShare(_ csc: UICloudSharingController) {
             print("✅ CloudKit share saved successfully")
             DispatchQueue.main.async {
-                onComplete()
+                self.onComplete()
             }
         }
         
         func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {
             print("ℹ️ CloudKit sharing stopped")
             DispatchQueue.main.async {
-                onComplete()
+                self.onComplete()
             }
         }
     }

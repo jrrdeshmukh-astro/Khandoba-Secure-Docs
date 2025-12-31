@@ -246,11 +246,8 @@ struct AcceptNomineeInvitationView: View {
                 }
             }
             .onAppear {
-                if AppConfig.useSupabase {
-                    nomineeService.configure(supabaseService: supabaseService)
-                } else {
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
                 nomineeService.configure(modelContext: modelContext)
-                }
                 loadInvitation()
             }
         }

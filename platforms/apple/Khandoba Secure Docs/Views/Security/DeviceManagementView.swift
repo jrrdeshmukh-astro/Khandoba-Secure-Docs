@@ -205,7 +205,8 @@ struct DeviceRow: View {
             }
             
             // Access Statistics
-            if let stats = deviceService.getDeviceAccessStats(for: device) as? (totalAttempts: Int, failedAttempts: Int, lastAccess: Date?) {
+            let stats = deviceService.getDeviceAccessStats(for: device)
+            if stats.lastAccess != nil {
                 Text("Last access: \(formatDate(stats.lastAccess))")
                     .font(theme.typography.caption2)
                     .foregroundColor(colors.secondary)

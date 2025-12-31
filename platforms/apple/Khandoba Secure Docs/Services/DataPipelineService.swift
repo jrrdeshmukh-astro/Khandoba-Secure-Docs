@@ -69,7 +69,7 @@ final class DataPipelineService: ObservableObject {
         iCloudDriveEnabled = true
         syncStatus = .syncing
         Task {
-            await synciCloudDrive()
+            try? await synciCloudDrive()
         }
     }
     
@@ -78,7 +78,7 @@ final class DataPipelineService: ObservableObject {
         iCloudPhotosEnabled = true
         syncStatus = .syncing
         Task {
-            await synciCloudPhotos()
+            try? await synciCloudPhotos()
         }
     }
     
@@ -87,7 +87,7 @@ final class DataPipelineService: ObservableObject {
         iCloudMailEnabled = true
         syncStatus = .syncing
         Task {
-            await synciCloudMail()
+            try? await synciCloudMail()
         }
     }
     
@@ -171,8 +171,7 @@ final class DataPipelineService: ObservableObject {
         fileName: String,
         to vault: Vault
     ) async throws -> Document {
-        guard let modelContext = modelContext,
-              let documentService = documentService else {
+        guard let documentService = documentService else {
             throw DataPipelineError.serviceNotConfigured
         }
         
@@ -254,9 +253,8 @@ final class DataPipelineService: ObservableObject {
         // Extract text based on file type
         if fileName.lowercased().hasSuffix(".pdf") {
             // Use PDFTextExtractor
-            let extractor = PDFTextExtractor()
-            return await extractor.extractText(from: data) ?? ""
-        } else if let image = UIImage(data: data) {
+            return PDFTextExtractor.extractFromPDF(data: data)
+        } else if UIImage(data: data) != nil {
             // Use OCR for images - would need Vision framework
             return "" // Placeholder - implement OCR if needed
         } else if let text = String(data: data, encoding: .utf8) {
@@ -271,11 +269,15 @@ final class DataPipelineService: ObservableObject {
         guard let modelContext = modelContext else { return }
         
         // Find related documents based on content similarity
+        let vaultID = vault.id
+        let documentID = document.id
         let descriptor = FetchDescriptor<Document>(
-            predicate: #Predicate { $0.vault?.id == vault.id && $0.id != document.id }
+            predicate: #Predicate { doc in
+                doc.vault?.id == vaultID && doc.id != documentID
+            }
         )
         
-        guard let relatedDocuments = try? modelContext.fetch(descriptor) else { return }
+        let _ = try? modelContext.fetch(descriptor)
         
         // Create backlinks to similar documents
         // This would be implemented with a DocumentRelationship model
@@ -289,8 +291,9 @@ final class DataPipelineService: ObservableObject {
             throw DataPipelineError.serviceNotConfigured
         }
         
+        let vaultID = vault.id
         let descriptor = FetchDescriptor<VaultTopic>(
-            predicate: #Predicate { $0.vaultID == vault.id }
+            predicate: #Predicate { topic in topic.vaultID == vaultID }
         )
         
         if let topic = try? modelContext.fetch(descriptor).first {

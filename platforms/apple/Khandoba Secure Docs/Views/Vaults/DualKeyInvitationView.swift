@@ -169,7 +169,7 @@ struct DualKeyInvitationView: View {
                 Text(errorMessage)
             }
             .sheet(isPresented: $showCloudKitShare) {
-                CloudKitShareView(vault: vault) {
+                CloudKitShareView(vault: vault, permission: .readWrite) {
                     invitationSent = true
                     showCloudKitShare = false
                 }
@@ -184,8 +184,8 @@ struct DualKeyInvitationView: View {
                 // Create nominee for second signee (co-signer for dual-key vault)
                 let nominee = Nominee(
                     name: "Second Signee",
-                    email: nil,
                     phoneNumber: nil,
+                    email: nil,
                     status: .pending
                 )
                 nominee.vault = vault
@@ -246,64 +246,5 @@ struct InvitationMethodRow: View {
     }
 }
 
-// CloudKit Share View using UICloudSharingController
-struct CloudKitShareView: UIViewControllerRepresentable {
-    let vault: Vault
-    let onComplete: () -> Void
-    
-    func makeUIViewController(context: Context) -> UIViewController {
-        let controller = UIViewController()
-        
-        // Get CloudKit container
-        let container = CKContainer(identifier: AppConfig.cloudKitContainer)
-        
-        // Create CloudKit sharing controller
-        let shareController = UICloudSharingController { controller, completionHandler in
-            Task {
-                // Use SwiftData's PersistentIdentifier for CloudKit record lookup
-                let persistentID = vault.persistentModelID
-                completionHandler(nil, container, nil)
-            }
-        }
-        
-        shareController.delegate = context.coordinator
-        shareController.availablePermissions = [.allowReadWrite]
-        
-        DispatchQueue.main.async {
-            controller.present(shareController, animated: true)
-        }
-        
-        return controller
-    }
-    
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onComplete: onComplete)
-    }
-    
-    class Coordinator: NSObject, UICloudSharingControllerDelegate {
-        let onComplete: () -> Void
-        
-        init(onComplete: @escaping () -> Void) {
-            self.onComplete = onComplete
-        }
-        
-        func cloudSharingController(_ csc: UICloudSharingController, failedToSaveShareWithError error: Error) {
-            print("❌ CloudKit share failed: \(error.localizedDescription)")
-        }
-        
-        func itemThumbnailData(for csc: UICloudSharingController) -> Data? {
-            return nil
-        }
-        
-        func itemTitle(for csc: UICloudSharingController) -> String? {
-            return vault.name
-        }
-        
-        func itemType(for csc: UICloudSharingController) -> String? {
-            return "Vault"
-        }
-    }
-}
+// Note: CloudKitShareView is defined in VaultShareView.swift - using that implementation
 

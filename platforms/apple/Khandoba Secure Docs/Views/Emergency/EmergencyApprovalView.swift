@@ -26,9 +26,11 @@ struct EmergencyApprovalView: View {
     @State private var approvedRequestPassCode: String?
     @State private var approvedRequestExpiresAt: Date?
     
+    private var colors: UnifiedTheme.Colors {
+        theme.colors(for: colorScheme)
+    }
+    
     var body: some View {
-        let colors = theme.colors(for: colorScheme)
-        
         NavigationStack {
             ZStack {
                 colors.background.ignoresSafeArea()
@@ -98,12 +100,8 @@ struct EmergencyApprovalView: View {
                 }
             }
             .onAppear {
-                // Configure service based on backend mode
-                if AppConfig.useSupabase {
-                    approvalService.configure(supabaseService: supabaseService)
-                } else {
-                    approvalService.configure(modelContext: modelContext)
-                }
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
+                approvalService.configure(modelContext: modelContext)
                 Task {
                     try? await approvalService.loadPendingRequests()
                 }

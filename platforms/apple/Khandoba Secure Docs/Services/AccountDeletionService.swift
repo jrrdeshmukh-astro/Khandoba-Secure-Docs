@@ -16,33 +16,21 @@ final class AccountDeletionService: ObservableObject {
     @Published var deletionError: AccountDeletionError?
     
     private var modelContext: ModelContext?
-    private var supabaseService: SupabaseService?
     private var cloudKitSharing: CloudKitSharingService?
     
     init() {
         self.cloudKitSharing = CloudKitSharingService()
     }
     
-    // SwiftData/CloudKit mode
+    // iOS-ONLY: Using SwiftData/CloudKit exclusively
     func configure(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.supabaseService = nil
         cloudKitSharing?.configure(modelContext: modelContext)
-    }
-    
-    // Supabase mode
-    func configure(supabaseService: SupabaseService) {
-        self.supabaseService = supabaseService
-        self.modelContext = nil
     }
     
     /// Delete user account and all associated data
     /// This complies with App Store Guideline 5.1.1(v) - Account Deletion
     func deleteAccount(user: User) async throws {
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            try await deleteAccountFromSupabase(user: user, supabaseService: supabaseService)
-            return
-        }
         
         guard let modelContext = modelContext else {
             throw AccountDeletionError.contextNotAvailable
@@ -221,207 +209,6 @@ final class AccountDeletionService: ObservableObject {
         print("   ✅ Terminated nominee access to \(vaultsToUpdate.count) vault(s)")
     }
     
-    // MARK: - Supabase Account Deletion
-    
-    /// Delete account from Supabase
-    private func deleteAccountFromSupabase(user: User, supabaseService: SupabaseService) async throws {
-        isDeleting = true
-        defer { isDeleting = false }
-        
-        do {
-            let userID = user.id
-            print("🗑️ Deleting account from Supabase: \(user.fullName) (\(userID))")
-            
-            // 1. Delete all user-owned vaults and their contents
-            // RLS policies will ensure proper access control
-            let ownedVaults: [SupabaseVault] = try await supabaseService.fetchAll(
-                "vaults",
-                filters: ["owner_id": userID]
-            )
-            
-            print("🗑️ Deleting \(ownedVaults.count) vault(s) owned by user")
-            
-            for vault in ownedVaults {
-                // Delete all documents in vault
-                let documents: [SupabaseDocument] = try await supabaseService.fetchAll(
-                    "documents",
-                    filters: ["vault_id": vault.id]
-                )
-                
-                print("   → Deleting \(documents.count) document(s) from vault '\(vault.name)'")
-                for document in documents {
-                    // Delete document file from storage if exists
-                    if let storagePath = document.storagePath {
-                        do {
-                            try await supabaseService.deleteFile(bucket: "documents", path: storagePath)
-                            print("   ✅ Deleted document file: \(storagePath)")
-                        } catch {
-                            print("   ⚠️ Failed to delete document file: \(error.localizedDescription)")
-                            // Continue with record deletion even if file deletion fails
-                        }
-                    }
-                    
-                    // Delete document record
-                    try await supabaseService.delete("documents", id: document.id)
-                    print("   ✅ Deleted document record: \(document.name)")
-                }
-                
-                // Delete access logs (cascade delete handled by database or manual deletion)
-                let accessLogs: [SupabaseVaultAccessLog] = try await supabaseService.fetchAll(
-                    "vault_access_logs",
-                    filters: ["vault_id": vault.id]
-                )
-                
-                print("   → Deleting \(accessLogs.count) access log(s)")
-                for log in accessLogs {
-                    try await supabaseService.delete("vault_access_logs", id: log.id)
-                }
-                
-                // Delete vault sessions
-                let sessions: [SupabaseVaultSession] = try await supabaseService.fetchAll(
-                    "vault_sessions",
-                    filters: ["vault_id": vault.id]
-                )
-                
-                print("   → Deleting \(sessions.count) session(s)")
-                for session in sessions {
-                    try await supabaseService.delete("vault_sessions", id: session.id)
-                }
-                
-                // Delete dual key requests
-                let dualKeyRequests: [SupabaseDualKeyRequest] = try await supabaseService.fetchAll(
-                    "dual_key_requests",
-                    filters: ["vault_id": vault.id]
-                )
-                
-                print("   → Deleting \(dualKeyRequests.count) dual key request(s)")
-                for request in dualKeyRequests {
-                    try await supabaseService.delete("dual_key_requests", id: request.id)
-                }
-                
-                // Delete vault
-                try await supabaseService.delete("vaults", id: vault.id)
-                print("   ✅ Deleted vault: \(vault.name)")
-            }
-            
-            // 2. Terminate nominee access to shared vaults
-            try await terminateNomineeAccessFromSupabase(user: user, supabaseService: supabaseService)
-            
-            // 3. Delete chat messages sent by user
-            let chatMessages: [SupabaseChatMessage] = try await supabaseService.fetchAll(
-                "chat_messages",
-                filters: ["sender_id": userID]
-            )
-            
-            print("🗑️ Deleting \(chatMessages.count) chat message(s)")
-            for message in chatMessages {
-                try await supabaseService.delete("chat_messages", id: message.id)
-            }
-            
-            // 4. Delete user roles
-            let userRoles: [SupabaseUserRole] = try await supabaseService.fetchAll(
-                "user_roles",
-                filters: ["user_id": userID]
-            )
-            
-            print("🗑️ Deleting \(userRoles.count) user role(s)")
-            for role in userRoles {
-                try await supabaseService.delete("user_roles", id: role.id)
-            }
-            
-            // 5. Delete emergency access requests
-            let emergencyRequests: [SupabaseEmergencyAccessRequest] = try await supabaseService.fetchAll(
-                "emergency_access_requests",
-                filters: ["requester_id": userID]
-            )
-            
-            print("🗑️ Deleting \(emergencyRequests.count) emergency access request(s)")
-            for request in emergencyRequests {
-                try await supabaseService.delete("emergency_access_requests", id: request.id)
-            }
-            
-            // 6. Delete vault transfer requests
-            let transferRequests: [SupabaseVaultTransferRequest] = try await supabaseService.fetchAll(
-                "vault_transfer_requests",
-                filters: ["from_user_id": userID]
-            )
-            
-            print("🗑️ Deleting \(transferRequests.count) transfer request(s)")
-            for request in transferRequests {
-                try await supabaseService.delete("vault_transfer_requests", id: request.id)
-            }
-            
-            // 7. Delete the user account itself
-            try await supabaseService.delete("users", id: userID)
-            
-            // 8. Sign out from Supabase auth
-            try await supabaseService.signOut()
-            
-            print("✅ Account deletion completed successfully in Supabase")
-            print("   → All user data has been permanently deleted")
-            
-        } catch {
-            print("❌ Error deleting account from Supabase: \(error.localizedDescription)")
-            throw AccountDeletionError.deletionFailed(error.localizedDescription)
-        }
-    }
-    
-    /// Terminate nominee access from Supabase
-    private func terminateNomineeAccessFromSupabase(user: User, supabaseService: SupabaseService) async throws {
-        let userID = user.id
-        print("🔒 Terminating nominee access for user: \(user.fullName) (\(userID))")
-        
-        // Find all Nominee records that match this user's ID
-        let nominees: [SupabaseNominee] = try await supabaseService.fetchAll(
-            "nominees",
-            filters: ["user_id": userID]
-        )
-        
-        if nominees.isEmpty {
-            print("   ℹ️ No nominee records found for this user")
-            return
-        }
-        
-        print("   Found \(nominees.count) nominee record(s) to remove")
-        
-        var vaultsToUpdate: Set<UUID> = []
-        
-        for nominee in nominees {
-            vaultsToUpdate.insert(nominee.vaultID)
-            
-            // Update access logs to mark user as deleted but preserve them
-            let accessLogs: [SupabaseVaultAccessLog] = try await supabaseService.fetchAll(
-                "vault_access_logs",
-                filters: ["vault_id": nominee.vaultID, "user_id": user.id]
-            )
-            
-            for log in accessLogs {
-                var updatedLog = log
-                updatedLog.userName = (log.userName ?? "User") + " (Account Deleted)"
-                _ = try await supabaseService.update("vault_access_logs", id: log.id, values: updatedLog)
-                print("   📋 Preserved access log entry: \(log.accessType) at \(log.timestamp)")
-            }
-            
-            // Close active vault sessions
-            let sessions: [SupabaseVaultSession] = try await supabaseService.fetchAll(
-                "vault_sessions",
-                filters: ["vault_id": nominee.vaultID, "user_id": user.id, "is_active": true]
-            )
-            
-            for session in sessions {
-                var updatedSession = session
-                updatedSession.isActive = false
-                _ = try await supabaseService.update("vault_sessions", id: session.id, values: updatedSession)
-                print("   🔒 Closed vault session for vault: \(nominee.vaultID)")
-            }
-            
-            // Delete the nominee record
-            try await supabaseService.delete("nominees", id: nominee.id)
-            print("   🗑️ Deleted nominee record: \(nominee.id)")
-        }
-        
-        print("   ✅ Terminated nominee access to \(vaultsToUpdate.count) vault(s)")
-    }
 }
 
 enum AccountDeletionError: LocalizedError {

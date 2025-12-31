@@ -57,7 +57,7 @@ final class ContactDiscoveryService: ObservableObject {
     /// Discover which contacts from the user's contact list are registered in Khandoba
     /// Uses CloudKit to query for users by phone/email
     func discoverRegisteredContacts() async {
-        guard let modelContext = modelContext else {
+        guard modelContext != nil else {
             print("⚠️ ContactDiscoveryService: ModelContext not configured")
             return
         }
@@ -67,9 +67,8 @@ final class ContactDiscoveryService: ObservableObject {
             discoveryProgress = 0.0
         }
         
-        // Capture modelContext and container for background task
-        let modelContext = modelContext
-        let container = container
+        // Capture container for background task
+        let capturedContainer = container
         
         // Move all heavy work to background thread
         await Task.detached(priority: .userInitiated) {
@@ -110,7 +109,7 @@ final class ContactDiscoveryService: ObservableObject {
                 print("📱 ContactDiscoveryService: Checking \(phoneNumbers.count) phone numbers and \(emails.count) email addresses")
                 
                 // Query CloudKit for registered users
-                let database = container.privateCloudDatabase
+                let database = capturedContainer.privateCloudDatabase
                 var registeredIdentifiers: Set<String> = []
                 
                 // Query by email addresses
@@ -137,23 +136,39 @@ final class ContactDiscoveryService: ObservableObject {
                 // Note: Currently User model doesn't have phone numbers, but we can add this later
                 // For now, we'll primarily use email matching
                 
-                // Also check local SwiftData users (on background thread)
-                if let modelContext = modelContext {
-                    let localUsers = try modelContext.fetch(FetchDescriptor<User>())
-                    for user in localUsers {
-                        if let email = user.email {
-                            registeredIdentifiers.insert(email.lowercased())
+                // Also check local SwiftData users (must be on MainActor)
+                // Note: ModelContext is not Sendable, so we access it directly on MainActor
+                let localRegisteredIdentifiers = await MainActor.run { () -> Set<String> in
+                    // Access modelContext directly since self is @MainActor
+                    guard let modelContext = self.modelContext else {
+                        return []
+                    }
+                    do {
+                        let localUsers = try modelContext.fetch(FetchDescriptor<User>())
+                        var localEmails: Set<String> = []
+                        for user in localUsers {
+                            if let email = user.email {
+                                localEmails.insert(email.lowercased())
+                            }
                         }
+                        return localEmails
+                    } catch {
+                        print("⚠️ ContactDiscoveryService: Error fetching local users: \(error.localizedDescription)")
+                        return []
                     }
                 }
                 
+                // Merge results
+                let finalRegisteredIdentifiers = registeredIdentifiers.union(localRegisteredIdentifiers)
+                
+                // Update UI on main actor
                 await MainActor.run {
-                    self.registeredContacts = registeredIdentifiers
+                    self.registeredContacts = finalRegisteredIdentifiers
                     self.isDiscovering = false
                     self.discoveryProgress = 1.0
                 }
                 
-                print("✅ ContactDiscoveryService: Found \(registeredIdentifiers.count) registered contacts")
+                print("✅ ContactDiscoveryService: Found \(finalRegisteredIdentifiers.count) registered contacts")
             } catch {
                 print("❌ ContactDiscoveryService: Error discovering contacts: \(error.localizedDescription)")
                 await MainActor.run {

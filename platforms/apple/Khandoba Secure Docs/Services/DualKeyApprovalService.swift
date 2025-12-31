@@ -17,7 +17,6 @@ final class DualKeyApprovalService: ObservableObject {
     @Published var isProcessing = false
     
     private var modelContext: ModelContext?
-    private var supabaseService: SupabaseService?
     private var vaultService: VaultService?
     private let threatService = ThreatMonitoringService()
     private let locationService = LocationService()
@@ -32,11 +31,11 @@ final class DualKeyApprovalService: ObservableObject {
     nonisolated init() {}
     
     @MainActor
-    func configure(modelContext: ModelContext? = nil, supabaseService: SupabaseService? = nil, vaultService: VaultService? = nil) {
+    // iOS-ONLY: Using SwiftData/CloudKit exclusively
+    func configure(modelContext: ModelContext? = nil, vaultService: VaultService? = nil) {
         self.modelContext = modelContext
-        self.supabaseService = supabaseService
         self.vaultService = vaultService
-        threatService.configure(vaultService: vaultService ?? VaultService(), supabaseService: supabaseService)
+        threatService.configure(vaultService: vaultService ?? VaultService())
     }
     
     /// Process dual-key request with ML including geospatial analysis
@@ -84,18 +83,8 @@ final class DualKeyApprovalService: ObservableObject {
     // OPTIMIZED: Lightweight threat calculation
     private func calculateThreatScoreOptimized(for vault: Vault) async -> Double {
         // Quick check without heavy analysis
-        // Load access logs (from Supabase or SwiftData)
-        let logs: [VaultAccessLog]
-        if AppConfig.useSupabase, let vaultService = vaultService {
-            do {
-                logs = try await vaultService.loadAccessLogs(for: vault)
-            } catch {
-                print("⚠️ Failed to load access logs for approval: \(error)")
-                logs = []
-            }
-        } else {
-            logs = vault.accessLogs ?? []
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        let logs: [VaultAccessLog] = vault.accessLogs ?? []
         
         if logs.isEmpty {
             return 10.0 // New vault, low risk
@@ -122,18 +111,8 @@ final class DualKeyApprovalService: ObservableObject {
         print("   Current location: \(currentLat), \(currentLon)")
         
         // Get historical locations from logs
-        // Load access logs (from Supabase or SwiftData)
-        let logs: [VaultAccessLog]
-        if AppConfig.useSupabase, let vaultService = vaultService {
-            do {
-                logs = try await vaultService.loadAccessLogs(for: vault)
-            } catch {
-                print("⚠️ Failed to load access logs for approval: \(error)")
-                logs = []
-            }
-        } else {
-            logs = vault.accessLogs ?? []
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        let logs: [VaultAccessLog] = vault.accessLogs ?? []
         let logsWithLocation = logs.filter { $0.locationLatitude != nil && $0.locationLongitude != nil }
         
         if logsWithLocation.isEmpty {
@@ -173,18 +152,8 @@ final class DualKeyApprovalService: ObservableObject {
     
     // BEHAVIORAL ANALYSIS: Access patterns
     private func analyzeBehaviorOptimized(vault: Vault) async -> Double {
-        // Load access logs (from Supabase or SwiftData)
-        let logs: [VaultAccessLog]
-        if AppConfig.useSupabase, let vaultService = vaultService {
-            do {
-                logs = try await vaultService.loadAccessLogs(for: vault)
-            } catch {
-                print("⚠️ Failed to load access logs for approval: \(error)")
-                logs = []
-            }
-        } else {
-            logs = vault.accessLogs ?? []
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        let logs: [VaultAccessLog] = vault.accessLogs ?? []
         
         if logs.count < 3 {
             return 20.0 // Not enough data, moderate risk
@@ -271,18 +240,8 @@ final class DualKeyApprovalService: ObservableObject {
         }
         
         // Recent access patterns
-        // Load access logs (from Supabase or SwiftData)
-        let logs: [VaultAccessLog]
-        if AppConfig.useSupabase, let vaultService = vaultService {
-            do {
-                logs = try await vaultService.loadAccessLogs(for: vault)
-            } catch {
-                print("⚠️ Failed to load access logs for approval: \(error)")
-                logs = []
-            }
-        } else {
-            logs = vault.accessLogs ?? []
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        let logs: [VaultAccessLog] = vault.accessLogs ?? []
         let recentLogs = logs.sorted { $0.timestamp > $1.timestamp }.prefix(10)
         
         // Rapid access attempts
@@ -393,18 +352,8 @@ final class DualKeyApprovalService: ObservableObject {
             return 50.0 // Unknown requester = medium risk
         }
         
-        // Load access logs (from Supabase or SwiftData)
-        let logs: [VaultAccessLog]
-        if AppConfig.useSupabase, let vaultService = vaultService {
-            do {
-                logs = try await vaultService.loadAccessLogs(for: vault)
-            } catch {
-                print("⚠️ Failed to load access logs for approval: \(error)")
-                logs = []
-            }
-        } else {
-            logs = vault.accessLogs ?? []
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        let logs: [VaultAccessLog] = vault.accessLogs ?? []
         let userLogs = logs.filter { $0.userID == requester.id }
         
         // New user requesting access
@@ -658,57 +607,7 @@ final class DualKeyApprovalService: ObservableObject {
     // MARK: - Decision Execution
     
     private func executeDecision(_ decision: DualKeyDecision, for request: DualKeyRequest) async throws {
-        // Supabase mode: Update in Supabase
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            let requestID = request.id
-            
-            // Fetch existing request
-            let existingRequest: SupabaseDualKeyRequest = try await supabaseService.fetch(
-                "dual_key_requests",
-                id: requestID
-            )
-            
-            var updatedRequest = existingRequest
-            
-            switch decision.action {
-            case .autoApproved:
-                updatedRequest.status = "approved"
-                updatedRequest.approvedAt = Date()
-                updatedRequest.decisionMethod = "ml_auto"
-                updatedRequest.reason = decision.reason
-                updatedRequest.mlScore = decision.mlScore
-                updatedRequest.logicalReasoning = decision.logicalReasoning
-                
-            case .autoDenied:
-                updatedRequest.status = "denied"
-                updatedRequest.deniedAt = Date()
-                updatedRequest.decisionMethod = "ml_auto"
-                updatedRequest.reason = decision.reason
-                updatedRequest.mlScore = decision.mlScore
-                updatedRequest.logicalReasoning = decision.logicalReasoning
-            }
-            
-            updatedRequest.updatedAt = Date()
-            
-            let _: SupabaseDualKeyRequest = try await supabaseService.update(
-                "dual_key_requests",
-                id: requestID,
-                values: updatedRequest
-            )
-            
-            // Also update local request object for consistency
-            request.status = updatedRequest.status
-            request.approvedAt = updatedRequest.approvedAt
-            request.deniedAt = updatedRequest.deniedAt
-            request.decisionMethod = updatedRequest.decisionMethod
-            request.reason = updatedRequest.reason
-            request.mlScore = updatedRequest.mlScore
-            request.logicalReasoning = updatedRequest.logicalReasoning
-            
-            return
-        }
-        
-        // SwiftData/CloudKit mode
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         guard let modelContext = modelContext else { return }
         
         switch decision.action {
@@ -733,7 +632,7 @@ final class DualKeyApprovalService: ObservableObject {
     }
     
     private func logDecision(_ decision: DualKeyDecision, for request: DualKeyRequest, vault: Vault, mlScore: Double) async throws {
-        // Decision logging is handled in executeDecision for both Supabase and SwiftData modes
+        // Decision logging is handled in executeDecision
         // This method is kept for backward compatibility but is no longer used
         print("   📝 Decision logged: \(decision.action.rawValue)")
     }
@@ -763,18 +662,8 @@ final class DualKeyApprovalService: ObservableObject {
     }
     
     private func getUserTypicalLocations(vault: Vault) async -> [(latitude: Double, longitude: Double)] {
-        // Load access logs (from Supabase or SwiftData)
-        let logs: [VaultAccessLog]
-        if AppConfig.useSupabase, let vaultService = vaultService {
-            do {
-                logs = try await vaultService.loadAccessLogs(for: vault)
-            } catch {
-                print("⚠️ Failed to load access logs for approval: \(error)")
-                logs = []
-            }
-        } else {
-            logs = vault.accessLogs ?? []
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        let logs: [VaultAccessLog] = vault.accessLogs ?? []
         var locations: [(Double, Double)] = []
         
         for log in logs {

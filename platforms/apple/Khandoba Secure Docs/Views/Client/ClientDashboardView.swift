@@ -197,64 +197,9 @@ struct ClientDashboardView: View {
         }
     }
     
-    /// Load access logs from Supabase or SwiftData
+    /// Load access logs - iOS-ONLY: Using SwiftData/CloudKit exclusively
     private func loadAccessLogs() async {
-        // Supabase mode
-        if AppConfig.useSupabase {
-            await loadAccessLogsFromSupabase()
-        } else {
-            // SwiftData/CloudKit mode
-            await loadAccessLogsFromSwiftData()
-        }
-    }
-    
-    /// Load access logs from Supabase
-    private func loadAccessLogsFromSupabase() async {
-        guard let userID = authService.currentUser?.id else {
-            print("⚠️ Cannot load access logs: User not authenticated")
-            return
-        }
-        
-        do {
-            // Fetch recent access logs from Supabase (limit 50, sorted by timestamp desc)
-            let supabaseLogs: [SupabaseVaultAccessLog] = try await supabaseService.fetchAll(
-                "vault_access_logs",
-                filters: ["user_id": userID.uuidString],
-                limit: 50,
-                orderBy: "timestamp",
-                ascending: false
-            )
-            
-            // Convert to VaultAccessLog models
-            await MainActor.run {
-                self.accessLogs = supabaseLogs.map { supabaseLog in
-                    let log = VaultAccessLog(
-                        timestamp: supabaseLog.timestamp,
-                        accessType: supabaseLog.accessType,
-                        userID: supabaseLog.userID,
-                        userName: supabaseLog.userName,
-                        deviceInfo: supabaseLog.deviceInfo
-                    )
-                    log.id = supabaseLog.id
-                    log.locationLatitude = supabaseLog.locationLatitude
-                    log.locationLongitude = supabaseLog.locationLongitude
-                    log.ipAddress = supabaseLog.ipAddress
-                    log.documentID = supabaseLog.documentID
-                    log.documentName = supabaseLog.documentName
-                    
-                    // Link to vault if available
-                    if let vault = vaultService.vaults.first(where: { $0.id == supabaseLog.vaultID }) {
-                        log.vault = vault
-                    }
-                    
-                    return log
-                }
-            }
-            
-            print("✅ Loaded \(accessLogs.count) access log(s) from Supabase")
-        } catch {
-            print("❌ Failed to load access logs from Supabase: \(error.localizedDescription)")
-        }
+        await loadAccessLogsFromSwiftData()
     }
     
     /// Load access logs from SwiftData

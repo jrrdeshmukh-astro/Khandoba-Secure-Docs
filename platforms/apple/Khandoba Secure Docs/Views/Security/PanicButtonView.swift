@@ -9,8 +9,8 @@ import SwiftUI
 import LocalAuthentication
 
 struct PanicButtonView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var panicService: PanicButtonService
     
     @State private var showingActivationConfirmation = false
@@ -251,8 +251,8 @@ struct PanicActionRow: View {
     let icon: String
     let title: String
     let description: String
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)

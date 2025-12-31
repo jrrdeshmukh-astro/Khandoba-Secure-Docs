@@ -133,31 +133,34 @@ struct WelcomeView: View {
             
         case .failure(let error):
             // Provide more helpful error messages
-            if let authError = error as? ASAuthorizationError {
-                // Handle all known ASAuthorizationError.Code cases
-                // @unknown default ensures exhaustiveness for all current and future cases
-                switch authError.code {
-                case .unknown:
-                    errorMessage = "Apple Sign In failed. Please ensure:\n• Your device is signed into iCloud\n• Two-factor authentication is enabled\n• Try testing on a real device (simulators have limitations)"
-                case .canceled:
-                    errorMessage = "Sign in was canceled."
-                case .invalidResponse:
-                    errorMessage = "Invalid response from Apple. Please try again."
-                case .notHandled:
-                    errorMessage = "Sign in request could not be handled."
-                case .failed:
-                    errorMessage = "Sign in failed. Please check your iCloud sign-in status."
-                case .notInteractive:
-                    errorMessage = "Sign in is not available. Please try again."
-                @unknown default:
-                    // This case handles any future cases that may be added to ASAuthorizationError.Code
-                    // The @unknown default attribute makes this switch exhaustive
-                    errorMessage = "Apple Sign In error: \(authError.localizedDescription)\n\nTip: Ensure your device is signed into iCloud."
-                }
-            } else {
-                errorMessage = error.localizedDescription
-            }
+            errorMessage = handleAuthorizationError(error)
             showError = true
+        }
+    }
+    
+    private func handleAuthorizationError(_ error: Error) -> String {
+        guard let authError = error as? ASAuthorizationError else {
+            return error.localizedDescription
+        }
+        
+        // Handle all known ASAuthorizationError.Code cases
+        switch authError.code {
+        case .unknown:
+            return "Apple Sign In failed. Please ensure:\n• Your device is signed into iCloud\n• Two-factor authentication is enabled\n• Try testing on a real device (simulators have limitations)"
+        case .canceled:
+            return "Sign in was canceled."
+        case .invalidResponse:
+            return "Invalid response from Apple. Please try again."
+        case .notHandled:
+            return "Sign in request could not be handled."
+        case .failed:
+            return "Sign in failed. Please check your iCloud sign-in status."
+        case .notInteractive:
+            return "Sign in is not available. Please try again."
+        @unknown default:
+            // This case handles any future cases that may be added to ASAuthorizationError.Code
+            // The @unknown default attribute makes this switch exhaustive
+            return "Apple Sign In error: \(authError.localizedDescription)\n\nTip: Ensure your device is signed into iCloud."
         }
     }
 }

@@ -17,7 +17,6 @@ final class AntiVaultService: ObservableObject {
     @Published var detectedThreats: [ThreatDetection] = []
     
     private var modelContext: ModelContext?
-    private var supabaseService: SupabaseService?
     private var currentUserID: UUID?
     private var intelReportService: IntelReportService?
     private var vaultService: VaultService?
@@ -25,20 +24,9 @@ final class AntiVaultService: ObservableObject {
     
     nonisolated init() {}
     
-    // SwiftData/CloudKit mode
+    // iOS-ONLY: Using SwiftData/CloudKit exclusively
     func configure(modelContext: ModelContext, userID: UUID, intelReportService: IntelReportService? = nil, vaultService: VaultService? = nil, documentService: DocumentService? = nil) {
         self.modelContext = modelContext
-        self.supabaseService = nil
-        self.currentUserID = userID
-        self.intelReportService = intelReportService
-        self.vaultService = vaultService
-        self.documentService = documentService
-    }
-    
-    // Supabase mode
-    func configure(supabaseService: SupabaseService, userID: UUID, intelReportService: IntelReportService? = nil, vaultService: VaultService? = nil, documentService: DocumentService? = nil) {
-        self.supabaseService = supabaseService
-        self.modelContext = nil
         self.currentUserID = userID
         self.intelReportService = intelReportService
         self.vaultService = vaultService
@@ -55,41 +43,25 @@ final class AntiVaultService: ObservableObject {
         // Check if anti-vault already exists (1:1 relationship)
         if let existingAntiVaultID = monitoredVault.antiVaultID {
             // Update existing anti-vault
-            if AppConfig.useSupabase, let supabaseService = supabaseService {
-                // Update in Supabase
-                if let existingAntiVault: SupabaseAntiVault = try? await supabaseService.fetch("anti_vaults", id: existingAntiVaultID) {
-                    var updatedAntiVault = existingAntiVault
-                    if let settings = settings {
-                        updatedAntiVault.threatDetectionSettings = settings
-                    }
-                    updatedAntiVault.updatedAt = Date()
-                    _ = try await supabaseService.update("anti_vaults", id: existingAntiVaultID, values: updatedAntiVault)
-                    
-                    // Update vault's embedded properties
-                    monitoredVault.antiVaultStatus = updatedAntiVault.status
-                    monitoredVault.antiVaultThreatDetectionSettingsData = encodeThreatDetectionSettings(updatedAntiVault.threatDetectionSettings)
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
+            guard let modelContext = modelContext else {
+                throw AntiVaultError.contextNotAvailable
+            }
+            let descriptor = FetchDescriptor<AntiVault>(
+                predicate: #Predicate { $0.id == existingAntiVaultID }
+            )
+            if let existingAntiVault = try? modelContext.fetch(descriptor).first {
+                if let settings = settings {
+                    existingAntiVault.threatDetectionSettings = settings
                 }
-            } else {
-                // Update in SwiftData
-                guard let modelContext = modelContext else {
-                    throw AntiVaultError.contextNotAvailable
-                }
-                let descriptor = FetchDescriptor<AntiVault>(
-                    predicate: #Predicate { $0.id == existingAntiVaultID }
-                )
-                if let existingAntiVault = try? modelContext.fetch(descriptor).first {
-                    if let settings = settings {
-                        existingAntiVault.threatDetectionSettings = settings
-                    }
-                    existingAntiVault.updatedAt = Date()
-                    
-                    // Update vault's embedded properties
-                    monitoredVault.antiVaultStatus = existingAntiVault.status
-                    monitoredVault.antiVaultThreatDetectionSettingsData = existingAntiVault.threatDetectionSettingsData
-                    
-                    try modelContext.save()
-                    return existingAntiVault
-                }
+                existingAntiVault.updatedAt = Date()
+                
+                // Update vault's embedded properties
+                monitoredVault.antiVaultStatus = existingAntiVault.status
+                monitoredVault.antiVaultThreatDetectionSettingsData = existingAntiVault.threatDetectionSettingsData
+                
+                try modelContext.save()
+                return existingAntiVault
             }
         }
         
@@ -116,21 +88,13 @@ final class AntiVaultService: ObservableObject {
         monitoredVault.antiVaultAutoUnlockPolicyData = encodeAutoUnlockPolicy(antiVault.autoUnlockPolicy)
         monitoredVault.antiVaultThreatDetectionSettingsData = encodeThreatDetectionSettings(antiVault.threatDetectionSettings)
         
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            try await createAntiVaultInSupabase(antiVault: antiVault, ownerID: ownerID, supabaseService: supabaseService)
-            
-            // Update vault in Supabase with anti-vault ID
-            var supabaseVault = SupabaseVault(from: monitoredVault)
-            supabaseVault.antiVaultID = antiVaultID
-            _ = try await supabaseService.update("vaults", id: monitoredVault.id, values: supabaseVault)
-        } else {
-            guard let modelContext = modelContext else {
-                throw AntiVaultError.contextNotAvailable
-            }
-            
-            modelContext.insert(antiVault)
-            try modelContext.save()
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
+            throw AntiVaultError.contextNotAvailable
         }
+        
+        modelContext.insert(antiVault)
+        try modelContext.save()
         
         print("✅ Anti-vault created/updated: \(antiVault.id)")
         return antiVault
@@ -160,28 +124,7 @@ final class AntiVaultService: ObservableObject {
         return try? JSONSerialization.data(withJSONObject: json)
     }
     
-    private func createAntiVaultInSupabase(antiVault: AntiVault, ownerID: UUID, supabaseService: SupabaseService) async throws {
-        guard let vaultID = antiVault.vaultID,
-              let monitoredVaultID = antiVault.monitoredVaultID else {
-            throw AntiVaultError.invalidData
-        }
-        
-        let supabaseAntiVault = SupabaseAntiVault(
-            id: antiVault.id,
-            vaultID: vaultID,
-            monitoredVaultID: monitoredVaultID,
-            ownerID: ownerID,
-            status: antiVault.status,
-            autoUnlockPolicy: antiVault.autoUnlockPolicy,
-            threatDetectionSettings: antiVault.threatDetectionSettings,
-            lastIntelReportID: antiVault.lastIntelReportID,
-            createdAt: antiVault.createdAt,
-            updatedAt: Date(),
-            lastUnlockedAt: antiVault.lastUnlockedAt
-        )
-        
-        let _: SupabaseAntiVault = try await supabaseService.insert("anti_vaults", values: supabaseAntiVault)
-    }
+    // Note: Supabase helper function removed - iOS app uses CloudKit exclusively
     
     // MARK: - Session Nomination Monitoring
     
@@ -192,23 +135,15 @@ final class AntiVaultService: ObservableObject {
         // Find anti-vaults monitoring this vault
         let monitoringAntiVaults: [AntiVault]
         
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            let supabaseAntiVaults: [SupabaseAntiVault] = try await supabaseService.fetchAll(
-                "anti_vaults",
-                filters: ["monitored_vault_id": vaultID.uuidString]
-            )
-            
-            monitoringAntiVaults = try await convertFromSupabaseAntiVaults(supabaseAntiVaults, supabaseService: supabaseService)
-        } else {
-            guard let modelContext = modelContext else {
-                throw AntiVaultError.contextNotAvailable
-            }
-            
-            let descriptor = FetchDescriptor<AntiVault>(
-                predicate: #Predicate { $0.monitoredVaultID == vaultID }
-            )
-            monitoringAntiVaults = try modelContext.fetch(descriptor)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
+            throw AntiVaultError.contextNotAvailable
         }
+        
+        let descriptor = FetchDescriptor<AntiVault>(
+            predicate: #Predicate { $0.monitoredVaultID == vaultID }
+        )
+        monitoringAntiVaults = try modelContext.fetch(descriptor)
         
         // Check auto-unlock policy for each anti-vault
         for antiVault in monitoringAntiVaults {
@@ -250,15 +185,12 @@ final class AntiVaultService: ObservableObject {
         antiVault.lastUnlockedAt = Date()
         
         // Update in database
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            let supabaseAntiVault = try await convertToSupabaseAntiVault(antiVault)
-            _ = try await supabaseService.update("anti_vaults", id: antiVault.id, values: supabaseAntiVault)
-        } else {
-            guard let modelContext = modelContext else {
-                throw AntiVaultError.contextNotAvailable
-            }
-            try modelContext.save()
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
+            throw AntiVaultError.contextNotAvailable
         }
+        try modelContext.save()
         
         // Unlock the vault itself
         if let vaultID = antiVault.vaultID, let vaultService = vaultService {
@@ -493,17 +425,9 @@ final class AntiVaultService: ObservableObject {
         case .immediateLock(let reason):
             print("🔒 Immediate lock required: \(reason)")
             // Lock anti-vault immediately
-            if AppConfig.useSupabase, let supabaseService = supabaseService {
-                // Update in Supabase
-                if let antiVaultID = vault.antiVaultID {
-                    let antiVault: SupabaseAntiVault? = try? await supabaseService.fetch("anti_vaults", id: antiVaultID)
-                    if var av = antiVault {
-                        av.status = "locked"
-                        _ = try? await supabaseService.update("anti_vaults", id: antiVaultID, values: av)
-                        vault.antiVaultStatus = "locked"
-                    }
-                }
-            } else if let modelContext = modelContext {
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        if let modelContext = modelContext {
                 if let antiVaultID = vault.antiVaultID {
                     let descriptor = FetchDescriptor<AntiVault>(
                         predicate: #Predicate { $0.id == antiVaultID }
@@ -596,87 +520,20 @@ final class AntiVaultService: ObservableObject {
     // MARK: - Helper Methods
     
     private func getVault(id: UUID) async throws -> Vault {
-        if AppConfig.useSupabase, let vaultService = vaultService {
-            try await vaultService.loadVaults()
-            if let vault = vaultService.vaults.first(where: { $0.id == id }) {
-                return vault
-            }
-        } else {
-            guard let modelContext = modelContext else {
-                throw AntiVaultError.contextNotAvailable
-            }
-            let descriptor = FetchDescriptor<Vault>(
-                predicate: #Predicate { $0.id == id }
-            )
-            if let vault = try? modelContext.fetch(descriptor).first {
-                return vault
-            }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
+            throw AntiVaultError.contextNotAvailable
+        }
+        let descriptor = FetchDescriptor<Vault>(
+            predicate: #Predicate { $0.id == id }
+        )
+        if let vault = try? modelContext.fetch(descriptor).first {
+            return vault
         }
         throw AntiVaultError.vaultNotFound
     }
     
-    private func convertToSupabaseAntiVault(_ antiVault: AntiVault) async throws -> SupabaseAntiVault {
-        guard let vaultID = antiVault.vaultID,
-              let monitoredVaultID = antiVault.monitoredVaultID,
-              let ownerID = antiVault.ownerID else {
-            throw AntiVaultError.invalidData
-        }
-        
-        return SupabaseAntiVault(
-            id: antiVault.id,
-            vaultID: vaultID,
-            monitoredVaultID: monitoredVaultID,
-            ownerID: ownerID,
-            status: antiVault.status,
-            autoUnlockPolicy: antiVault.autoUnlockPolicy,
-            threatDetectionSettings: antiVault.threatDetectionSettings,
-            lastIntelReportID: antiVault.lastIntelReportID,
-            createdAt: antiVault.createdAt,
-            updatedAt: Date(),
-            lastUnlockedAt: antiVault.lastUnlockedAt
-        )
-    }
-    
-    private func convertFromSupabaseAntiVaults(_ supabaseAntiVaults: [SupabaseAntiVault], supabaseService: SupabaseService) async throws -> [AntiVault] {
-        var antiVaults: [AntiVault] = []
-        
-        for supabase in supabaseAntiVaults {
-            // Fetch vaults
-            let vault: SupabaseVault = try await supabaseService.fetch("vaults", id: supabase.vaultID)
-            let monitoredVault: SupabaseVault = try await supabaseService.fetch("vaults", id: supabase.monitoredVaultID)
-            let owner: SupabaseUser = try await supabaseService.fetch("users", id: supabase.ownerID)
-            
-            // Convert to models
-            let vaultModel = Vault(name: vault.name, vaultDescription: vault.vaultDescription, keyType: vault.keyType)
-            vaultModel.id = vault.id
-            vaultModel.isAntiVault = true
-            vaultModel.monitoredVaultID = monitoredVault.id
-            
-            let monitoredVaultModel = Vault(name: monitoredVault.name, vaultDescription: monitoredVault.vaultDescription, keyType: monitoredVault.keyType)
-            monitoredVaultModel.id = monitoredVault.id
-            
-            let ownerModel = User(fullName: owner.fullName, email: owner.email)
-            ownerModel.id = owner.id
-            
-            let antiVault = AntiVault(
-                id: supabase.id,
-                vaultID: vaultModel.id,
-                monitoredVaultID: monitoredVaultModel.id,
-                ownerID: ownerModel.id,
-                status: supabase.status
-            )
-            antiVault.autoUnlockPolicy = supabase.autoUnlockPolicy
-            antiVault.threatDetectionSettings = supabase.threatDetectionSettings
-            antiVault.lastIntelReportID = supabase.lastIntelReportID
-            antiVault.createdAt = supabase.createdAt
-            antiVault.updatedAt = supabase.updatedAt
-            antiVault.lastUnlockedAt = supabase.lastUnlockedAt
-            
-            antiVaults.append(antiVault)
-        }
-        
-        return antiVaults
-    }
+    // Note: Supabase conversion functions removed - iOS app uses CloudKit exclusively
     
 }
 

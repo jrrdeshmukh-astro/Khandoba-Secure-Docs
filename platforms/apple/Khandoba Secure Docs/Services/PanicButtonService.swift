@@ -10,6 +10,9 @@ import Foundation
 import SwiftData
 import Combine
 import LocalAuthentication
+#if os(iOS)
+import UIKit
+#endif
 
 @MainActor
 final class PanicButtonService: ObservableObject {
@@ -84,7 +87,7 @@ final class PanicButtonService: ObservableObject {
     
     /// Deactivate panic mode (requires authentication)
     func deactivatePanicMode() async throws {
-        guard let modelContext = modelContext else {
+        guard modelContext != nil else {
             throw PanicError.contextNotAvailable
         }
         

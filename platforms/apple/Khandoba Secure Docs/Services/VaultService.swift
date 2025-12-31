@@ -961,7 +961,28 @@ final class VaultService: ObservableObject {
     }
     
     /// Validate that a user is a nominee before allowing ownership transfer
-    
+    private func validateNomineeForTransfer(vault: Vault, newOwnerID: UUID, modelContext: ModelContext) throws {
+        // Check if the new owner is in the vault's nominee list
+        guard let nominees = vault.nomineeList else {
+            throw VaultError.transferOwnershipRestricted("Vault has no nominees")
+        }
+        
+        // Find the nominee matching the new owner
+        let matchingNominee = nominees.first { nominee in
+            // Check if nominee's invitedByUserID matches newOwnerID
+            // Or if we can match by email/phone (would need User lookup)
+            nominee.invitedByUserID == newOwnerID || nominee.id == newOwnerID
+        }
+        
+        guard let nominee = matchingNominee else {
+            throw VaultError.transferOwnershipRestricted("User is not a nominee for this vault")
+        }
+        
+        // Check that nominee has accepted the invitation
+        guard nominee.status == .accepted else {
+            throw VaultError.transferOwnershipRestricted("Nominee must accept the invitation before ownership can be transferred")
+        }
+    }
     
     
     // MARK: - Anti-Vault Encoding Helpers

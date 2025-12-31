@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 import Combine
+import LocalAuthentication
 
 @MainActor
 final class SecurityAuditService: ObservableObject {

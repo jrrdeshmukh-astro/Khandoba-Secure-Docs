@@ -14,10 +14,10 @@ import PhotosUI
 #endif
 
 struct ProfessionalKYCView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var authService: AuthenticationService
     
     @State private var verificationType: KYCVerificationType = .professional
@@ -273,8 +273,8 @@ struct DocumentPreviewCard: View {
     let index: Int
     let onDelete: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
@@ -322,7 +322,7 @@ struct DocumentPreviewCard: View {
 #if os(iOS)
 struct DocumentScannerView: UIViewControllerRepresentable {
     let onScanComplete: ([Data]) -> Void
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.dismiss) var dismiss
     
     func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
         let scanner = VNDocumentCameraViewController()
@@ -372,7 +372,7 @@ struct DocumentScannerView: UIViewControllerRepresentable {
 #if os(iOS)
 struct ImagePickerView: UIViewControllerRepresentable {
     let onImagesSelected: ([Data]) -> Void
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.dismiss) var dismiss
     
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var config = PHPickerConfiguration()

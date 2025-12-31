@@ -291,13 +291,12 @@ final class VirusScanningService: ObservableObject {
         var riskScore = 0.0
         
         // Check creation date (suspicious if very old or future date)
-        if let createdAt = document.createdAt {
-            let age = Date().timeIntervalSince(createdAt)
-            if age < 0 { // Future date
-                riskScore += 10.0
-            } else if age > 31536000 * 20 { // >20 years old
-                riskScore += 5.0
-            }
+        let createdAt = document.createdAt
+        let age = Date().timeIntervalSince(createdAt)
+        if age < 0 { // Future date
+            riskScore += 10.0
+        } else if age > 31536000 * 20 { // >20 years old
+            riskScore += 5.0
         }
         
         // Check if document has no extracted text but claims to be text-based

@@ -191,11 +191,8 @@ struct AccountDeletionView: View {
             Text(errorMessage)
         }
         .onAppear {
-            if AppConfig.useSupabase {
-                deletionService.configure(supabaseService: supabaseService)
-            } else {
-                deletionService.configure(modelContext: modelContext)
-            }
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
+            deletionService.configure(modelContext: modelContext)
         }
     }
     

@@ -246,15 +246,10 @@ struct DocumentPreviewView: View {
             }
             
             // Decrypt the document
-            let documentData = try EncryptionService.decryptDocument(
+            let data = try EncryptionService.decryptDocument(
                 encryptedData,
                 documentID: document.id
             )
-            
-            guard let data = documentData else {
-                print("⚠️ Failed to get document data")
-                return
-            }
             
             // Determine file extension
             let fileExtension = document.fileExtension ?? {

@@ -20,22 +20,13 @@ final class DocumentFidelityService: ObservableObject {
     @Published var isLoading = false
     
     private var modelContext: ModelContext?
-    private var supabaseService: SupabaseService?
     private var currentUserID: UUID?
     
     nonisolated init() {}
     
-    // SwiftData/CloudKit mode
+    // iOS-ONLY: Using SwiftData/CloudKit exclusively
     func configure(modelContext: ModelContext, userID: UUID) {
         self.modelContext = modelContext
-        self.supabaseService = nil
-        self.currentUserID = userID
-    }
-    
-    // Supabase mode
-    func configure(supabaseService: SupabaseService, userID: UUID) {
-        self.supabaseService = supabaseService
-        self.modelContext = nil
         self.currentUserID = userID
     }
     
@@ -54,30 +45,17 @@ final class DocumentFidelityService: ObservableObject {
     ) async throws {
         print("📊 Tracking document transfer: \(document.name)")
         
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            try await trackTransferInSupabase(
-                document: document,
-                toVault: toVault,
-                fromVault: fromVault,
-                userID: userID,
-                location: location,
-                deviceInfo: deviceInfo,
-                ipAddress: ipAddress,
-                reason: reason,
-                supabaseService: supabaseService
-            )
-        } else {
-            try await trackTransferInSwiftData(
-                document: document,
-                toVault: toVault,
-                fromVault: fromVault,
-                userID: userID,
-                location: location,
-                deviceInfo: deviceInfo,
-                ipAddress: ipAddress,
-                reason: reason
-            )
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        try await trackTransferInSwiftData(
+            document: document,
+            toVault: toVault,
+            fromVault: fromVault,
+            userID: userID,
+            location: location,
+            deviceInfo: deviceInfo,
+            ipAddress: ipAddress,
+            reason: reason
+        )
     }
     
     private func trackTransferInSwiftData(
@@ -134,57 +112,7 @@ final class DocumentFidelityService: ObservableObject {
         print("✅ Transfer tracked: \(fidelity.transferCount) total transfers")
     }
     
-    private func trackTransferInSupabase(
-        document: Document,
-        toVault: Vault,
-        fromVault: Vault?,
-        userID: UUID,
-        location: CLLocation?,
-        deviceInfo: String?,
-        ipAddress: String?,
-        reason: String?,
-        supabaseService: SupabaseService
-    ) async throws {
-        // Get or create fidelity record
-        let fidelity = try await getOrCreateFidelityInSupabase(for: document, supabaseService: supabaseService)
-        
-        // Create transfer event
-        let transferEvent = TransferEvent(
-            timestamp: Date(),
-            fromVaultID: fromVault?.id,
-            toVaultID: toVault.id,
-            userID: userID,
-            userName: nil,
-            locationLatitude: location?.coordinate.latitude,
-            locationLongitude: location?.coordinate.longitude,
-            deviceInfo: deviceInfo ?? {
-                #if os(iOS)
-                return UIDevice.current.model
-                #else
-                return "macOS"
-                #endif
-            }(),
-            ipAddress: ipAddress,
-            reason: reason
-        )
-        
-        // Update transfer history
-        var history = fidelity.transferHistory
-        history.append(transferEvent)
-        fidelity.transferHistory = history
-        fidelity.transferCount = history.count
-        
-        // Update unique counts
-        updateUniqueCounts(fidelity: fidelity, location: location, deviceInfo: deviceInfo, ipAddress: ipAddress)
-        
-        // Recompute fidelity score
-        try await computeFidelityScore(for: fidelity)
-        
-        // Update in Supabase
-        let supabaseFidelity = try await convertToSupabaseFidelity(fidelity, documentID: document.id)
-        _ = try await supabaseService.update("document_fidelity", id: fidelity.id, values: supabaseFidelity)
-        print("✅ Transfer tracked in Supabase: \(fidelity.transferCount) total transfers")
-    }
+    // Note: Supabase helper function removed - iOS app uses CloudKit exclusively
     
     // MARK: - Edit Tracking
     
@@ -200,28 +128,16 @@ final class DocumentFidelityService: ObservableObject {
     ) async throws {
         print("📝 Tracking document edit: \(document.name) (v\(versionNumber))")
         
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            try await trackEditInSupabase(
-                document: document,
-                userID: userID,
-                versionNumber: versionNumber,
-                changeDescription: changeDescription,
-                location: location,
-                deviceInfo: deviceInfo,
-                ipAddress: ipAddress,
-                supabaseService: supabaseService
-            )
-        } else {
-            try await trackEditInSwiftData(
-                document: document,
-                userID: userID,
-                versionNumber: versionNumber,
-                changeDescription: changeDescription,
-                location: location,
-                deviceInfo: deviceInfo,
-                ipAddress: ipAddress
-            )
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        try await trackEditInSwiftData(
+            document: document,
+            userID: userID,
+            versionNumber: versionNumber,
+            changeDescription: changeDescription,
+            location: location,
+            deviceInfo: deviceInfo,
+            ipAddress: ipAddress
+        )
     }
     
     private func trackEditInSwiftData(
@@ -276,55 +192,7 @@ final class DocumentFidelityService: ObservableObject {
         print("✅ Edit tracked: \(fidelity.editCount) total edits")
     }
     
-    private func trackEditInSupabase(
-        document: Document,
-        userID: UUID,
-        versionNumber: Int,
-        changeDescription: String?,
-        location: CLLocation?,
-        deviceInfo: String?,
-        ipAddress: String?,
-        supabaseService: SupabaseService
-    ) async throws {
-        // Get or create fidelity record
-        let fidelity = try await getOrCreateFidelityInSupabase(for: document, supabaseService: supabaseService)
-        
-        // Create edit event
-        let editEvent = EditEvent(
-            timestamp: Date(),
-            userID: userID,
-            userName: nil,
-            changeDescription: changeDescription,
-            versionNumber: versionNumber,
-            locationLatitude: location?.coordinate.latitude,
-            locationLongitude: location?.coordinate.longitude,
-            deviceInfo: deviceInfo ?? {
-                #if os(iOS)
-                return UIDevice.current.model
-                #else
-                return "macOS"
-                #endif
-            }(),
-            ipAddress: ipAddress
-        )
-        
-        // Update edit history
-        var history = fidelity.editHistory
-        history.append(editEvent)
-        fidelity.editHistory = history
-        fidelity.editCount = history.count
-        
-        // Update unique counts
-        updateUniqueCounts(fidelity: fidelity, location: location, deviceInfo: deviceInfo, ipAddress: ipAddress)
-        
-        // Recompute fidelity score
-        try await computeFidelityScore(for: fidelity)
-        
-        // Update in Supabase
-        let supabaseFidelity = try await convertToSupabaseFidelity(fidelity, documentID: document.id)
-        _ = try await supabaseService.update("document_fidelity", id: fidelity.id, values: supabaseFidelity)
-        print("✅ Edit tracked in Supabase: \(fidelity.editCount) total edits")
-    }
+    // Note: Supabase helper function removed - iOS app uses CloudKit exclusively
     
     // MARK: - Fidelity Score Computation
     
@@ -503,81 +371,17 @@ final class DocumentFidelityService: ObservableObject {
         return fidelity
     }
     
-    private func getOrCreateFidelityInSupabase(for document: Document, supabaseService: SupabaseService) async throws -> DocumentFidelity {
-        // Try to fetch existing
-        do {
-            let supabaseFidelitys: [SupabaseDocumentFidelity] = try await supabaseService.fetchAll(
-                "document_fidelity",
-                filters: ["document_id": document.id.uuidString]
-            )
-            
-            if let existing = supabaseFidelitys.first {
-                return try await convertFromSupabaseFidelity(existing, document: document)
-            }
-        } catch {
-            print("⚠️ Failed to fetch fidelity record: \(error)")
-        }
-        
-        // Create new
-        let fidelity = DocumentFidelity(document: document)
-        let supabaseFidelity = try await convertToSupabaseFidelity(fidelity, documentID: document.id)
-        let created: SupabaseDocumentFidelity = try await supabaseService.insert("document_fidelity", values: supabaseFidelity)
-        return try await convertFromSupabaseFidelity(created, document: document)
-    }
-    
-    private func convertToSupabaseFidelity(_ fidelity: DocumentFidelity, documentID: UUID) async throws -> SupabaseDocumentFidelity {
-        return SupabaseDocumentFidelity(
-            id: fidelity.id,
-            documentID: documentID,
-            transferCount: fidelity.transferCount,
-            editCount: fidelity.editCount,
-            transferHistory: fidelity.transferHistory,
-            editHistory: fidelity.editHistory,
-            fidelityScore: fidelity.fidelityScore,
-            threatIndicators: fidelity.threatIndicators,
-            uniqueDeviceCount: fidelity.uniqueDeviceCount,
-            uniqueIPCount: fidelity.uniqueIPCount,
-            uniqueLocationCount: fidelity.uniqueLocationCount,
-            lastComputedAt: fidelity.lastComputedAt,
-            createdAt: fidelity.createdAt,
-            updatedAt: Date()
-        )
-    }
-    
-    private func convertFromSupabaseFidelity(_ supabase: SupabaseDocumentFidelity, document: Document) async throws -> DocumentFidelity {
-        let fidelity = DocumentFidelity(
-            id: supabase.id,
-            document: document,
-            transferCount: supabase.transferCount,
-            editCount: supabase.editCount,
-            fidelityScore: supabase.fidelityScore
-        )
-        fidelity.transferHistory = supabase.transferHistory
-        fidelity.editHistory = supabase.editHistory
-        fidelity.threatIndicators = supabase.threatIndicators
-        fidelity.uniqueDeviceCount = supabase.uniqueDeviceCount
-        fidelity.uniqueIPCount = supabase.uniqueIPCount
-        fidelity.uniqueLocationCount = supabase.uniqueLocationCount
-        fidelity.lastComputedAt = supabase.lastComputedAt
-        fidelity.createdAt = supabase.createdAt
-        fidelity.updatedAt = supabase.updatedAt
-        return fidelity
-    }
+    // Note: Supabase helper functions removed - iOS app uses CloudKit exclusively
     
     // MARK: - Reports
     
     /// Get fidelity report for a document
     func getFidelityReport(for document: Document) async throws -> FidelityReport {
-        let fidelity: DocumentFidelity
-        
-        if AppConfig.useSupabase, let supabaseService = supabaseService {
-            fidelity = try await getOrCreateFidelityInSupabase(for: document, supabaseService: supabaseService)
-        } else {
-            guard let modelContext = modelContext else {
-                throw FidelityError.contextNotAvailable
-            }
-            fidelity = try await getOrCreateFidelity(for: document, modelContext: modelContext)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        guard let modelContext = modelContext else {
+            throw FidelityError.contextNotAvailable
         }
+        let fidelity = try await getOrCreateFidelity(for: document, modelContext: modelContext)
         
         return FidelityReport(
             documentID: document.id,

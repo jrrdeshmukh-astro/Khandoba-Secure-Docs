@@ -90,7 +90,7 @@ final class LearningAgentService: ObservableObject {
     // MARK: - Formal Logic Application
     
     private func calculateLogicBasedRelevance(content: String, topic: VaultTopic) async -> Double {
-        guard let logicEngine = formalLogicEngine else {
+        guard formalLogicEngine != nil else {
             return 0.5
         }
         
@@ -218,7 +218,7 @@ final class LearningAgentService: ObservableObject {
         
         // Generate response using inference engine
         let response = await generateResponse(
-            query: transformedQuery,
+            query: transformedQuery.transformed,
             similarQueries: similarQueries,
             vaultID: vaultID
         )

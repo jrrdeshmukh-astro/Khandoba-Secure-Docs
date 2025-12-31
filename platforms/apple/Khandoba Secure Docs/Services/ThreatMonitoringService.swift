@@ -18,13 +18,12 @@ final class ThreatMonitoringService: ObservableObject {
     @Published var recentThreats: [ThreatEvent] = []
     
     private var vaultService: VaultService?
-    private var supabaseService: SupabaseService?
     
     nonisolated init() {}
     
-    func configure(vaultService: VaultService, supabaseService: SupabaseService? = nil) {
+    // iOS-ONLY: Using SwiftData/CloudKit exclusively
+    func configure(vaultService: VaultService) {
         self.vaultService = vaultService
-        self.supabaseService = supabaseService
     }
     
     /// Incorporate logical threat inferences into threat analysis
@@ -67,18 +66,8 @@ final class ThreatMonitoringService: ObservableObject {
     
     /// Analyze vault access patterns for threats
     func analyzeThreatLevel(for vault: Vault) async -> ThreatLevel {
-        // Load access logs (from Supabase or SwiftData)
-        let logs: [VaultAccessLog]
-        if AppConfig.useSupabase, let vaultService = vaultService {
-            do {
-                logs = try await vaultService.loadAccessLogs(for: vault)
-            } catch {
-                print("⚠️ Failed to load access logs for threat analysis: \(error)")
-                logs = []
-            }
-        } else {
-            logs = vault.accessLogs ?? []
-        }
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
+        let logs: [VaultAccessLog] = vault.accessLogs ?? []
         
         let sortedLogs = logs.sorted { $0.timestamp > $1.timestamp }
         
@@ -131,9 +120,9 @@ final class ThreatMonitoringService: ObservableObject {
     
     /// Generate threat metrics over time
     func generateThreatMetrics(for vault: Vault) async -> [ThreatMetric] {
-        // Load access logs (from Supabase or SwiftData)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         let logs: [VaultAccessLog]
-        if AppConfig.useSupabase, let vaultService = vaultService {
+        if let vaultService = vaultService {
             do {
                 logs = try await vaultService.loadAccessLogs(for: vault)
             } catch {
@@ -186,9 +175,9 @@ final class ThreatMonitoringService: ObservableObject {
     func detectThreats(for vault: Vault) async -> [ThreatEvent] {
         var threats: [ThreatEvent] = []
         
-        // Load access logs (from Supabase or SwiftData)
+        // iOS-ONLY: Using SwiftData/CloudKit exclusively
         let logs: [VaultAccessLog]
-        if AppConfig.useSupabase, let vaultService = vaultService {
+        if let vaultService = vaultService {
             do {
                 logs = try await vaultService.loadAccessLogs(for: vault)
             } catch {
@@ -337,13 +326,13 @@ enum ThreatLevel: String {
 
 struct ThreatEvent: Identifiable {
     let id = UUID()
-    let type: ThreatType
+    let type: MonitoringThreatType
     let severity: ThreatLevel
     let description: String
     let timestamp: Date
 }
 
-enum ThreatType {
+enum MonitoringThreatType {
     case rapidAccess
     case unusualLocation
     case suspiciousDeletion

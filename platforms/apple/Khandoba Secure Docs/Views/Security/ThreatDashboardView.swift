@@ -139,7 +139,7 @@ struct ThreatDashboardView: View {
         #endif
         .task {
             // Configure threat service
-            threatService.configure(vaultService: vaultService, supabaseService: supabaseService)
+            threatService.configure(vaultService: vaultService)
             await analyzeThreat()
         }
     }

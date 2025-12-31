@@ -393,27 +393,8 @@ struct RedactionView: View {
         Task {
             do {
                 // Get original document data (decrypt if needed)
-                var originalData: Data?
-                
-                if AppConfig.useSupabase {
-                    // In Supabase mode, download the document
-                    guard let supabaseDoc: SupabaseDocument = try? await supabaseService.fetch("documents", id: document.id),
-                          let storagePath = supabaseDoc.storagePath else {
-                        print("❌ Failed to load document from Supabase for redaction")
-                        return
-                    }
-                    
-                    // Download encrypted file from Supabase Storage
-                    originalData = try await supabaseService.downloadFile(
-                        bucket: SupabaseConfig.encryptedDocumentsBucket,
-                        path: storagePath
-                    )
-                } else {
-                    // SwiftData mode - use local encrypted data
-                    originalData = document.encryptedFileData
-                }
-                
-                guard let originalData = originalData else {
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
+                guard let originalData = document.encryptedFileData else {
                     print("❌ No document data to redact")
                     return
                 }
@@ -438,16 +419,16 @@ struct RedactionView: View {
                 } catch {
                     print("⚠️ Failed to track redaction version in fidelity service: \(error.localizedDescription)")
                     // Fallback: create version manually if DocumentService fails
-                    if !AppConfig.useSupabase {
-                        let version = DocumentVersion(
-                            versionNumber: (document.versions ?? []).count + 1,
-                            fileSize: document.fileSize,
-                            changes: "Pre-redaction version (HIPAA audit trail)"
-                        )
-                        version.encryptedFileData = originalData
-                        version.document = document
-                        modelContext.insert(version)
-                    }
+                    // iOS-ONLY: Using SwiftData/CloudKit exclusively
+                    let version = DocumentVersion(
+                        versionNumber: (document.versions ?? []).count + 1,
+                        fileSize: document.fileSize,
+                        changes: "Pre-redaction version (HIPAA audit trail)"
+                    )
+                    version.encryptedFileData = originalData
+                    version.document = document
+                    modelContext.insert(version)
+                    try? modelContext.save()
                 }
                 
                 // Actually redact the content (on decrypted data)

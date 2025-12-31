@@ -199,7 +199,7 @@ struct VaultListView: View {
             .task {
                 // Create or get "Open Street" broadcast vault on first load
                 do {
-                    try await vaultService.createOrGetOpenStreetVault()
+                    _ = try await vaultService.createOrGetOpenStreetVault()
                     // Reload vaults to include the broadcast vault
                     try? await vaultService.loadVaults()
                 } catch {
@@ -453,18 +453,11 @@ struct VaultListView: View {
         Task {
             // Configure nominee service if not already configured
             if nomineeService.nominees.isEmpty || nomineeService.nominees.first?.vault?.id != vault.id {
-                if AppConfig.useSupabase {
-                    if let userID = authService.currentUser?.id {
-                        nomineeService.configure(supabaseService: supabaseService, currentUserID: userID)
-                    } else {
-                        nomineeService.configure(supabaseService: supabaseService)
-                    }
-                } else {
+                // iOS-ONLY: Using SwiftData/CloudKit exclusively
                 if let userID = authService.currentUser?.id {
-                    nomineeService.configure(modelContext: modelContext, currentUserID: userID)
+                    nomineeService.configure(modelContext: modelContext, currentUserID: userID, vaultService: vaultService)
                 } else {
                     nomineeService.configure(modelContext: modelContext)
-                    }
                 }
             }
             

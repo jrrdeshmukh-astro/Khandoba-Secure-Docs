@@ -184,44 +184,22 @@ struct EmergencyAccessView: View {
         }
         
         do {
-            if AppConfig.useSupabase {
-                // Supabase mode: Create emergency access request in Supabase
-                let supabaseRequest = SupabaseEmergencyAccessRequest(
-                    vaultID: vault.id,
-                    requesterID: requesterID,
-                    reason: reason,
-                    urgency: urgency.rawValue.lowercased()
-                )
-                
-                let _: SupabaseEmergencyAccessRequest = try await supabaseService.insert(
-                    "emergency_access_requests",
-                    values: supabaseRequest
-                )
-                
-                print("✅ Emergency access request created in Supabase")
-                print("   Note: Pass code will be generated when request is approved")
-                
-                await MainActor.run {
-                    dismiss()
-                }
-            } else {
-                // SwiftData/CloudKit mode: Create request locally
-                let request = EmergencyAccessRequest(
-                    reason: reason,
-                    urgency: urgency.rawValue.lowercased()
-                )
-                request.vault = vault
-                request.requesterID = requesterID
-                
-                modelContext.insert(request)
-                try modelContext.save()
-                
-                print("✅ Emergency access request created")
-                print("   Note: Pass code will be generated when request is approved")
-                
-                await MainActor.run {
-                    dismiss()
-                }
+            // iOS-ONLY: Using SwiftData/CloudKit exclusively
+            let request = EmergencyAccessRequest(
+                reason: reason,
+                urgency: urgency.rawValue.lowercased()
+            )
+            request.vault = vault
+            request.requesterID = requesterID
+            
+            modelContext.insert(request)
+            try modelContext.save()
+            
+            print("✅ Emergency access request created")
+            print("   Note: Pass code will be generated when request is approved")
+            
+            await MainActor.run {
+                dismiss()
             }
         } catch {
             await MainActor.run {

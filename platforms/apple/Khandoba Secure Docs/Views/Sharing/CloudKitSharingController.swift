@@ -47,6 +47,8 @@ struct CloudKitSharingView: UIViewControllerRepresentable {
         // Otherwise, use preparation handler to create share
         // With SwiftData + CloudKit, we let UICloudSharingController automatically
         // find the CloudKit record using the model's PersistentIdentifier
+        // Note: init(preparationHandler:) is deprecated in iOS 17.0, but needed for compatibility
+        // swiftlint:disable:next deprecated_member_use
         let controller = UICloudSharingController { controller, completionHandler in
             Task {
                 do {

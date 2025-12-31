@@ -59,72 +59,12 @@ struct DualKeyRequestStatusView: View {
         }
     }
     
-    /// Load dual-key requests from Supabase or SwiftData
+    /// Load dual-key requests - iOS-ONLY: Using SwiftData/CloudKit exclusively
     private func loadRequests() async {
         isLoading = true
         defer { isLoading = false }
         
-        // Supabase mode
-        if AppConfig.useSupabase {
-            await loadRequestsFromSupabase()
-        } else {
-            // SwiftData/CloudKit mode
-            await loadRequestsFromSwiftData()
-        }
-    }
-    
-    /// Load requests from Supabase
-    private func loadRequestsFromSupabase() async {
-        guard let userID = authService.currentUser?.id else {
-            print("⚠️ Cannot load requests: User not authenticated")
-            return
-        }
-        
-        do {
-            // Fetch dual-key requests for current user
-            let supabaseRequests: [SupabaseDualKeyRequest] = try await supabaseService.fetchAll(
-                "dual_key_requests",
-                filters: ["requester_id": userID.uuidString],
-                orderBy: "requested_at",
-                ascending: false
-            )
-            
-            // Fetch all vaults to link to requests
-            let supabaseVaults: [SupabaseVault] = try await supabaseService.fetchAll("vaults", filters: nil)
-            
-            // Convert to DualKeyRequest models and link vaults
-            await MainActor.run {
-                self.myRequests = supabaseRequests.map { supabaseRequest in
-                    let request = DualKeyRequest(reason: supabaseRequest.reason ?? "")
-                    request.id = supabaseRequest.id
-                    request.requestedAt = supabaseRequest.requestedAt
-                    request.status = supabaseRequest.status
-                    request.approvedAt = supabaseRequest.approvedAt
-                    request.deniedAt = supabaseRequest.deniedAt
-                    request.approverID = supabaseRequest.approverID
-                    request.mlScore = supabaseRequest.mlScore
-                    request.logicalReasoning = supabaseRequest.logicalReasoning
-                    request.decisionMethod = supabaseRequest.decisionMethod
-                    
-                    // Link to vault if available
-                    if let vault = supabaseVaults.first(where: { $0.id == supabaseRequest.vaultID }) {
-                        let vaultModel = Vault(
-                            name: vault.name,
-                            vaultDescription: vault.vaultDescription,
-                            keyType: vault.keyType
-                        )
-                        vaultModel.id = vault.id
-                        request.vault = vaultModel
-                    }
-                    
-                    return request
-                }
-            }
-            
-            print("✅ Loaded \(myRequests.count) dual-key request(s) from Supabase")
-        } catch {
-            print("❌ Failed to load requests from Supabase: \(error.localizedDescription)")
-        }
+        await loadRequestsFromSwiftData()
     }
     
     /// Load requests from SwiftData

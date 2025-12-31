@@ -10,9 +10,9 @@ import SwiftUI
 import SwiftData
 
 struct ComplianceNeedsDetectionView: View {
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var complianceDetectionService: ComplianceDetectionService
     
@@ -210,12 +210,12 @@ struct ComplianceNeedsDetectionView: View {
             }
             
             // Fetch user's vaults and documents
-            let vaultDescriptor = FetchDescriptor<Vault>(
-                predicate: #Predicate { $0.owner?.id == user.id }
-            )
+            // Note: SwiftData predicates don't handle optional chaining well, so fetch all and filter
+            let vaultDescriptor = FetchDescriptor<Vault>()
             let documentDescriptor = FetchDescriptor<Document>()
             
-            let vaults = (try? modelContext.fetch(vaultDescriptor)) ?? []
+            let allVaults = (try? modelContext.fetch(vaultDescriptor)) ?? []
+            let vaults = allVaults.filter { $0.owner?.id == user.id }
             let allDocuments = (try? modelContext.fetch(documentDescriptor)) ?? []
             let userDocuments = allDocuments.filter { document in
                 vaults.contains { $0.id == document.vault?.id }
@@ -253,8 +253,8 @@ struct ComplianceFrameworkCard: View {
     let isSelected: Bool
     let onToggle: () -> Void
     
-    @Environment(\.unifiedTheme) var theme
-    @Environment(\.colorScheme) var colorScheme
+    @SwiftUI.Environment(\.unifiedTheme) var theme
+    @SwiftUI.Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         let colors = theme.colors(for: colorScheme)
